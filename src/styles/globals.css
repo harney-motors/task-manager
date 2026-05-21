@@ -1,0 +1,100 @@
+@import "tailwindcss";
+
+/*
+  Theme tokens ported from docs/loop-prototype.html.
+  Anything declared here becomes a Tailwind utility automatically
+  (e.g. --color-surface => bg-surface, text-surface, border-surface).
+*/
+@theme {
+  /* Fonts */
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+
+  /* Surfaces & text */
+  --color-bg: #FAFAF7;
+  --color-surface: #FFFFFF;
+  --color-surface-2: #F4F2EC;
+  --color-surface-3: #ECE9E1;
+  --color-border: #E5E2D9;
+  --color-border-strong: #D4D0C4;
+  --color-text: #1F1E1B;
+  --color-text-2: #5F5E5A;
+  --color-text-3: #8E8D87;
+
+  /* Semantic */
+  --color-info: #185FA5;
+  --color-info-bg: #E6F1FB;
+  --color-info-text: #0C447C;
+  --color-success: #1D9E75;
+  --color-success-bg: #E1F5EE;
+  --color-success-text: #085041;
+  --color-danger-bg: #FCEBEB;
+  --color-danger-text: #791F1F;
+  --color-warning-bg: #FAEEDA;
+  --color-warning-text: #633806;
+  --color-in-progress-bg: #E6F1FB;
+  --color-in-progress-text: #0C447C;
+
+  /* PIC palette — purple */
+  --color-pic-purple-bg: #EEEDFE;
+  --color-pic-purple-text: #3C3489;
+  --color-pic-purple-dot: #534AB7;
+  /* coral */
+  --color-pic-coral-bg: #FAECE7;
+  --color-pic-coral-text: #712B13;
+  --color-pic-coral-dot: #D85A30;
+  /* pink */
+  --color-pic-pink-bg: #FBEAF0;
+  --color-pic-pink-text: #72243E;
+  --color-pic-pink-dot: #D4537E;
+  /* green */
+  --color-pic-green-bg: #EAF3DE;
+  --color-pic-green-text: #27500A;
+  --color-pic-green-dot: #639922;
+  /* amber */
+  --color-pic-amber-bg: #FAEEDA;
+  --color-pic-amber-text: #633806;
+  --color-pic-amber-dot: #BA7517;
+  /* blue */
+  --color-pic-blue-bg: #E6F1FB;
+  --color-pic-blue-text: #0C447C;
+  --color-pic-blue-dot: #378ADD;
+  /* teal */
+  --color-pic-teal-bg: #E1F5EE;
+  --color-pic-teal-text: #085041;
+  --color-pic-teal-dot: #1D9E75;
+  /* gray */
+  --color-pic-gray-bg: #F1EFE8;
+  --color-pic-gray-text: #444441;
+  --color-pic-gray-dot: #888780;
+  /* red */
+  --color-pic-red-bg: #FCEBEB;
+  --color-pic-red-text: #791F1F;
+  --color-pic-red-dot: #A32D2D;
+
+  /* Department palette */
+  --color-dept-strategy-bg: #E1F5EE;
+  --color-dept-strategy-text: #085041;
+  --color-dept-service-bg: #E6F1FB;
+  --color-dept-service-text: #0C447C;
+  --color-dept-sales-bg: #FAEEDA;
+  --color-dept-sales-text: #633806;
+  --color-dept-finance-bg: #F1EFE8;
+  --color-dept-finance-text: #444441;
+  --color-dept-parts-bg: #FBEAF0;
+  --color-dept-parts-text: #72243E;
+  --color-dept-ops-bg: #EEEDFE;
+  --color-dept-ops-text: #3C3489;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

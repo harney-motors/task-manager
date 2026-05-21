@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cp \"/Users/asbertbaptiste/Downloads/files 2/BUILD_PLAN.md\" /Users/asbertbaptiste/Documents/task-manager/docs/BUILD_PLAN.md)",
+      "Bash(cp \"/Users/asbertbaptiste/Downloads/files 2/loop-prototype.html\" /Users/asbertbaptiste/Documents/task-manager/docs/loop-prototype.html)",
+      "Bash(gh auth *)",
+      "Bash(npm --version)",
+      "Bash(git --version)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}

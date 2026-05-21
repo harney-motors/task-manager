@@ -1,0 +1,2671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loop — Task Manager Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #FAFAF7;
+    --surface: #FFFFFF;
+    --surface-2: #F4F2EC;
+    --surface-3: #ECE9E1;
+    --border: #E5E2D9;
+    --border-strong: #D4D0C4;
+    --text: #1F1E1B;
+    --text-2: #5F5E5A;
+    --text-3: #8E8D87;
+    --info-bg: #E6F1FB;
+    --info-text: #0C447C;
+    --info: #185FA5;
+    --success: #1D9E75;
+    --success-bg: #E1F5EE;
+    --success-text: #085041;
+    --danger-bg: #FCEBEB;
+    --danger-text: #791F1F;
+    --warning-bg: #FAEEDA;
+    --warning-text: #633806;
+    --in-progress-bg: #E6F1FB;
+    --in-progress-text: #0C447C;
+
+    /* PIC colors */
+    --pic-purple-bg: #EEEDFE; --pic-purple-text: #3C3489; --pic-purple-dot: #534AB7;
+    --pic-coral-bg: #FAECE7; --pic-coral-text: #712B13; --pic-coral-dot: #D85A30;
+    --pic-pink-bg: #FBEAF0; --pic-pink-text: #72243E; --pic-pink-dot: #D4537E;
+    --pic-green-bg: #EAF3DE; --pic-green-text: #27500A; --pic-green-dot: #639922;
+    --pic-amber-bg: #FAEEDA; --pic-amber-text: #633806; --pic-amber-dot: #BA7517;
+    --pic-blue-bg: #E6F1FB; --pic-blue-text: #0C447C; --pic-blue-dot: #378ADD;
+    --pic-teal-bg: #E1F5EE; --pic-teal-text: #085041; --pic-teal-dot: #1D9E75;
+    --pic-gray-bg: #F1EFE8; --pic-gray-text: #444441; --pic-gray-dot: #888780;
+    --pic-red-bg: #FCEBEB; --pic-red-text: #791F1F; --pic-red-dot: #A32D2D;
+
+    /* Department colors */
+    --dept-strategy-bg: #E1F5EE; --dept-strategy-text: #085041;
+    --dept-service-bg: #E6F1FB; --dept-service-text: #0C447C;
+    --dept-sales-bg: #FAEEDA; --dept-sales-text: #633806;
+    --dept-finance-bg: #F1EFE8; --dept-finance-text: #444441;
+    --dept-parts-bg: #FBEAF0; --dept-parts-text: #72243E;
+    --dept-ops-bg: #EEEDFE; --dept-ops-text: #3C3489;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+
+  /* App shell */
+  .app {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px 24px 60px;
+  }
+
+  /* Top bar */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .brand-mark {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: var(--info);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+  }
+  .brand-name {
+    font-size: 16px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+  .brand-date {
+    font-size: 13px;
+    color: var(--text-3);
+    margin-left: 6px;
+  }
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .icon-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: 0.5px solid var(--border);
+    background: var(--surface);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-2);
+    transition: all 0.15s;
+  }
+  .icon-btn:hover {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .avatar-self {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--info-bg);
+    color: var(--info-text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  /* Greeting */
+  .greeting {
+    margin-bottom: 20px;
+  }
+  .greeting h1 {
+    font-size: 24px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+  }
+  .greeting p {
+    font-size: 13px;
+    color: var(--text-2);
+  }
+  .greeting code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: var(--surface-2);
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+
+  /* View tabs */
+  .view-tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    background: var(--surface-2);
+    border-radius: 10px;
+    margin-bottom: 16px;
+    width: fit-content;
+  }
+  .view-tab {
+    padding: 8px 16px;
+    font-size: 13px;
+    border: none;
+    background: transparent;
+    color: var(--text-2);
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .view-tab:hover { color: var(--text); }
+  .view-tab.active {
+    background: var(--surface);
+    color: var(--text);
+    font-weight: 500;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+
+  /* Quick entry */
+  .quick-entry {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .quick-entry i.sparkle {
+    color: var(--info);
+    font-size: 18px;
+  }
+  .quick-entry input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--text);
+    outline: none;
+  }
+  .quick-entry input::placeholder { color: var(--text-3); }
+  .voice-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 0.5px solid var(--border);
+    background: var(--surface-2);
+    cursor: pointer;
+    color: var(--text-2);
+    transition: all 0.15s;
+  }
+  .voice-btn:hover { background: var(--surface-3); color: var(--text); }
+  .voice-btn.recording {
+    background: var(--danger-bg);
+    color: var(--danger-text);
+    animation: pulse 1.2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+  }
+  .btn {
+    padding: 8px 14px;
+    font-size: 13px;
+    border-radius: 8px;
+    border: 0.5px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 500;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn:hover { background: var(--surface-2); }
+  .btn-primary {
+    background: var(--info);
+    color: white;
+    border-color: var(--info);
+  }
+  .btn-primary:hover { background: #134A82; }
+  .btn-whatsapp {
+    background: var(--success);
+    color: white;
+    border-color: var(--success);
+  }
+  .btn-whatsapp:hover { background: #167D5C; }
+  .btn-danger {
+    color: var(--danger-text);
+  }
+
+  /* Metrics */
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .metric {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .metric-label {
+    font-size: 12px;
+    color: var(--text-2);
+    margin-bottom: 4px;
+  }
+  .metric-value {
+    font-size: 24px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+  }
+  .metric-value.danger { color: var(--danger-text); }
+  .metric-value.success { color: var(--success-text); }
+
+  /* Panels */
+  .panel {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .panel-title {
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .panel-body { padding: 4px 18px; }
+
+  /* List view */
+  .task-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 0.5px solid var(--border);
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .task-row:last-child { border-bottom: none; }
+  .task-row:hover { background: var(--surface-2); margin: 0 -18px; padding-left: 18px; padding-right: 18px; }
+  .task-checkbox {
+    font-size: 18px;
+    color: var(--text-3);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .task-checkbox.done { color: var(--success); }
+  .task-content {
+    flex: 1;
+    min-width: 0;
+  }
+  .task-title {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 2px;
+  }
+  .task-title.done {
+    text-decoration: line-through;
+    color: var(--text-3);
+  }
+  .task-meta {
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .task-status {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+  .status-open { background: var(--warning-bg); color: var(--warning-text); }
+  .status-in-progress { background: var(--in-progress-bg); color: var(--in-progress-text); }
+  .status-overdue { background: var(--danger-bg); color: var(--danger-text); }
+  .status-done { background: var(--success-bg); color: var(--success-text); }
+  .status-scheduled { background: var(--info-bg); color: var(--info-text); }
+
+  /* Grid view */
+  .grid-view {
+    overflow-x: auto;
+  }
+  .grid-header, .grid-row {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 2.2fr) 110px 110px 90px 100px 100px;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 0;
+  }
+  .grid-header {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-2);
+    border-bottom: 0.5px solid var(--border-strong);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .grid-row {
+    border-bottom: 0.5px solid var(--border);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .grid-row:hover { background: var(--surface-2); }
+  .grid-row .ellipsis {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Pill (used for PIC, Department, Tags) */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    width: fit-content;
+  }
+  .pill-pic-purple { background: var(--pic-purple-bg); color: var(--pic-purple-text); }
+  .pill-pic-coral { background: var(--pic-coral-bg); color: var(--pic-coral-text); }
+  .pill-pic-pink { background: var(--pic-pink-bg); color: var(--pic-pink-text); }
+  .pill-pic-green { background: var(--pic-green-bg); color: var(--pic-green-text); }
+  .pill-pic-amber { background: var(--pic-amber-bg); color: var(--pic-amber-text); }
+  .pill-pic-blue { background: var(--pic-blue-bg); color: var(--pic-blue-text); }
+  .pill-pic-teal { background: var(--pic-teal-bg); color: var(--pic-teal-text); }
+  .pill-pic-gray { background: var(--pic-gray-bg); color: var(--pic-gray-text); }
+  .pill-pic-red { background: var(--pic-red-bg); color: var(--pic-red-text); }
+
+  .pill-dept-Strategy { background: var(--dept-strategy-bg); color: var(--dept-strategy-text); }
+  .pill-dept-Service { background: var(--dept-service-bg); color: var(--dept-service-text); }
+  .pill-dept-Sales { background: var(--dept-sales-bg); color: var(--dept-sales-text); }
+  .pill-dept-Finance { background: var(--dept-finance-bg); color: var(--dept-finance-text); }
+  .pill-dept-Parts { background: var(--dept-parts-bg); color: var(--dept-parts-text); }
+  .pill-dept-Operations { background: var(--dept-ops-bg); color: var(--dept-ops-text); }
+
+  .pill-tag {
+    background: var(--surface-2);
+    color: var(--text-2);
+  }
+
+  .grid-due-overdue { color: var(--danger-text); font-weight: 500; }
+  .grid-due-today { color: var(--info); font-weight: 500; }
+
+  /* PIC view */
+  .pic-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 14px 18px;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .pic-chip {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 0.5px solid var(--border);
+    background: var(--surface);
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+    color: var(--text-2);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s;
+  }
+  .pic-chip:hover { background: var(--surface-2); color: var(--text); }
+  .pic-chip.active {
+    background: var(--surface-2);
+    border-color: var(--border-strong);
+    color: var(--text);
+    font-weight: 500;
+  }
+  .pic-chip-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+  .pic-chip-count {
+    color: var(--text-3);
+    font-weight: 400;
+  }
+
+  .pic-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    background: var(--surface-2);
+    margin: 0;
+  }
+  .pic-header-left { display: flex; align-items: center; gap: 12px; }
+  .pic-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .pic-info-name { font-size: 15px; font-weight: 500; }
+  .pic-info-meta { font-size: 12px; color: var(--text-2); }
+
+  /* Calendar */
+  .calendar-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 18px;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .calendar-nav { display: flex; align-items: center; gap: 8px; }
+  .calendar-nav-title { font-size: 15px; font-weight: 500; margin: 0 4px; }
+  .week-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+    padding: 14px 18px;
+  }
+  .week-grid.range-month {
+    gap: 4px;
+  }
+  .day-header {
+    font-size: 10px;
+    color: var(--text-2);
+    text-align: center;
+    padding: 4px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 500;
+  }
+  .day-cell {
+    min-height: 130px;
+    padding: 8px;
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    position: relative;
+  }
+  .day-cell:hover { border-color: var(--border-strong); }
+  .day-cell.today {
+    background: var(--info-bg);
+    border-color: var(--info);
+  }
+  .day-cell.weekend {
+    background: var(--surface-2);
+  }
+  .day-cell.other-month {
+    opacity: 0.45;
+  }
+  .day-cell.range-2week {
+    min-height: 110px;
+  }
+  .day-cell.range-month {
+    min-height: 88px;
+    padding: 6px;
+  }
+  .day-cell.drag-over {
+    background: var(--info-bg) !important;
+    border-color: var(--info) !important;
+    border-style: dashed !important;
+    border-width: 1.5px;
+  }
+  .day-cell.drag-over .day-num {
+    color: var(--info-text);
+    font-weight: 600;
+  }
+  .day-num {
+    font-size: 12px;
+    color: var(--text-2);
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+  .day-cell.today .day-num { color: var(--info-text); }
+  .day-task {
+    font-size: 10px;
+    padding: 3px 6px;
+    border-radius: 4px;
+    margin-bottom: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: grab;
+    user-select: none;
+    transition: opacity 0.15s, transform 0.15s;
+  }
+  .day-task:active { cursor: grabbing; }
+  .day-task.dragging {
+    opacity: 0.4;
+    transform: scale(0.95);
+  }
+  .day-cell.range-month .day-task {
+    font-size: 9px;
+    padding: 2px 4px;
+    margin-bottom: 2px;
+  }
+
+  /* Range toggle */
+  .calendar-range-toggle {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    background: var(--surface-2);
+    border-radius: 8px;
+    border: 0.5px solid var(--border);
+  }
+  .calendar-range-btn {
+    padding: 5px 12px;
+    font-size: 12px;
+    border: none;
+    background: transparent;
+    color: var(--text-2);
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .calendar-range-btn:hover { color: var(--text); }
+  .calendar-range-btn.active {
+    background: var(--surface);
+    color: var(--text);
+    font-weight: 500;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+
+  /* Ghost preview during drag */
+  .drag-ghost {
+    position: fixed;
+    pointer-events: none;
+    z-index: 200;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    opacity: 0.9;
+    transform: rotate(-2deg);
+    white-space: nowrap;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 50;
+    display: none;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 40px 20px;
+    overflow-y: auto;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 540px;
+    border: 0.5px solid var(--border);
+    transition: max-width 0.25s;
+    display: flex;
+    flex-direction: column;
+  }
+  .modal-shell {
+    display: flex;
+    width: 100%;
+    max-width: 540px;
+    transition: max-width 0.25s;
+    align-items: stretch;
+  }
+  .modal-shell.with-journal {
+    max-width: 880px;
+  }
+  .modal-shell.with-journal .modal {
+    border-radius: 14px 0 0 14px;
+    border-right: none;
+    flex: 1;
+  }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .modal-header-left { display: flex; align-items: center; gap: 8px; }
+  .modal-header-right { display: flex; align-items: center; gap: 6px; }
+  .task-id { font-size: 12px; color: var(--text-3); font-family: 'JetBrains Mono', monospace; }
+  .modal-title-area { padding: 16px 18px 8px; }
+  .modal-title {
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 1.4;
+    margin-bottom: 6px;
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    outline: none;
+    resize: none;
+  }
+  .modal-title:focus {
+    background: var(--surface-2);
+    border-radius: 4px;
+    padding: 2px 4px;
+    margin-left: -4px;
+  }
+  .modal-source {
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .field-grid { padding: 8px 18px 16px; }
+  .field-row {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 0;
+    border-top: 0.5px solid var(--border);
+  }
+  .field-label {
+    font-size: 12px;
+    color: var(--text-2);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .field-value {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+  }
+  .field-value select, .field-value input[type="date"] {
+    border: 0.5px solid var(--border);
+    background: var(--surface);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .field-value select:hover, .field-value input[type="date"]:hover {
+    background: var(--surface-2);
+  }
+  .modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    background: var(--surface-2);
+    border-radius: 0 0 14px 14px;
+    border-top: 0.5px solid var(--border);
+  }
+  .modal-shell.with-journal .modal .modal-footer {
+    border-radius: 0 0 0 14px;
+  }
+  .modal-footer-right { display: flex; gap: 8px; }
+
+  /* Journal sidebar */
+  .journal {
+    background: var(--surface-2);
+    width: 300px;
+    flex-shrink: 0;
+    border: 0.5px solid var(--border);
+    border-radius: 0 14px 14px 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .journal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .journal-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .journal-count {
+    font-size: 10px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--info-bg);
+    color: var(--info-text);
+    font-weight: 500;
+  }
+  .journal-entries {
+    padding: 14px 16px;
+    flex: 1;
+    max-height: 380px;
+    overflow-y: auto;
+  }
+  .journal-entry { margin-bottom: 14px; }
+  .journal-entry-time {
+    font-size: 11px;
+    color: var(--text-2);
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .journal-entry-body {
+    font-size: 12px;
+    line-height: 1.55;
+    padding: 8px 10px;
+    background: var(--surface);
+    border-radius: 6px;
+    border-left: 2px solid var(--info);
+  }
+  .journal-status-divider {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 10px 0 14px;
+  }
+  .journal-status-divider hr {
+    border: none;
+    height: 0.5px;
+    background: var(--border-strong);
+    flex: 1;
+  }
+  .journal-status-divider span {
+    font-size: 10px;
+    color: var(--text-3);
+    padding: 0 4px;
+  }
+  .journal-composer {
+    padding: 12px 14px;
+    border-top: 0.5px solid var(--border);
+    background: var(--surface);
+    border-radius: 0 0 14px 0;
+  }
+  .journal-composer textarea {
+    width: 100%;
+    min-height: 56px;
+    font-family: inherit;
+    font-size: 12px;
+    padding: 8px 10px;
+    border: 0.5px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    resize: vertical;
+    margin-bottom: 8px;
+    outline: none;
+  }
+  .journal-composer textarea:focus { border-color: var(--info); }
+  .journal-composer-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .journal-toggle-btn {
+    padding: 4px 10px;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface-2);
+    border-radius: 6px;
+    border: 0.5px solid var(--border);
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--text);
+  }
+  .journal-toggle-btn:hover { background: var(--surface-3); }
+
+  /* Share modal */
+  .share-modal {
+    max-width: 380px;
+    background: var(--surface);
+    border-radius: 14px;
+    border: 0.5px solid var(--border);
+    overflow: hidden;
+  }
+  .wa-frame {
+    background: #ECE5DD;
+    margin: 20px;
+    border-radius: 14px;
+    padding: 14px;
+  }
+  .wa-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 0.5px solid rgba(0,0,0,0.08);
+  }
+  .wa-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #25D366;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .wa-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: #075E54;
+  }
+  .wa-bubble {
+    background: white;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #1f2c34;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.04);
+  }
+  .wa-bubble .wa-bold { font-weight: 600; }
+  .wa-bubble .wa-italic { color: #667781; }
+  .wa-time {
+    text-align: right;
+    font-size: 10px;
+    color: #667781;
+    margin-top: 4px;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--text);
+    color: white;
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 100;
+    transition: transform 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* Hidden view containers */
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* Settings page */
+  .settings-grid {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 0;
+  }
+  .settings-nav {
+    border-right: 0.5px solid var(--border);
+    padding: 14px 8px;
+    background: var(--surface-2);
+    min-height: 500px;
+  }
+  .settings-nav-btn {
+    width: 100%;
+    text-align: left;
+    padding: 8px 12px;
+    font-size: 13px;
+    border-radius: 6px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    margin-bottom: 2px;
+    color: var(--text-2);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .settings-nav-btn:hover { background: var(--surface); color: var(--text); }
+  .settings-nav-btn.active {
+    background: var(--surface);
+    color: var(--text);
+    font-weight: 500;
+    border: 0.5px solid var(--border);
+  }
+  .settings-content {
+    padding: 18px 22px;
+  }
+  .settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .settings-header h2 {
+    font-size: 17px;
+    font-weight: 500;
+  }
+  .people-table {
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .people-header, .people-row {
+    display: grid;
+    grid-template-columns: 1.6fr 1.2fr 1fr 100px;
+    gap: 12px;
+    padding: 12px 16px;
+    align-items: center;
+    font-size: 13px;
+  }
+  .people-header {
+    background: var(--surface-2);
+    font-size: 11px;
+    color: var(--text-2);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .people-row {
+    border-bottom: 0.5px solid var(--border);
+  }
+  .people-row:last-child { border-bottom: none; }
+  .people-row:hover { background: var(--surface-2); }
+  .person-name { display: flex; align-items: center; gap: 10px; }
+
+  /* Prototype helper banner */
+  .proto-banner {
+    background: var(--surface-2);
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--text-2);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .proto-banner i { color: var(--info); }
+  .proto-banner code {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--surface);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+  }
+
+  /* Two-column layout for homepage */
+  .home-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  /* Footer activity */
+  .activity {
+    background: var(--surface-2);
+    border-radius: 10px;
+    padding: 14px 18px;
+  }
+  .activity-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .activity-item {
+    font-size: 13px;
+    margin-bottom: 6px;
+  }
+  .activity-item:last-child { margin-bottom: 0; }
+  .activity-item .undo {
+    color: var(--text-3);
+    margin-left: 4px;
+    cursor: pointer;
+    font-size: 11px;
+  }
+  .activity-item .undo:hover { color: var(--info); text-decoration: underline; }
+
+  /* Calendar legend */
+  .calendar-legend {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 10px 18px;
+    background: var(--surface-2);
+    border-bottom: 0.5px solid var(--border);
+  }
+
+  /* Up next panel */
+  .up-next-item {
+    display: flex;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .up-next-item:last-child { border-bottom: none; }
+  .up-next-bar {
+    width: 4px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .up-next-time {
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .up-next-name {
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  /* Day detail */
+  .day-detail-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--surface-2);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    cursor: pointer;
+  }
+  .day-detail-card:hover { background: var(--surface-3); }
+  .day-detail-bar {
+    width: 4px;
+    height: 36px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-3);
+    font-size: 13px;
+  }
+  .empty-state i {
+    font-size: 28px;
+    color: var(--border-strong);
+    margin-bottom: 8px;
+  }
+
+  /* Voice indicator */
+  .voice-status {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    background: var(--danger-bg);
+    color: var(--danger-text);
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .voice-status.active { display: inline-flex; }
+  .voice-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--danger-text);
+    animation: pulse 1s infinite;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Prototype banner -->
+  <div class="proto-banner">
+    <i class="ti ti-flask"></i>
+    <span>Loop prototype · click anywhere to explore · drag tasks across calendar days to reschedule · switch between 1 week, 2 weeks, and month views · data resets on refresh</span>
+  </div>
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark"><i class="ti ti-checkbox" style="font-size:16px"></i></div>
+      <div class="brand-name">Loop</div>
+      <div class="brand-date" id="date-display"></div>
+    </div>
+    <div class="topbar-right">
+      <button class="icon-btn" title="Settings" onclick="switchView('settings')"><i class="ti ti-settings" style="font-size:16px"></i></button>
+      <button class="icon-btn" title="Notifications"><i class="ti ti-bell" style="font-size:16px"></i></button>
+      <div class="avatar-self">DH</div>
+    </div>
+  </div>
+
+  <!-- Greeting -->
+  <div class="greeting" id="greeting-area">
+    <h1 id="greeting-text">Good afternoon, Dyna</h1>
+    <p id="greeting-stats"></p>
+  </div>
+
+  <!-- Quick entry -->
+  <div class="quick-entry">
+    <i class="ti ti-sparkles sparkle"></i>
+    <input
+      type="text"
+      id="quick-entry-input"
+      placeholder='Type a task and press Enter — e.g. "Asbert to confirm board agenda by Friday"'
+      autocomplete="off"
+    />
+    <div class="voice-status" id="voice-status">
+      <div class="voice-dot"></div>
+      <span>Listening...</span>
+    </div>
+    <button class="voice-btn" id="voice-btn" title="Voice input"><i class="ti ti-microphone" style="font-size:16px"></i></button>
+  </div>
+
+  <!-- View tabs -->
+  <div class="view-tabs">
+    <button class="view-tab active" data-view="list" onclick="switchView('list')"><i class="ti ti-list" style="font-size:14px"></i>List</button>
+    <button class="view-tab" data-view="grid" onclick="switchView('grid')"><i class="ti ti-table" style="font-size:14px"></i>Grid</button>
+    <button class="view-tab" data-view="pic" onclick="switchView('pic')"><i class="ti ti-users" style="font-size:14px"></i>By PIC</button>
+    <button class="view-tab" data-view="calendar" onclick="switchView('calendar')"><i class="ti ti-calendar" style="font-size:14px"></i>Calendar</button>
+  </div>
+
+  <!-- Metrics -->
+  <div class="metrics" id="metrics"></div>
+
+  <!-- LIST VIEW -->
+  <div class="view active" id="view-list">
+    <div class="home-grid">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Today & overdue</div>
+          <button class="btn" style="padding:4px 10px;font-size:12px"><i class="ti ti-filter" style="font-size:13px"></i>Filter</button>
+        </div>
+        <div class="panel-body" id="list-today"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Up next</div>
+          <button class="btn" style="padding:4px 10px;font-size:12px" onclick="switchView('calendar')">Calendar</button>
+        </div>
+        <div class="panel-body" id="list-upcoming"></div>
+      </div>
+    </div>
+
+    <div class="activity">
+      <div class="activity-header">
+        <i class="ti ti-history" style="font-size:14px"></i>
+        <span>Recent activity</span>
+      </div>
+      <div id="activity-log"></div>
+    </div>
+  </div>
+
+  <!-- GRID VIEW -->
+  <div class="view" id="view-grid">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">All tasks · grid</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn" style="padding:4px 10px;font-size:12px"><i class="ti ti-filter" style="font-size:13px"></i>Filter</button>
+          <button class="btn" style="padding:4px 10px;font-size:12px" onclick="switchView('pic')"><i class="ti ti-users" style="font-size:13px"></i>Group by PIC</button>
+        </div>
+      </div>
+      <div class="panel-body grid-view">
+        <div class="grid-header">
+          <div></div>
+          <div>Task</div>
+          <div>PIC</div>
+          <div>Department</div>
+          <div>Due</div>
+          <div>Tags</div>
+          <div>Status</div>
+        </div>
+        <div id="grid-rows"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PIC VIEW -->
+  <div class="view" id="view-pic">
+    <div class="panel">
+      <div class="pic-chips" id="pic-chips"></div>
+      <div class="pic-header" id="pic-header"></div>
+      <div class="panel-body" id="pic-tasks"></div>
+    </div>
+  </div>
+
+  <!-- CALENDAR VIEW -->
+  <div class="view" id="view-calendar">
+    <div class="panel">
+      <div class="calendar-controls">
+        <div class="calendar-nav">
+          <button class="icon-btn" onclick="changeWeek(-1)"><i class="ti ti-chevron-left" style="font-size:14px"></i></button>
+          <div class="calendar-nav-title" id="calendar-title">May 2026</div>
+          <button class="icon-btn" onclick="changeWeek(1)"><i class="ti ti-chevron-right" style="font-size:14px"></i></button>
+          <button class="btn" style="padding:4px 10px;font-size:12px;margin-left:6px" onclick="resetWeek()">Today</button>
+        </div>
+        <div class="calendar-range-toggle">
+          <button class="calendar-range-btn active" data-range="1" onclick="setRange(1)">1 week</button>
+          <button class="calendar-range-btn" data-range="2" onclick="setRange(2)">2 weeks</button>
+          <button class="calendar-range-btn" data-range="month" onclick="setRange('month')">Month</button>
+        </div>
+      </div>
+      <div class="calendar-legend" id="calendar-legend"></div>
+      <div class="week-grid" id="week-grid"></div>
+      <div style="padding:14px 18px;border-top:0.5px solid var(--border)">
+        <div style="font-size:13px;font-weight:500;margin-bottom:10px" id="day-detail-title">Click a day to see its tasks</div>
+        <div id="day-detail-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS VIEW -->
+  <div class="view" id="view-settings">
+    <div class="panel">
+      <div class="settings-grid">
+        <div class="settings-nav">
+          <button class="settings-nav-btn active"><i class="ti ti-users" style="font-size:14px"></i>People</button>
+          <button class="settings-nav-btn"><i class="ti ti-building" style="font-size:14px"></i>Departments</button>
+          <button class="settings-nav-btn"><i class="ti ti-tag" style="font-size:14px"></i>Tags</button>
+          <button class="settings-nav-btn"><i class="ti ti-brand-whatsapp" style="font-size:14px"></i>WhatsApp</button>
+          <button class="settings-nav-btn"><i class="ti ti-mail" style="font-size:14px"></i>Email</button>
+          <button class="settings-nav-btn"><i class="ti ti-user" style="font-size:14px"></i>My profile</button>
+        </div>
+        <div class="settings-content">
+          <div class="settings-header">
+            <div>
+              <h2>People</h2>
+              <p style="font-size:12px;color:var(--text-2);margin-top:2px">PICs receive tasks; editors can also create and modify them.</p>
+            </div>
+            <button class="btn btn-primary"><i class="ti ti-plus" style="font-size:13px"></i>Add person</button>
+          </div>
+          <div class="people-table">
+            <div class="people-header">
+              <div>Name</div>
+              <div>Title</div>
+              <div>Department</div>
+              <div>Role</div>
+            </div>
+            <div id="people-rows"></div>
+          </div>
+          <p style="font-size:11px;color:var(--text-3);margin-top:10px" id="people-summary"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- TASK MODAL -->
+<div class="modal-overlay" id="task-modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal-shell" id="modal-shell">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-header-left">
+          <i class="ti ti-square task-checkbox" id="modal-checkbox" onclick="toggleTaskDone()"></i>
+          <span class="task-status" id="modal-status">Open</span>
+          <span class="task-id" id="modal-id">T-0000</span>
+        </div>
+        <div class="modal-header-right">
+          <button class="journal-toggle-btn" onclick="toggleJournal()">
+            <i class="ti ti-notebook" style="font-size:13px"></i>
+            <span>Journal</span>
+            <span class="journal-count" id="journal-count">0</span>
+            <i class="ti ti-chevron-left" id="journal-chevron" style="font-size:12px"></i>
+          </button>
+          <button class="icon-btn" onclick="closeModal()"><i class="ti ti-x" style="font-size:14px"></i></button>
+        </div>
+      </div>
+      <div class="modal-title-area">
+        <textarea class="modal-title" id="modal-title" rows="2" oninput="updateTaskTitle(this.value)"></textarea>
+        <div class="modal-source" id="modal-source"></div>
+      </div>
+      <div class="field-grid">
+        <div class="field-row">
+          <div class="field-label"><i class="ti ti-user" style="font-size:13px"></i>PIC</div>
+          <div class="field-value">
+            <select id="field-pic" onchange="updateField('pic_id', this.value)"></select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-label"><i class="ti ti-building" style="font-size:13px"></i>Department</div>
+          <div class="field-value">
+            <select id="field-dept" onchange="updateField('department', this.value)"></select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-label"><i class="ti ti-calendar-due" style="font-size:13px"></i>Due</div>
+          <div class="field-value">
+            <input type="date" id="field-due" onchange="updateField('due_date', this.value)" />
+            <span id="field-due-relative" style="font-size:11px;color:var(--text-3)"></span>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-label"><i class="ti ti-flag" style="font-size:13px"></i>Priority</div>
+          <div class="field-value">
+            <select id="field-priority" onchange="updateField('priority', this.value)">
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-label"><i class="ti ti-flag" style="font-size:13px"></i>Status</div>
+          <div class="field-value">
+            <select id="field-status" onchange="updateField('status', this.value)">
+              <option value="Open">Open</option>
+              <option value="In progress">In progress</option>
+              <option value="Done">Done</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-label"><i class="ti ti-tag" style="font-size:13px"></i>Tags</div>
+          <div class="field-value" id="field-tags"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-danger" onclick="deleteTask()"><i class="ti ti-trash" style="font-size:13px"></i>Delete</button>
+        <div class="modal-footer-right">
+          <button class="btn" onclick="markDone()"><i class="ti ti-check" style="font-size:13px"></i>Mark done</button>
+          <button class="btn btn-whatsapp" onclick="openShare()"><i class="ti ti-brand-whatsapp" style="font-size:13px"></i>Send to WhatsApp</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Journal sidebar -->
+    <div class="journal" id="journal-panel" style="display:none">
+      <div class="journal-header">
+        <div class="journal-header-left">
+          <i class="ti ti-notebook" style="font-size:15px;color:var(--text-2)"></i>
+          <span style="font-size:13px;font-weight:500">Journal</span>
+          <span class="journal-count" id="journal-count-2">0</span>
+        </div>
+        <button class="icon-btn" onclick="toggleJournal()" style="width:24px;height:24px"><i class="ti ti-chevron-right" style="font-size:13px"></i></button>
+      </div>
+      <div class="journal-entries" id="journal-entries"></div>
+      <div class="journal-composer">
+        <textarea id="journal-input" placeholder="Add a progress note..."></textarea>
+        <div class="journal-composer-actions">
+          <button class="icon-btn" style="width:26px;height:26px"><i class="ti ti-microphone" style="font-size:13px"></i></button>
+          <button class="btn btn-primary" style="padding:4px 10px;font-size:11px" onclick="saveJournalEntry()">Save note</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SHARE MODAL -->
+<div class="modal-overlay" id="share-modal-overlay" onclick="if(event.target===this)closeShare()">
+  <div class="share-modal">
+    <div class="modal-header">
+      <div style="font-size:14px;font-weight:500">Share to my WhatsApp</div>
+      <button class="icon-btn" onclick="closeShare()"><i class="ti ti-x" style="font-size:14px"></i></button>
+    </div>
+    <div style="padding:14px 18px;font-size:12px;color:var(--text-2)">
+      This is what will appear in your WhatsApp. Forward it to the PIC when ready.
+    </div>
+    <div class="wa-frame">
+      <div class="wa-header">
+        <div class="wa-avatar">L</div>
+        <div>
+          <div class="wa-name">Loop · Tasks</div>
+        </div>
+      </div>
+      <div class="wa-bubble" id="wa-bubble"></div>
+      <div class="wa-time">Now ✓✓</div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:6px;padding:14px 18px;background:var(--surface-2);border-top:0.5px solid var(--border)">
+      <button class="btn" onclick="closeShare()">Cancel</button>
+      <button class="btn btn-whatsapp" onclick="sendShare()"><i class="ti ti-send" style="font-size:13px"></i>Send to my WhatsApp</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// DATA — fully in-memory state
+// ============================================================
+
+const PEOPLE = [
+  { id: 'dh', name: 'Dyna Harney-Barnes', initials: 'DH', title: 'General Manager', department: '—', role: 'Owner', color: 'blue' },
+  { id: 'ab', name: 'Asbert Baptiste', initials: 'AB', title: 'Strategy', department: 'Strategy', role: 'PIC', color: 'purple' },
+  { id: 'ca', name: 'Clem Abbott', initials: 'CA', title: 'Service Manager', department: 'Service', role: 'PIC', color: 'coral' },
+  { id: 'sb', name: 'Stephen Barnes', initials: 'SB', title: 'Sales Manager', department: 'Sales', role: 'PIC', color: 'pink' },
+  { id: 'rd', name: "Richard D'Ornellas", initials: 'RD', title: 'Financial Control', department: 'Finance', role: 'PIC', color: 'green' },
+  { id: 'cd', name: 'Charlene Dinard', initials: 'CD', title: 'Parts Supervisor', department: 'Parts', role: 'PIC', color: 'amber' },
+  { id: 'kl', name: 'Kieron Leonard', initials: 'KL', title: 'Parts Manager', department: 'Parts', role: 'PIC', color: 'red' },
+  { id: 'lb', name: 'Leslie Barnes', initials: 'LB', title: 'Operations Manager', department: 'Operations', role: 'PIC', color: 'teal' },
+  { id: 'sq', name: 'Sasha Quashie', initials: 'SQ', title: 'Service Supervisor', department: 'Service', role: 'PIC', color: 'gray' },
+  { id: 'ch', name: 'Cymone Hughes', initials: 'CH', title: 'Warranty Administrator', department: 'Service', role: 'PIC', color: 'green' },
+];
+
+const DEPARTMENTS = ['Strategy', 'Service', 'Sales', 'Finance', 'Parts', 'Operations'];
+
+// Compute date helpers
+const today = new Date();
+today.setHours(0,0,0,0);
+
+function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function isoDate(d) {
+  return d.toISOString().split('T')[0];
+}
+
+function formatShortDate(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr + 'T00:00:00');
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${days[d.getDay()]} ${d.getDate()}`;
+}
+
+function formatRelative(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  const diffDays = Math.round((d - today) / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return 'today';
+  if (diffDays === 1) return 'tomorrow';
+  if (diffDays === -1) return 'yesterday';
+  if (diffDays > 1) return `in ${diffDays} days`;
+  return `${Math.abs(diffDays)} days ago`;
+}
+
+function isOverdue(dateStr) {
+  if (!dateStr) return false;
+  const d = new Date(dateStr + 'T00:00:00');
+  return d < today;
+}
+
+function isToday(dateStr) {
+  if (!dateStr) return false;
+  return dateStr === isoDate(today);
+}
+
+// Seed tasks
+let TASKS = [
+  {
+    id: 'T-0142',
+    title: 'Present revised 5-year strategy to board',
+    notes: 'Focus on EV portfolio expansion. Board wants capex, headcount, and timeline through 2028.',
+    pic_id: 'ab',
+    department: 'Strategy',
+    start_date: isoDate(today),
+    due_date: isoDate(addDays(today, 5)),
+    priority: 'High',
+    status: 'In progress',
+    tags: ['board', 'Q3-planning'],
+    source: 'Zoom AI summary · Executive Sync 21 May',
+    created_at: today,
+    journal: [
+      { time: 'Thu 21 · 10:45', body: 'Asked Asbert to coordinate with Richard on the financial model before Monday. Board will want capex and headcount numbers.' },
+      { time: 'Thu 21 · 14:20', body: 'Asbert met with Richard. Draft model done. Deck v1 coming Friday morning.' },
+      { time: 'Fri 22 · 11:08', body: 'Deck v1 received. Two open questions flagged on slides 8 and 12 — EV portfolio scope.', status: 'In progress' },
+    ]
+  },
+  {
+    id: 'T-0143',
+    title: 'Finalise service bay rotation for Q3',
+    notes: '',
+    pic_id: 'ca',
+    department: 'Service',
+    start_date: isoDate(today),
+    due_date: isoDate(addDays(today, 2)),
+    priority: 'High',
+    status: 'In progress',
+    tags: ['Q3'],
+    source: 'Manual entry',
+    journal: [
+      { time: 'Wed 20 · 09:30', body: 'Clem to draft rotation plan and circulate to supervisors for input.' },
+    ]
+  },
+  {
+    id: 'T-0144',
+    title: 'Confirm BYD launch event guest list',
+    notes: '',
+    pic_id: 'sb',
+    department: 'Sales',
+    due_date: isoDate(addDays(today, 7)),
+    priority: 'Medium',
+    status: 'Open',
+    tags: ['launch'],
+    source: 'Zoom AI summary · Executive Sync 21 May',
+    journal: []
+  },
+  {
+    id: 'T-0145',
+    title: 'Close out April management accounts',
+    notes: 'Was due yesterday — needs immediate attention',
+    pic_id: 'rd',
+    department: 'Finance',
+    due_date: isoDate(addDays(today, -1)),
+    priority: 'High',
+    status: 'Open',
+    tags: ['monthly'],
+    source: 'Manual entry',
+    journal: []
+  },
+  {
+    id: 'T-0146',
+    title: 'Audit parts inventory — Q2 reconciliation',
+    notes: '',
+    pic_id: 'cd',
+    department: 'Parts',
+    due_date: isoDate(addDays(today, 4)),
+    priority: 'Medium',
+    status: 'Open',
+    tags: ['inventory', 'Q2'],
+    source: 'Manual entry',
+    journal: []
+  },
+  {
+    id: 'T-0147',
+    title: 'Negotiate new supplier contract with parts vendor',
+    notes: '',
+    pic_id: 'kl',
+    department: 'Parts',
+    due_date: isoDate(addDays(today, 9)),
+    priority: 'High',
+    status: 'Open',
+    tags: ['supplier'],
+    source: 'Manual entry',
+    journal: []
+  },
+  {
+    id: 'T-0148',
+    title: 'Review facility maintenance schedule',
+    notes: '',
+    pic_id: 'lb',
+    department: 'Operations',
+    due_date: isoDate(today),
+    priority: 'Medium',
+    status: 'Open',
+    tags: ['facility'],
+    source: 'Manual entry',
+    journal: []
+  },
+  {
+    id: 'T-0149',
+    title: 'Onboard two new service technicians',
+    notes: '',
+    pic_id: 'sq',
+    department: 'Service',
+    due_date: isoDate(addDays(today, 6)),
+    priority: 'Medium',
+    status: 'In progress',
+    tags: ['hiring'],
+    source: 'Manual entry',
+    journal: [
+      { time: 'Mon 19 · 14:00', body: 'Sasha confirmed both candidates accepted. Start date Mon 26.' }
+    ]
+  },
+  {
+    id: 'T-0150',
+    title: 'Process backlog warranty claims',
+    notes: '',
+    pic_id: 'ch',
+    department: 'Service',
+    due_date: isoDate(addDays(today, 1)),
+    priority: 'High',
+    status: 'Open',
+    tags: ['warranty', 'backlog'],
+    source: 'Manual entry',
+    journal: []
+  },
+  {
+    id: 'T-0151',
+    title: 'Submit monthly service KPI report',
+    notes: '',
+    pic_id: 'ca',
+    department: 'Service',
+    due_date: isoDate(addDays(today, 8)),
+    priority: 'Low',
+    status: 'Open',
+    tags: ['monthly', 'KPI'],
+    source: 'Manual entry',
+    journal: []
+  },
+  {
+    id: 'T-0152',
+    title: 'Prepare Q2 sales forecast',
+    notes: '',
+    pic_id: 'sb',
+    department: 'Sales',
+    due_date: isoDate(addDays(today, 3)),
+    priority: 'High',
+    status: 'In progress',
+    tags: ['Q2', 'forecast'],
+    source: 'Manual entry',
+    journal: []
+  },
+  {
+    id: 'T-0153',
+    title: 'Approve new technician hire — Service dept',
+    notes: '',
+    pic_id: 'ca',
+    department: 'Service',
+    due_date: isoDate(addDays(today, 5)),
+    priority: 'Medium',
+    status: 'Open',
+    tags: ['hiring'],
+    source: 'Manual entry',
+    journal: []
+  },
+];
+
+let ACTIVITY_LOG = [
+  { id: 1, text: 'Created task <code>"Process backlog warranty claims"</code> · assigned to Cymone' },
+  { id: 2, text: 'Moved 2 tasks tagged <code>monthly</code> to next week' },
+  { id: 3, text: 'Sent task list for Clem to your WhatsApp' },
+];
+
+let nextTaskNum = 154;
+let currentTaskId = null;
+let journalOpen = false;
+let activePicId = 'ca';
+let calendarOffset = 0;
+let selectedDayIso = isoDate(today);
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+function person(id) {
+  return PEOPLE.find(p => p.id === id) || { name: 'Unassigned', initials: '?', color: 'gray', department: '—' };
+}
+
+function picColorClass(picId) {
+  return 'pill-pic-' + person(picId).color;
+}
+
+function deptColorClass(dept) {
+  return 'pill-dept-' + dept;
+}
+
+function escapeHtml(s) {
+  if (s === undefined || s === null) return '';
+  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+function showToast(message, icon = 'check') {
+  const toast = document.getElementById('toast');
+  toast.innerHTML = `<i class="ti ti-${icon}" style="font-size:14px"></i><span>${escapeHtml(message)}</span>`;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2400);
+}
+
+// ============================================================
+// VIEW SWITCHING
+// ============================================================
+
+function switchView(view) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('view-' + view).classList.add('active');
+  const tab = document.querySelector(`.view-tab[data-view="${view}"]`);
+  if (tab) tab.classList.add('active');
+
+  if (view === 'list') renderList();
+  if (view === 'grid') renderGrid();
+  if (view === 'pic') renderPicView();
+  if (view === 'calendar') renderCalendar();
+  if (view === 'settings') renderSettings();
+}
+
+// ============================================================
+// METRICS
+// ============================================================
+
+function renderMetrics() {
+  const dueToday = TASKS.filter(t => isToday(t.due_date) && t.status !== 'Done').length;
+  const overdue = TASKS.filter(t => isOverdue(t.due_date) && t.status !== 'Done').length;
+  const thisWeek = TASKS.filter(t => {
+    if (!t.due_date) return false;
+    const d = new Date(t.due_date + 'T00:00:00');
+    return d <= addDays(today, 7) && t.status !== 'Done';
+  }).length;
+  const done = TASKS.filter(t => t.status === 'Done').length;
+
+  document.getElementById('metrics').innerHTML = `
+    <div class="metric">
+      <div class="metric-label">Due today</div>
+      <div class="metric-value">${dueToday}</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Overdue</div>
+      <div class="metric-value ${overdue > 0 ? 'danger' : ''}">${overdue}</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">This week</div>
+      <div class="metric-value">${thisWeek}</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Completed</div>
+      <div class="metric-value success">${done}</div>
+    </div>
+  `;
+}
+
+// ============================================================
+// GREETING
+// ============================================================
+
+function renderGreeting() {
+  const hour = new Date().getHours();
+  let greeting = 'Good afternoon';
+  if (hour < 12) greeting = 'Good morning';
+  else if (hour >= 17) greeting = 'Good evening';
+  document.getElementById('greeting-text').textContent = `${greeting}, Dyna`;
+
+  const dueToday = TASKS.filter(t => isToday(t.due_date) && t.status !== 'Done').length;
+  const overdue = TASKS.filter(t => isOverdue(t.due_date) && t.status !== 'Done').length;
+  const inProgress = TASKS.filter(t => t.status === 'In progress').length;
+  document.getElementById('greeting-stats').innerHTML =
+    `${TASKS.length} active tasks · <code>${dueToday}</code> due today · <code>${overdue}</code> overdue · <code>${inProgress}</code> in progress`;
+
+  const opts = { weekday: 'long', day: 'numeric', month: 'long' };
+  document.getElementById('date-display').textContent = today.toLocaleDateString('en-GB', opts);
+}
+
+// ============================================================
+// LIST VIEW
+// ============================================================
+
+function renderList() {
+  // Today & overdue
+  const todayList = TASKS.filter(t => t.status !== 'Done' && (isToday(t.due_date) || isOverdue(t.due_date)))
+    .sort((a,b) => (a.due_date || '').localeCompare(b.due_date || ''));
+
+  document.getElementById('list-today').innerHTML = todayList.length === 0
+    ? '<div class="empty-state"><i class="ti ti-check"></i><div>Nothing due today or overdue</div></div>'
+    : todayList.map(t => renderTaskRow(t)).join('');
+
+  // Up next (next 7 days, excluding today)
+  const upcomingList = TASKS.filter(t => {
+    if (t.status === 'Done' || !t.due_date) return false;
+    const d = new Date(t.due_date + 'T00:00:00');
+    return d > today && d <= addDays(today, 7);
+  }).sort((a,b) => a.due_date.localeCompare(b.due_date)).slice(0, 6);
+
+  document.getElementById('list-upcoming').innerHTML = upcomingList.length === 0
+    ? '<div class="empty-state"><i class="ti ti-calendar"></i><div>Nothing in the next 7 days</div></div>'
+    : upcomingList.map(t => renderTaskRow(t)).join('');
+
+  // Activity
+  document.getElementById('activity-log').innerHTML = ACTIVITY_LOG.slice(0, 5).map(a =>
+    `<div class="activity-item">${a.text} <span class="undo" onclick="undoActivity(${a.id})">undo</span></div>`
+  ).join('');
+}
+
+function renderTaskRow(t) {
+  const p = person(t.pic_id);
+  let statusLabel = t.status;
+  let statusClass = 'status-' + t.status.toLowerCase().replace(' ', '-');
+  if (isOverdue(t.due_date) && t.status !== 'Done') {
+    statusLabel = 'Overdue';
+    statusClass = 'status-overdue';
+  }
+  const checkClass = t.status === 'Done' ? 'task-checkbox done' : 'task-checkbox';
+  const checkIcon = t.status === 'Done' ? 'ti-square-check' : 'ti-square';
+  const titleClass = t.status === 'Done' ? 'task-title done' : 'task-title';
+  return `
+    <div class="task-row" onclick="openTask('${t.id}')">
+      <i class="ti ${checkIcon} ${checkClass}" onclick="event.stopPropagation();toggleStatus('${t.id}')"></i>
+      <div class="task-content">
+        <div class="${titleClass}">${escapeHtml(t.title)}</div>
+        <div class="task-meta">${escapeHtml(p.name)} · ${escapeHtml(t.department)} · ${formatShortDate(t.due_date)}</div>
+      </div>
+      <span class="task-status ${statusClass}">${statusLabel}</span>
+    </div>
+  `;
+}
+
+// ============================================================
+// GRID VIEW
+// ============================================================
+
+function renderGrid() {
+  document.getElementById('grid-rows').innerHTML = TASKS.map(t => {
+    const p = person(t.pic_id);
+    let dueClass = '';
+    if (isOverdue(t.due_date) && t.status !== 'Done') dueClass = 'grid-due-overdue';
+    else if (isToday(t.due_date)) dueClass = 'grid-due-today';
+
+    let statusLabel = t.status;
+    let statusClass = 'status-' + t.status.toLowerCase().replace(' ', '-');
+    if (isOverdue(t.due_date) && t.status !== 'Done') {
+      statusLabel = 'Overdue';
+      statusClass = 'status-overdue';
+    }
+
+    return `
+      <div class="grid-row" onclick="openTask('${t.id}')">
+        <i class="ti ti-square task-checkbox" onclick="event.stopPropagation();toggleStatus('${t.id}')"></i>
+        <div class="ellipsis">${escapeHtml(t.title)}</div>
+        <span class="pill ${picColorClass(t.pic_id)}">${escapeHtml(p.name.split(' ')[0])}</span>
+        <span class="pill ${deptColorClass(t.department)}">${escapeHtml(t.department)}</span>
+        <span class="${dueClass}" style="font-size:12px">${formatShortDate(t.due_date)}</span>
+        <span style="font-size:11px;color:var(--text-2)">${(t.tags||[]).slice(0,1).join(', ')}</span>
+        <span class="task-status ${statusClass}">${statusLabel}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+// ============================================================
+// PIC VIEW
+// ============================================================
+
+function renderPicView() {
+  // Build chips
+  const counts = {};
+  PEOPLE.forEach(p => {
+    if (p.role !== 'PIC') return;
+    counts[p.id] = TASKS.filter(t => t.pic_id === p.id && t.status !== 'Done').length;
+  });
+
+  document.getElementById('pic-chips').innerHTML = PEOPLE.filter(p => p.role === 'PIC').map(p => {
+    const active = p.id === activePicId ? 'active' : '';
+    return `<button class="pic-chip ${active}" onclick="selectPic('${p.id}')">
+      <span class="pic-chip-dot" style="background:var(--pic-${p.color}-dot)"></span>
+      <span>${escapeHtml(p.name.split(' ')[0])}</span>
+      <span class="pic-chip-count">· ${counts[p.id] || 0}</span>
+    </button>`;
+  }).join('');
+
+  // Header
+  const p = person(activePicId);
+  const picTasks = TASKS.filter(t => t.pic_id === activePicId);
+  const activeCount = picTasks.filter(t => t.status !== 'Done').length;
+  const overdueCount = picTasks.filter(t => isOverdue(t.due_date) && t.status !== 'Done').length;
+
+  document.getElementById('pic-header').innerHTML = `
+    <div class="pic-header-left">
+      <div class="pic-avatar" style="background:var(--pic-${p.color}-bg);color:var(--pic-${p.color}-text)">${p.initials}</div>
+      <div>
+        <div class="pic-info-name">${escapeHtml(p.name)}</div>
+        <div class="pic-info-meta">${escapeHtml(p.title)} · ${activeCount} active · ${overdueCount} overdue</div>
+      </div>
+    </div>
+    <button class="btn btn-whatsapp" onclick="openShareForPic('${p.id}')">
+      <i class="ti ti-brand-whatsapp" style="font-size:14px"></i>Share list
+    </button>
+  `;
+
+  // Tasks
+  document.getElementById('pic-tasks').innerHTML = picTasks.length === 0
+    ? '<div class="empty-state"><i class="ti ti-clipboard"></i><div>No tasks assigned yet</div></div>'
+    : picTasks.sort((a,b) => (a.due_date||'').localeCompare(b.due_date||'')).map(t => renderTaskRow(t)).join('');
+}
+
+function selectPic(id) {
+  activePicId = id;
+  renderPicView();
+}
+
+// ============================================================
+// CALENDAR
+// ============================================================
+
+let calendarRange = 1; // 1, 2, or 'month'
+
+function getWeekStart(offset = 0) {
+  const d = new Date(today);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day; // Monday start
+  d.setDate(d.getDate() + diff + (offset * 7));
+  return d;
+}
+
+function getMonthStart(offset = 0) {
+  const d = new Date(today.getFullYear(), today.getMonth() + offset, 1);
+  // Back up to Monday of the week containing the 1st
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+
+function changeWeek(delta) {
+  calendarOffset += delta;
+  renderCalendar();
+}
+
+function resetWeek() {
+  calendarOffset = 0;
+  selectedDayIso = isoDate(today);
+  renderCalendar();
+}
+
+function setRange(range) {
+  calendarRange = range;
+  calendarOffset = 0;
+  document.querySelectorAll('.calendar-range-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.calendar-range-btn[data-range="${range}"]`).classList.add('active');
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  // Determine the range of dates to show
+  let startDate, dayCount, isMonthView = false;
+
+  if (calendarRange === 'month') {
+    startDate = getMonthStart(calendarOffset);
+    // Show enough weeks to cover the whole month — usually 5 or 6 rows
+    const targetMonth = new Date(today.getFullYear(), today.getMonth() + calendarOffset, 1).getMonth();
+    const targetYear = new Date(today.getFullYear(), today.getMonth() + calendarOffset, 1).getFullYear();
+    // Count days until we've covered the entire target month
+    let cursor = new Date(startDate);
+    dayCount = 0;
+    while (true) {
+      dayCount++;
+      cursor.setDate(cursor.getDate() + 1);
+      // Stop when we've passed the last day of the target month AND completed the week
+      const lastOfMonth = new Date(targetYear, targetMonth + 1, 0);
+      if (cursor > lastOfMonth && cursor.getDay() === 1) break;
+      if (dayCount > 42) break; // safety cap
+    }
+    document.getElementById('calendar-title').textContent = `${months[targetMonth]} ${targetYear}`;
+    isMonthView = true;
+  } else {
+    startDate = getWeekStart(calendarOffset);
+    dayCount = calendarRange * 7;
+    const endDate = addDays(startDate, dayCount - 1);
+    if (startDate.getMonth() === endDate.getMonth()) {
+      document.getElementById('calendar-title').textContent = `${months[startDate.getMonth()]} ${startDate.getFullYear()}`;
+    } else {
+      document.getElementById('calendar-title').textContent =
+        `${months[startDate.getMonth()].substring(0,3)} – ${months[endDate.getMonth()].substring(0,3)} ${endDate.getFullYear()}`;
+    }
+  }
+
+  // Legend
+  document.getElementById('calendar-legend').innerHTML = `<span style="font-size:11px;color:var(--text-2);margin-right:6px">PICs:</span>` +
+    PEOPLE.filter(p => p.role === 'PIC').map(p =>
+      `<button class="pic-chip" style="padding:3px 8px;font-size:11px">
+        <span class="pic-chip-dot" style="background:var(--pic-${p.color}-dot)"></span>${escapeHtml(p.name.split(' ')[0])}
+      </button>`
+    ).join('');
+
+  // Headers
+  const days = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
+  let html = days.map(d => `<div class="day-header">${d}</div>`).join('');
+
+  // Determine the focus month for "other-month" styling in month view
+  const focusMonth = isMonthView
+    ? new Date(today.getFullYear(), today.getMonth() + calendarOffset, 1).getMonth()
+    : null;
+
+  // Days
+  const cellSizeClass = calendarRange === 2 ? 'range-2week' : (calendarRange === 'month' ? 'range-month' : '');
+  const maxTasksPerCell = calendarRange === 'month' ? 2 : 3;
+
+  for (let i = 0; i < dayCount; i++) {
+    const d = addDays(startDate, i);
+    const iso = isoDate(d);
+    const isToday_ = iso === isoDate(today);
+    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+    const isOtherMonth = isMonthView && d.getMonth() !== focusMonth;
+    const dayTasks = TASKS.filter(t => t.due_date === iso);
+
+    let cellClass = 'day-cell ' + cellSizeClass;
+    if (isToday_) cellClass += ' today';
+    else if (isWeekend) cellClass += ' weekend';
+    if (isOtherMonth) cellClass += ' other-month';
+
+    const tasksHtml = dayTasks.slice(0, maxTasksPerCell).map(t => {
+      const p = person(t.pic_id);
+      const isOver = isOverdue(t.due_date) && t.status !== 'Done';
+      const bg = isOver ? 'var(--danger-bg)' : `var(--pic-${p.color}-bg)`;
+      const col = isOver ? 'var(--danger-text)' : `var(--pic-${p.color}-text)`;
+      const firstName = p.name === 'Unassigned' ? '?' : p.name.split(' ')[0];
+      const titleShort = calendarRange === 'month'
+        ? escapeHtml(t.title.split(' ').slice(0,2).join(' '))
+        : escapeHtml(t.title.split(' ').slice(0,3).join(' '));
+      return `<div class="day-task"
+        draggable="true"
+        data-task-id="${t.id}"
+        style="background:${bg};color:${col}"
+        onclick="event.stopPropagation();openTask('${t.id}')"
+        ondragstart="handleDragStart(event, '${t.id}')"
+        ondragend="handleDragEnd(event)"
+        title="${escapeHtml(t.title)}">
+        ${escapeHtml(firstName)} · ${titleShort}
+      </div>`;
+    }).join('');
+
+    const moreCount = dayTasks.length > maxTasksPerCell
+      ? `<div style="font-size:10px;color:var(--text-3);margin-top:2px">+${dayTasks.length - maxTasksPerCell} more</div>`
+      : '';
+
+    const dayLabel = isToday_ && !isMonthView ? `${d.getDate()} · Today` : d.getDate();
+
+    html += `<div class="${cellClass}"
+      data-day-iso="${iso}"
+      onclick="selectDay('${iso}')"
+      ondragover="handleDragOver(event)"
+      ondragleave="handleDragLeave(event)"
+      ondrop="handleDrop(event, '${iso}')">
+      <div class="day-num">${dayLabel}</div>
+      ${tasksHtml}
+      ${moreCount}
+    </div>`;
+  }
+
+  const grid = document.getElementById('week-grid');
+  grid.innerHTML = html;
+  grid.className = 'week-grid' + (isMonthView ? ' range-month' : '');
+
+  // Day detail
+  renderDayDetail();
+}
+
+// ============================================================
+// DRAG AND DROP
+// ============================================================
+
+let draggedTaskId = null;
+let dragGhost = null;
+
+function handleDragStart(e, taskId) {
+  draggedTaskId = taskId;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', taskId);
+  e.target.classList.add('dragging');
+
+  // Create a custom ghost preview
+  const t = TASKS.find(x => x.id === taskId);
+  if (t) {
+    const p = person(t.pic_id);
+    dragGhost = document.createElement('div');
+    dragGhost.className = 'drag-ghost';
+    dragGhost.style.background = `var(--pic-${p.color}-bg)`;
+    dragGhost.style.color = `var(--pic-${p.color}-text)`;
+    const firstName = p.name === 'Unassigned' ? '?' : p.name.split(' ')[0];
+    dragGhost.textContent = `${firstName} · ${t.title}`;
+    document.body.appendChild(dragGhost);
+
+    // Hide the default browser ghost
+    const transparent = document.createElement('canvas');
+    transparent.width = 1;
+    transparent.height = 1;
+    e.dataTransfer.setDragImage(transparent, 0, 0);
+  }
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('drag-over');
+
+  // Move the ghost with the cursor
+  if (dragGhost) {
+    dragGhost.style.left = (e.clientX + 12) + 'px';
+    dragGhost.style.top = (e.clientY + 12) + 'px';
+  }
+}
+
+function handleDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+
+function handleDrop(e, targetIso) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+
+  if (!draggedTaskId) return;
+
+  const t = TASKS.find(x => x.id === draggedTaskId);
+  if (!t) return;
+
+  const oldDate = t.due_date;
+  if (oldDate === targetIso) return; // no change
+
+  t.due_date = targetIso;
+
+  // Add to activity log
+  const fromLabel = oldDate ? formatShortDate(oldDate) : 'unscheduled';
+  const toLabel = formatShortDate(targetIso);
+  ACTIVITY_LOG.unshift({
+    id: Date.now(),
+    text: `Moved <code>"${escapeHtml(t.title)}"</code> from ${fromLabel} to ${toLabel}`
+  });
+
+  // Recompute status if it was overdue
+  if (t.status !== 'Done' && !isOverdue(targetIso) && isOverdue(oldDate)) {
+    // No status change needed — Overdue is computed, not stored
+  }
+
+  showToast(`Moved to ${toLabel}`, 'calendar');
+  refreshAllViews();
+}
+
+function handleDragEnd(e) {
+  e.target.classList.remove('dragging');
+  document.querySelectorAll('.day-cell.drag-over').forEach(c => c.classList.remove('drag-over'));
+  if (dragGhost) {
+    dragGhost.remove();
+    dragGhost = null;
+  }
+  draggedTaskId = null;
+}
+
+// Track mouse position globally for the ghost
+document.addEventListener('dragover', (e) => {
+  if (dragGhost) {
+    dragGhost.style.left = (e.clientX + 12) + 'px';
+    dragGhost.style.top = (e.clientY + 12) + 'px';
+  }
+});
+
+function selectDay(iso) {
+  selectedDayIso = iso;
+  renderDayDetail();
+}
+
+function renderDayDetail() {
+  const dayTasks = TASKS.filter(t => t.due_date === selectedDayIso);
+  const d = new Date(selectedDayIso + 'T00:00:00');
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  document.getElementById('day-detail-title').textContent = `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]} · ${dayTasks.length} ${dayTasks.length === 1 ? 'task' : 'tasks'}`;
+
+  document.getElementById('day-detail-list').innerHTML = dayTasks.length === 0
+    ? '<div style="font-size:12px;color:var(--text-3)">No tasks scheduled for this day.</div>'
+    : dayTasks.map(t => {
+      const p = person(t.pic_id);
+      let statusLabel = t.status;
+      let statusClass = 'status-' + t.status.toLowerCase().replace(' ', '-');
+      if (isOverdue(t.due_date) && t.status !== 'Done') {
+        statusLabel = 'Overdue';
+        statusClass = 'status-overdue';
+      }
+      return `
+        <div class="day-detail-card" onclick="openTask('${t.id}')">
+          <div class="day-detail-bar" style="background:var(--pic-${p.color}-dot)"></div>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:500">${escapeHtml(t.title)}</div>
+            <div style="font-size:11px;color:var(--text-2)">${escapeHtml(p.name)} · ${escapeHtml(t.department)}</div>
+          </div>
+          <span class="task-status ${statusClass}">${statusLabel}</span>
+        </div>
+      `;
+    }).join('');
+}
+
+// ============================================================
+// TASK MODAL
+// ============================================================
+
+function openTask(id) {
+  currentTaskId = id;
+  const t = TASKS.find(t => t.id === id);
+  if (!t) return;
+
+  document.getElementById('modal-id').textContent = t.id;
+  document.getElementById('modal-title').value = t.title;
+  document.getElementById('modal-source').textContent = `Captured · ${escapeHtml(t.source || 'Manual entry')}`;
+
+  // Status pill
+  let statusLabel = t.status;
+  let statusClass = 'status-' + t.status.toLowerCase().replace(' ', '-');
+  if (isOverdue(t.due_date) && t.status !== 'Done') {
+    statusLabel = 'Overdue';
+    statusClass = 'status-overdue';
+  }
+  const statusEl = document.getElementById('modal-status');
+  statusEl.className = 'task-status ' + statusClass;
+  statusEl.textContent = statusLabel;
+
+  // Checkbox
+  document.getElementById('modal-checkbox').className = t.status === 'Done' ? 'ti ti-square-check task-checkbox done' : 'ti ti-square task-checkbox';
+
+  // PIC dropdown
+  const picSelect = document.getElementById('field-pic');
+  picSelect.innerHTML = PEOPLE.filter(p => p.role === 'PIC').map(p =>
+    `<option value="${p.id}" ${p.id === t.pic_id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`
+  ).join('');
+
+  // Department dropdown
+  const deptSelect = document.getElementById('field-dept');
+  deptSelect.innerHTML = DEPARTMENTS.map(d =>
+    `<option value="${d}" ${d === t.department ? 'selected' : ''}>${d}</option>`
+  ).join('');
+
+  // Due date
+  document.getElementById('field-due').value = t.due_date || '';
+  document.getElementById('field-due-relative').textContent = t.due_date ? formatRelative(t.due_date) : '';
+
+  // Priority
+  document.getElementById('field-priority').value = t.priority;
+
+  // Status
+  document.getElementById('field-status').value = t.status;
+
+  // Tags
+  document.getElementById('field-tags').innerHTML =
+    (t.tags || []).map(tag => `<span class="pill pill-tag">${escapeHtml(tag)}</span>`).join('') +
+    '<button class="icon-btn" style="width:24px;height:24px"><i class="ti ti-plus" style="font-size:12px"></i></button>';
+
+  // Journal
+  renderJournal();
+
+  document.getElementById('task-modal-overlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('task-modal-overlay').classList.remove('open');
+  currentTaskId = null;
+  refreshAllViews();
+}
+
+function updateTaskTitle(value) {
+  const t = TASKS.find(x => x.id === currentTaskId);
+  if (t) t.title = value;
+}
+
+function updateField(field, value) {
+  const t = TASKS.find(x => x.id === currentTaskId);
+  if (!t) return;
+  t[field] = value;
+
+  // Auto-update department when PIC changes
+  if (field === 'pic_id') {
+    const p = person(value);
+    if (p.department !== '—') {
+      t.department = p.department;
+      document.getElementById('field-dept').value = t.department;
+    }
+  }
+
+  // Recompute status pill if status or due changes
+  if (field === 'status' || field === 'due_date') {
+    let statusLabel = t.status;
+    let statusClass = 'status-' + t.status.toLowerCase().replace(' ', '-');
+    if (isOverdue(t.due_date) && t.status !== 'Done') {
+      statusLabel = 'Overdue';
+      statusClass = 'status-overdue';
+    }
+    const statusEl = document.getElementById('modal-status');
+    statusEl.className = 'task-status ' + statusClass;
+    statusEl.textContent = statusLabel;
+
+    if (field === 'due_date') {
+      document.getElementById('field-due-relative').textContent = value ? formatRelative(value) : '';
+    }
+  }
+
+  showToast('Saved', 'check');
+}
+
+function toggleTaskDone() {
+  const t = TASKS.find(x => x.id === currentTaskId);
+  if (!t) return;
+  t.status = t.status === 'Done' ? 'Open' : 'Done';
+  document.getElementById('field-status').value = t.status;
+  openTask(currentTaskId);
+}
+
+function toggleStatus(id) {
+  const t = TASKS.find(x => x.id === id);
+  if (!t) return;
+  t.status = t.status === 'Done' ? 'Open' : 'Done';
+  refreshAllViews();
+  showToast(t.status === 'Done' ? 'Task completed' : 'Task reopened', 'check');
+}
+
+function markDone() {
+  const t = TASKS.find(x => x.id === currentTaskId);
+  if (!t) return;
+  t.status = 'Done';
+  showToast('Task completed', 'check');
+  closeModal();
+}
+
+function deleteTask() {
+  if (!confirm('Delete this task? This cannot be undone.')) return;
+  TASKS = TASKS.filter(t => t.id !== currentTaskId);
+  closeModal();
+  showToast('Task deleted', 'trash');
+}
+
+// ============================================================
+// JOURNAL
+// ============================================================
+
+function toggleJournal() {
+  journalOpen = !journalOpen;
+  const shell = document.getElementById('modal-shell');
+  const panel = document.getElementById('journal-panel');
+  const chevron = document.getElementById('journal-chevron');
+
+  if (journalOpen) {
+    shell.classList.add('with-journal');
+    panel.style.display = 'flex';
+    chevron.className = 'ti ti-chevron-right';
+  } else {
+    shell.classList.remove('with-journal');
+    panel.style.display = 'none';
+    chevron.className = 'ti ti-chevron-left';
+  }
+}
+
+function renderJournal() {
+  const t = TASKS.find(x => x.id === currentTaskId);
+  if (!t) return;
+  const count = (t.journal || []).length;
+  document.getElementById('journal-count').textContent = count;
+  document.getElementById('journal-count-2').textContent = count;
+
+  const entries = (t.journal || []).map((e, i) => {
+    const statusBar = e.status ? `
+      <div class="journal-status-divider">
+        <hr/>
+        <span>Status → ${escapeHtml(e.status)}</span>
+        <hr/>
+      </div>
+    ` : '';
+    return `
+      ${statusBar}
+      <div class="journal-entry">
+        <div class="journal-entry-time">${escapeHtml(e.time)}</div>
+        <div class="journal-entry-body">${escapeHtml(e.body)}</div>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('journal-entries').innerHTML = entries || '<div style="font-size:12px;color:var(--text-3);text-align:center;padding:20px 0">No journal entries yet. Add a progress note below.</div>';
+}
+
+function saveJournalEntry() {
+  const input = document.getElementById('journal-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  const t = TASKS.find(x => x.id === currentTaskId);
+  if (!t) return;
+
+  const now = new Date();
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const time = `${days[now.getDay()]} ${now.getDate()} · ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+  if (!t.journal) t.journal = [];
+  t.journal.push({ time, body: text });
+  input.value = '';
+  renderJournal();
+  showToast('Note saved', 'check');
+}
+
+// ============================================================
+// SHARE
+// ============================================================
+
+function openShare() {
+  const t = TASKS.find(x => x.id === currentTaskId);
+  if (!t) return;
+  const p = person(t.pic_id);
+  buildShareForSinglePic(p.id, [t]);
+  document.getElementById('share-modal-overlay').classList.add('open');
+}
+
+function openShareForPic(picId) {
+  const picTasks = TASKS.filter(t => t.pic_id === picId && t.status !== 'Done');
+  buildShareForSinglePic(picId, picTasks);
+  document.getElementById('share-modal-overlay').classList.add('open');
+}
+
+function buildShareForSinglePic(picId, picTasks) {
+  const p = person(picId);
+
+  const overdue = picTasks.filter(t => isOverdue(t.due_date));
+  const thisWeek = picTasks.filter(t => {
+    if (!t.due_date || isOverdue(t.due_date)) return false;
+    const d = new Date(t.due_date + 'T00:00:00');
+    return d <= addDays(today, 7);
+  });
+  const later = picTasks.filter(t => {
+    if (!t.due_date) return false;
+    const d = new Date(t.due_date + 'T00:00:00');
+    return d > addDays(today, 7);
+  });
+
+  let html = `<div class="wa-bold">${escapeHtml(p.name)} — task list</div>`;
+  html += `<div style="font-size:11px;color:#667781;margin-bottom:10px">${escapeHtml(p.title)} · ${new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' })}</div>`;
+
+  if (overdue.length) {
+    html += `<div style="margin-bottom:4px">🔴 <span class="wa-bold">Overdue</span></div>`;
+    overdue.forEach(t => {
+      html += `<div style="padding-left:14px">• ${escapeHtml(t.title)} <span class="wa-italic">— was ${formatShortDate(t.due_date)}</span></div>`;
+    });
+    html += '<div style="height:8px"></div>';
+  }
+  if (thisWeek.length) {
+    html += `<div style="margin-bottom:4px">📅 <span class="wa-bold">This week</span></div>`;
+    thisWeek.forEach(t => {
+      html += `<div style="padding-left:14px">• ${escapeHtml(t.title)} <span class="wa-italic">— ${formatShortDate(t.due_date)}</span></div>`;
+    });
+    html += '<div style="height:8px"></div>';
+  }
+  if (later.length) {
+    html += `<div style="margin-bottom:4px">📆 <span class="wa-bold">Next week</span></div>`;
+    later.forEach(t => {
+      html += `<div style="padding-left:14px">• ${escapeHtml(t.title)} <span class="wa-italic">— ${formatShortDate(t.due_date)}</span></div>`;
+    });
+    html += '<div style="height:8px"></div>';
+  }
+
+  if (!overdue.length && !thisWeek.length && !later.length) {
+    html += `<div style="color:#667781;font-style:italic">No active tasks for ${escapeHtml(p.name.split(' ')[0])}.</div>`;
+  }
+
+  html += `<div style="color:#667781;font-size:11px;margin-top:8px;padding-top:8px;border-top:0.5px solid rgba(0,0,0,0.06)">Forward this to ${escapeHtml(p.name.split(' ')[0])} when ready.</div>`;
+
+  document.getElementById('wa-bubble').innerHTML = html;
+}
+
+function closeShare() {
+  document.getElementById('share-modal-overlay').classList.remove('open');
+}
+
+function sendShare() {
+  closeShare();
+  showToast('Sent to your WhatsApp · forward when ready', 'brand-whatsapp');
+  ACTIVITY_LOG.unshift({ id: Date.now(), text: `Sent task list to your WhatsApp` });
+  renderList();
+}
+
+// ============================================================
+// QUICK ENTRY
+// ============================================================
+
+document.getElementById('quick-entry-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const value = e.target.value.trim();
+    if (!value) return;
+
+    const newTask = {
+      id: 'T-0' + (nextTaskNum++),
+      title: value,
+      pic_id: null,
+      department: 'Strategy',
+      due_date: null,
+      priority: 'Medium',
+      status: 'Open',
+      tags: [],
+      source: 'Quick entry',
+      journal: []
+    };
+
+    // Try to detect a PIC mention
+    const firstNameMatch = value.match(/\b(asbert|clem|stephen|richard|charlene|kieron|leslie|sasha|cymone)\b/i);
+    if (firstNameMatch) {
+      const p = PEOPLE.find(pp => pp.name.toLowerCase().startsWith(firstNameMatch[1].toLowerCase()));
+      if (p) {
+        newTask.pic_id = p.id;
+        newTask.department = p.department;
+      }
+    }
+
+    TASKS.unshift(newTask);
+    e.target.value = '';
+    refreshAllViews();
+    showToast(`Task added${newTask.pic_id ? ' · ' + person(newTask.pic_id).name.split(' ')[0] + ' detected' : ''}`, 'check');
+    ACTIVITY_LOG.unshift({ id: Date.now(), text: `Created task <code>"${escapeHtml(value)}"</code>` });
+  }
+});
+
+// Voice button
+document.getElementById('voice-btn').addEventListener('click', () => {
+  const btn = document.getElementById('voice-btn');
+  const status = document.getElementById('voice-status');
+  if (btn.classList.contains('recording')) {
+    btn.classList.remove('recording');
+    status.classList.remove('active');
+    return;
+  }
+  btn.classList.add('recording');
+  status.classList.add('active');
+  setTimeout(() => {
+    btn.classList.remove('recording');
+    status.classList.remove('active');
+    const samples = [
+      'Asbert to confirm board agenda by Friday',
+      'Clem to schedule technician training next week',
+      'Stephen to follow up with BYD reps on launch event'
+    ];
+    const text = samples[Math.floor(Math.random() * samples.length)];
+    document.getElementById('quick-entry-input').value = text;
+    document.getElementById('quick-entry-input').focus();
+    showToast('Voice captured — press Enter to add', 'microphone');
+  }, 2000);
+});
+
+// ============================================================
+// SETTINGS
+// ============================================================
+
+function renderSettings() {
+  document.getElementById('people-rows').innerHTML = PEOPLE.map(p => `
+    <div class="people-row">
+      <div class="person-name">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--pic-${p.color}-bg);color:var(--pic-${p.color}-text);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;flex-shrink:0">${p.initials}</div>
+        <span>${escapeHtml(p.name)}</span>
+      </div>
+      <div style="font-size:12px;color:var(--text-2)">${escapeHtml(p.title)}</div>
+      <div>${p.department === '—' ? '<span style="font-size:12px;color:var(--text-2)">—</span>' : `<span class="pill ${deptColorClass(p.department)}">${escapeHtml(p.department)}</span>`}</div>
+      <div><span class="pill" style="background:var(--surface-2);color:var(--text-2)">${p.role}</span></div>
+    </div>
+  `).join('');
+
+  const picCount = PEOPLE.filter(p => p.role === 'PIC').length;
+  const editorCount = PEOPLE.filter(p => p.role === 'Editor').length;
+  document.getElementById('people-summary').textContent =
+    `${PEOPLE.length} people · 1 owner · ${picCount} PICs · ${editorCount} editors`;
+}
+
+// ============================================================
+// UTILITIES
+// ============================================================
+
+function undoActivity(id) {
+  ACTIVITY_LOG = ACTIVITY_LOG.filter(a => a.id !== id);
+  renderList();
+  showToast('Action undone', 'arrow-back-up');
+}
+
+function refreshAllViews() {
+  renderGreeting();
+  renderMetrics();
+  const active = document.querySelector('.view.active');
+  if (active) {
+    const viewName = active.id.replace('view-', '');
+    if (viewName === 'list') renderList();
+    if (viewName === 'grid') renderGrid();
+    if (viewName === 'pic') renderPicView();
+    if (viewName === 'calendar') renderCalendar();
+    if (viewName === 'settings') renderSettings();
+  }
+}
+
+// ============================================================
+// INIT
+// ============================================================
+
+renderGreeting();
+renderMetrics();
+renderList();
+
+// Close modals on Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeModal();
+    closeShare();
+  }
+});
+</script>
+
+</body>
+</html>
