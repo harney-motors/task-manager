@@ -33,3 +33,6 @@ dist-ssr
 
 # Netlify
 .netlify
+
+# Claude Code local settings (personal, not for shared repo)
+.claude/settings.local.json
