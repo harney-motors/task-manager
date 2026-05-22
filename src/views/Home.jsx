@@ -8,6 +8,7 @@ import ViewTabs from '../components/ViewTabs'
 import ListView from './ListView'
 import GridView from './GridView'
 import PicView from './PicView'
+import CalendarView from './CalendarView'
 
 export default function Home() {
   const { user, workspace, workspaceLoading, signOut } = useAuth()
@@ -52,19 +53,21 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-bg text-text font-sans">
-      <div className="mx-auto max-w-5xl px-6 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-info text-white flex items-center justify-center">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
+        <div className="flex items-center justify-between mb-5 sm:mb-6">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-info text-white flex items-center justify-center flex-shrink-0">
               <i className="ti ti-checkbox text-base" />
             </div>
             <span className="text-lg font-medium tracking-tight">Loop</span>
           </div>
-          <div className="flex items-center gap-3 text-sm">
-            <span className="text-text-2">{user.email}</span>
+          <div className="flex items-center gap-2 sm:gap-3 text-sm min-w-0">
+            <span className="text-text-2 hidden sm:inline truncate max-w-[180px]">
+              {user.email}
+            </span>
             <button
               onClick={signOut}
-              className="text-text-3 hover:text-text underline text-xs"
+              className="text-text-3 hover:text-text underline text-xs whitespace-nowrap"
             >
               Sign out
             </button>
@@ -78,9 +81,10 @@ export default function Home() {
           <ViewTabs active={view} onChange={setView} />
         </div>
 
-        {view === 'list' && <ListView onOpenTask={setOpenTaskId} />}
-        {view === 'grid' && <GridView onOpenTask={setOpenTaskId} />}
-        {view === 'pic'  && <PicView  onOpenTask={setOpenTaskId} />}
+        {view === 'list'     && <ListView     onOpenTask={setOpenTaskId} />}
+        {view === 'grid'     && <GridView     onOpenTask={setOpenTaskId} />}
+        {view === 'pic'      && <PicView      onOpenTask={setOpenTaskId} />}
+        {view === 'calendar' && <CalendarView onOpenTask={setOpenTaskId} />}
 
         <TaskModal task={openTask} onClose={() => setOpenTaskId(null)} />
       </div>

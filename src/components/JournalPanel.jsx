@@ -15,7 +15,7 @@ export default function JournalPanel({ taskId, onClose }) {
   }
 
   return (
-    <div className="w-72 flex-shrink-0 bg-surface-2 border-l border-border flex flex-col rounded-r-2xl">
+    <div className="w-full sm:w-72 flex-shrink-0 bg-surface-2 flex flex-col sm:rounded-r-2xl rounded-b-2xl sm:rounded-bl-none">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
           <i className="ti ti-notebook text-text-2 text-sm" />
@@ -54,7 +54,7 @@ export default function JournalPanel({ taskId, onClose }) {
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="border-t border-border bg-surface p-3 rounded-br-2xl">
+      <form onSubmit={handleSubmit} className="border-t border-border bg-surface p-3 rounded-b-2xl sm:rounded-bl-none">
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}

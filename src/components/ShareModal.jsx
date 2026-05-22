@@ -40,7 +40,7 @@ export default function ShareModal({ pic, tasks, onClose }) {
   return (
     <div
       onClick={(e) => e.target === e.currentTarget && onClose()}
-      className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6"
+      className="fixed inset-0 bg-black/40 z-50 flex items-start sm:items-center justify-center p-2 sm:p-6 overflow-y-auto"
     >
       <div className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-sm overflow-hidden">
         <div className="flex items-center justify-between p-4 border-b border-border">

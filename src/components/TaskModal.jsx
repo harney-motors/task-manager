@@ -81,10 +81,10 @@ export default function TaskModal({ task, onClose }) {
   return (
     <div
       onClick={(e) => e.target === e.currentTarget && onClose()}
-      className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-10 overflow-y-auto"
+      className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-2 sm:p-10 overflow-y-auto"
     >
       <div
-        className={`flex bg-surface rounded-2xl border border-border shadow-xl w-full transition-all ${
+        className={`flex flex-col sm:flex-row bg-surface rounded-2xl border border-border shadow-xl w-full transition-all ${
           showJournal && !isTemp ? 'max-w-4xl' : 'max-w-xl'
         }`}
       >
@@ -267,12 +267,14 @@ export default function TaskModal({ task, onClose }) {
           </div>
         </div>
 
-        {/* Journal sidebar */}
+        {/* Journal sidebar — stacks below modal on mobile, side-by-side on tablet+ */}
         {showJournal && !isTemp && (
-          <JournalPanel
-            taskId={task.id}
-            onClose={() => setShowJournal(false)}
-          />
+          <div className="border-t sm:border-t-0 sm:border-l border-border">
+            <JournalPanel
+              taskId={task.id}
+              onClose={() => setShowJournal(false)}
+            />
+          </div>
         )}
       </div>
     </div>
