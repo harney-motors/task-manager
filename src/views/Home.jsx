@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthProvider'
-import { useTasks } from '../lib/queries'
+import { useDepartments, usePeople, useTasks } from '../lib/queries'
+import { useToast } from '../components/Toast'
+import { applyAiFilter } from '../lib/applyAiFilter'
 import QuickEntry from '../components/QuickEntry'
 import TaskModal from '../components/TaskModal'
 import Greeting from '../components/Greeting'
@@ -13,17 +15,22 @@ import CalendarView from './CalendarView'
 import SettingsView from './SettingsView'
 import SearchPalette from '../components/SearchPalette'
 import ExtractFromMeetingModal from '../components/ExtractFromMeetingModal'
+import ActivityFeed from '../components/ActivityFeed'
 import { TickdMark, TickdWordmark } from '../components/TickdMark'
 
 export default function Home() {
   const { user, workspace, workspaceLoading, signOut } = useAuth()
   const { data: tasks = [] } = useTasks()
+  const { data: people = [] } = usePeople()
+  const { data: departments = [] } = useDepartments()
+  const showToast = useToast()
   const [openTaskId, setOpenTaskId] = useState(null)
   const [view, setView] = useState('today')
   const [showSettings, setShowSettings] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
   const [showExtract, setShowExtract] = useState(false)
   const [picViewSelectedId, setPicViewSelectedId] = useState(null)
+  const [gridFilterSignal, setGridFilterSignal] = useState(null)
 
   // "/" keybind focuses the quick entry input from anywhere on the home page
   // (unless already typing in a form field).
@@ -147,13 +154,19 @@ export default function Home() {
         <Greeting tasks={tasks} />
         <QuickEntry />
 
-        <div className="mt-4 mb-4">
+        <div className="mt-4">
+          <ActivityFeed onOpenTask={setOpenTaskId} />
+        </div>
+
+        <div className="mb-4">
           <ViewTabs active={view} onChange={setView} />
         </div>
 
         {view === 'today'    && <TodayView    onOpenTask={setOpenTaskId} />}
         {view === 'list'     && <ListView     onOpenTask={setOpenTaskId} />}
-        {view === 'grid'     && <GridView     onOpenTask={setOpenTaskId} />}
+        {view === 'grid'     && (
+          <GridView onOpenTask={setOpenTaskId} aiFilter={gridFilterSignal} />
+        )}
         {view === 'pic'      && (
           <PicView
             onOpenTask={setOpenTaskId}
@@ -171,6 +184,16 @@ export default function Home() {
           onSelectPic={(id) => {
             setView('pic')
             setPicViewSelectedId(id)
+          }}
+          onApplyFilter={(filter) => {
+            applyAiFilter(filter, {
+              people,
+              departments,
+              setView,
+              setPicViewSelectedId,
+              setGridFilterSignal,
+              showToast,
+            })
           }}
         />
         <ExtractFromMeetingModal

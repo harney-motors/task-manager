@@ -1,15 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import { searchAll } from '../api/search'
+import { nlFilter } from '../api/aiFilter'
 import { picPill } from '../lib/colors'
 import { formatRelative } from '../lib/dates'
 
-export default function SearchPalette({ open, onClose, onOpenTask, onSelectPic }) {
+export default function SearchPalette({
+  open,
+  onClose,
+  onOpenTask,
+  onSelectPic,
+  onApplyFilter,
+}) {
   const { workspace } = useAuth()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState({ tasks: [], people: [], journal: [] })
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [isSearching, setIsSearching] = useState(false)
+  const [askingAi, setAskingAi] = useState(false)
+  const [aiError, setAiError] = useState(null)
   const inputRef = useRef(null)
 
   // Debounced search
@@ -40,8 +49,25 @@ export default function SearchPalette({ open, onClose, onOpenTask, onSelectPic }
       setQuery('')
       setSelectedIndex(0)
       setResults({ tasks: [], people: [], journal: [] })
+      setAskingAi(false)
+      setAiError(null)
     }
   }, [open])
+
+  async function handleAskAi() {
+    if (!query.trim() || !onApplyFilter) return
+    setAskingAi(true)
+    setAiError(null)
+    try {
+      const { filter } = await nlFilter(query)
+      onApplyFilter(filter)
+      onClose()
+    } catch (e) {
+      setAiError(e.message ?? 'AI search failed')
+    } finally {
+      setAskingAi(false)
+    }
+  }
 
   // Flatten results for arrow-key navigation
   const flat = [
@@ -72,7 +98,11 @@ export default function SearchPalette({ open, onClose, onOpenTask, onSelectPic }
         e.preventDefault()
         setSelectedIndex((i) => Math.max(0, i - 1))
       } else if (e.key === 'Enter') {
-        if (flat[selectedIndex]) {
+        // Cmd/Ctrl+Enter → ask AI; plain Enter → open selected result
+        if (e.metaKey || e.ctrlKey) {
+          e.preventDefault()
+          handleAskAi()
+        } else if (flat[selectedIndex]) {
           e.preventDefault()
           activate(flat[selectedIndex])
         }
@@ -80,7 +110,7 @@ export default function SearchPalette({ open, onClose, onOpenTask, onSelectPic }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, flat, selectedIndex, onClose])
+  }, [open, flat, selectedIndex, onClose, query])
 
   if (!open) return null
 
@@ -152,14 +182,46 @@ export default function SearchPalette({ open, onClose, onOpenTask, onSelectPic }
           )}
         </div>
 
+        {query.trim().length >= 4 && onApplyFilter && (
+          <div className="border-t border-border bg-info-bg/40">
+            <button
+              onClick={handleAskAi}
+              disabled={askingAi}
+              className="w-full text-left px-4 py-2.5 flex items-center gap-3 hover:bg-info-bg/60 disabled:opacity-60"
+            >
+              <i
+                className={`ti ${askingAi ? 'ti-loader-2 animate-spin' : 'ti-sparkles'} text-info text-sm flex-shrink-0`}
+              />
+              <div className="flex-1 min-w-0 text-sm">
+                {askingAi ? 'Asking Tickd AI…' : (
+                  <>
+                    Ask Tickd AI: <span className="text-text-2">&ldquo;{query}&rdquo;</span>
+                  </>
+                )}
+              </div>
+              <kbd className="hidden sm:inline text-[10px] text-text-3 border border-border bg-surface rounded px-1">
+                ⌘↵
+              </kbd>
+            </button>
+            {aiError && (
+              <div className="px-4 pb-2 text-[11px] text-danger-text">{aiError}</div>
+            )}
+          </div>
+        )}
+
         {flat.length > 0 && (
-          <div className="border-t border-border px-3 py-2 flex items-center gap-3 text-[10px] text-text-3 bg-surface-2">
+          <div className="border-t border-border px-3 py-2 flex items-center gap-3 text-[10px] text-text-3 bg-surface-2 flex-wrap">
             <span>
               <kbd className="border border-border bg-surface rounded px-1">↑↓</kbd> nav
             </span>
             <span>
               <kbd className="border border-border bg-surface rounded px-1">↵</kbd> open
             </span>
+            {onApplyFilter && (
+              <span>
+                <kbd className="border border-border bg-surface rounded px-1">⌘↵</kbd> ask AI
+              </span>
+            )}
             <span>
               <kbd className="border border-border bg-surface rounded px-1">esc</kbd> close
             </span>

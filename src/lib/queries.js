@@ -4,6 +4,7 @@ import { useToast } from '../components/Toast'
 import { createTask, fetchTasks, updateTask, deleteTask } from '../api/tasks'
 import { addWatcher, removeWatcher } from '../api/watchers'
 import { fetchJournalEntries, createJournalEntry } from '../api/journal'
+import { fetchRecentActivity } from '../api/activity'
 import {
   createPerson,
   deactivatePerson,
@@ -27,6 +28,7 @@ export const queryKeys = {
   people:      (workspaceId) => ['people', workspaceId],
   departments: (workspaceId) => ['departments', workspaceId],
   journal:     (taskId)      => ['journal', taskId],
+  activity:    (workspaceId, limit) => ['activity', workspaceId, limit],
 }
 
 // ---------- Tasks ----------
@@ -273,6 +275,18 @@ export function useDeleteDepartment() {
     onError: (err) => showToast(errMsg(err, 'Could not delete department'), { type: 'error' }),
     onSettled: () =>
       qc.invalidateQueries({ queryKey: queryKeys.departments(workspace?.id) }),
+  })
+}
+
+// ---------- Activity ----------
+
+export function useRecentActivity({ limit = 20 } = {}) {
+  const { workspace } = useAuth()
+  return useQuery({
+    queryKey: queryKeys.activity(workspace?.id, limit),
+    queryFn: () => fetchRecentActivity(workspace.id, limit),
+    enabled: !!workspace,
+    staleTime: 30_000, // 30s — activity is live-ish but doesn't need to refetch on every interaction
   })
 }
 

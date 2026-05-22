@@ -16,3 +16,14 @@ export function logActivity({ workspaceId, taskId, actorId, action, payload }) {
       if (error) console.warn('[activity_log] insert failed', error)
     })
 }
+
+export async function fetchRecentActivity(workspaceId, limit = 20) {
+  const { data, error } = await supabase
+    .from('activity_log')
+    .select('id, action, payload, actor_id, task_id, created_at, task:tasks(id, title)')
+    .eq('workspace_id', workspaceId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return data ?? []
+}
