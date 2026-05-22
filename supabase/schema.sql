@@ -103,14 +103,21 @@ alter table activity_log      enable row level security;
 -- 3. POLICIES
 -- ============================================================
 
+-- Note: BUILD_PLAN.md §3.1 originally included an OR clause checking
+-- raw_app_meta_data->>'is_superadmin' via `auth.users`. The authenticated
+-- role doesn't have SELECT on auth.users in Supabase by default, which
+-- caused the entire policy expression to fail rather than evaluating
+-- the OR branch to false — so legitimate members couldn't read their
+-- own workspaces from the client.
+-- Superadmin access can be reintroduced later via auth.jwt()->'app_metadata'
+-- (a built-in helper that reads claims directly from the JWT and doesn't
+-- require querying auth.users).
 drop policy if exists "members see their workspaces" on workspaces;
 create policy "members see their workspaces" on workspaces
   for select using (
-    id in (select workspace_id from workspace_members where user_id = auth.uid())
-    or exists (
-      select 1 from auth.users
-      where id = auth.uid()
-        and raw_app_meta_data->>'is_superadmin' = 'true'
+    id in (
+      select workspace_id from workspace_members
+      where user_id = auth.uid()
     )
   );
 
