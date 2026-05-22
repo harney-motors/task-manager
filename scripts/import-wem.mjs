@@ -61,6 +61,12 @@ const NAME_ALIASES = {
   'asbert':      'Asbert Baptiste',
   'shaquila':    'Shaquille',
   'shaquille':   'Shaquille',
+  // Typos / mashed strings in the WEM CSV
+  'service teamsasha': 'Sasha Quashie',
+  'sasha-team':        'Sasha Quashie',
+  'service team':      'Sasha Quashie',
+  // "All Departments" tasks → workspace owner (Dyna runs the WEM)
+  'all departments':   'Dyna Harney-Barnes',
 }
 
 // ---------- Helpers ----------
