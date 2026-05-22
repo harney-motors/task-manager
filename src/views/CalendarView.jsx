@@ -27,8 +27,11 @@ import TaskRow from '../components/TaskRow'
 const RANGES = [
   { id: '1w', label: '1 week' },
   { id: '2w', label: '2 weeks' },
+  { id: '4w', label: '4 weeks' },
   { id: 'month', label: 'Month' },
 ]
+
+const SPAN_DAYS = { '1w': 7, '2w': 14, '4w': 28 }
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -39,7 +42,7 @@ function toIso(date) {
 export default function CalendarView({ onOpenTask }) {
   const { data: tasks = [] } = useTasks()
   const updateTask = useUpdateTask()
-  const [range, setRange] = useState('1w')
+  const [range, setRange] = useState('4w')
   const [anchor, setAnchor] = useState(() => new Date())
   const [activeId, setActiveId] = useState(null)
   const [selectedDay, setSelectedDay] = useState(null)
@@ -56,7 +59,7 @@ export default function CalendarView({ onOpenTask }) {
       const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 })
       return eachDayOfInterval({ start: gridStart, end: gridEnd })
     }
-    const span = range === '1w' ? 7 : 14
+    const span = SPAN_DAYS[range] ?? 7
     const start = startOfWeek(anchor, { weekStartsOn: 1 })
     return Array.from({ length: span }, (_, i) => addDays(start, i))
   }, [range, anchor])
@@ -91,7 +94,7 @@ export default function CalendarView({ onOpenTask }) {
         return d
       })
     } else {
-      const inc = range === '1w' ? 7 : 14
+      const inc = SPAN_DAYS[range] ?? 7
       setAnchor((prev) => addDays(prev, inc * factor))
     }
   }
