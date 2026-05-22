@@ -7,6 +7,7 @@ import Greeting from '../components/Greeting'
 import ViewTabs from '../components/ViewTabs'
 import ListView from './ListView'
 import GridView from './GridView'
+import PicView from './PicView'
 
 export default function Home() {
   const { user, workspace, workspaceLoading, signOut } = useAuth()
@@ -77,11 +78,9 @@ export default function Home() {
           <ViewTabs active={view} onChange={setView} />
         </div>
 
-        {view === 'list' ? (
-          <ListView onOpenTask={setOpenTaskId} />
-        ) : (
-          <GridView onOpenTask={setOpenTaskId} />
-        )}
+        {view === 'list' && <ListView onOpenTask={setOpenTaskId} />}
+        {view === 'grid' && <GridView onOpenTask={setOpenTaskId} />}
+        {view === 'pic'  && <PicView  onOpenTask={setOpenTaskId} />}
 
         <TaskModal task={openTask} onClose={() => setOpenTaskId(null)} />
       </div>

@@ -1,6 +1,7 @@
 const TABS = [
   { id: 'list', label: 'List', icon: 'ti-list' },
   { id: 'grid', label: 'Grid', icon: 'ti-table' },
+  { id: 'pic', label: 'By PIC', icon: 'ti-users' },
 ]
 
 export default function ViewTabs({ active, onChange }) {
