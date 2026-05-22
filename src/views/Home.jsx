@@ -13,20 +13,24 @@ import GridView from './GridView'
 import PicView from './PicView'
 import CalendarView from './CalendarView'
 import SettingsView from './SettingsView'
+import SuperAdminView from './SuperAdminView'
 import SearchPalette from '../components/SearchPalette'
 import ExtractFromMeetingModal from '../components/ExtractFromMeetingModal'
 import ActivityFeed from '../components/ActivityFeed'
 import { TickdMark, TickdWordmark } from '../components/TickdMark'
+import { useIsSuperadmin } from '../lib/queries'
 
 export default function Home() {
   const { user, workspace, workspaceLoading, signOut } = useAuth()
   const { data: tasks = [] } = useTasks()
   const { data: people = [] } = usePeople()
   const { data: departments = [] } = useDepartments()
+  const { data: isSuperadmin = false } = useIsSuperadmin()
   const showToast = useToast()
   const [openTaskId, setOpenTaskId] = useState(null)
   const [view, setView] = useState('today')
   const [showSettings, setShowSettings] = useState(false)
+  const [showSuperAdmin, setShowSuperAdmin] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
   const [showExtract, setShowExtract] = useState(false)
   const [picViewSelectedId, setPicViewSelectedId] = useState(null)
@@ -92,6 +96,9 @@ export default function Home() {
   if (showSettings) {
     return <SettingsView onBack={() => setShowSettings(false)} />
   }
+  if (showSuperAdmin && isSuperadmin) {
+    return <SuperAdminView onBack={() => setShowSuperAdmin(false)} />
+  }
 
   const openTask = tasks.find((t) => t.id === openTaskId)
 
@@ -104,6 +111,7 @@ export default function Home() {
               setView('today')
               setOpenTaskId(null)
               setShowSettings(false)
+              setShowSuperAdmin(false)
               setShowSearch(false)
               setShowExtract(false)
             }}
@@ -135,6 +143,16 @@ export default function Home() {
               <i className="ti ti-search text-sm" />
               <kbd className="hidden sm:inline text-[10px] text-text-3">⌘K</kbd>
             </button>
+            {isSuperadmin && (
+              <button
+                onClick={() => setShowSuperAdmin(true)}
+                className="p-2 rounded hover:bg-surface-2 text-text-2 hover:text-text"
+                aria-label="Super admin"
+                title="Super admin panel"
+              >
+                <i className="ti ti-shield-lock text-base text-info" />
+              </button>
+            )}
             <button
               onClick={() => setShowSettings(true)}
               className="p-2 rounded hover:bg-surface-2 text-text-2 hover:text-text"
@@ -154,11 +172,7 @@ export default function Home() {
         <Greeting tasks={tasks} />
         <QuickEntry />
 
-        <div className="mt-4">
-          <ActivityFeed onOpenTask={setOpenTaskId} />
-        </div>
-
-        <div className="mb-4">
+        <div className="mt-4 mb-4">
           <ViewTabs active={view} onChange={setView} />
         </div>
 
@@ -175,6 +189,12 @@ export default function Home() {
           />
         )}
         {view === 'calendar' && <CalendarView onOpenTask={setOpenTaskId} />}
+
+        {/* Activity feed sits below the view content so it isn't the first
+            thing you see on sign-in. */}
+        <div className="mt-6">
+          <ActivityFeed onOpenTask={setOpenTaskId} compactLimit={5} />
+        </div>
 
         <TaskModal task={openTask} onClose={() => setOpenTaskId(null)} />
         <SearchPalette

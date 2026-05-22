@@ -6,6 +6,19 @@ import { addWatcher, removeWatcher } from '../api/watchers'
 import { fetchJournalEntries, createJournalEntry } from '../api/journal'
 import { fetchRecentActivity } from '../api/activity'
 import {
+  adminAddMember,
+  adminCreateWorkspace,
+  adminDeleteWorkspace,
+  adminDemoteUser,
+  adminPromoteUser,
+  adminRemoveMember,
+  fetchAdminActivity,
+  fetchAdminSystemStats,
+  fetchAdminUsers,
+  fetchAdminWorkspaces,
+} from '../api/admin'
+import { supabase } from './supabase'
+import {
   createPerson,
   deactivatePerson,
   fetchPeople,
@@ -275,6 +288,122 @@ export function useDeleteDepartment() {
     onError: (err) => showToast(errMsg(err, 'Could not delete department'), { type: 'error' }),
     onSettled: () =>
       qc.invalidateQueries({ queryKey: queryKeys.departments(workspace?.id) }),
+  })
+}
+
+// ---------- Super Admin ----------
+
+export function useIsSuperadmin() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['isSuperadmin', user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('superadmins')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      return !!data
+    },
+    enabled: !!user,
+    staleTime: 60 * 60 * 1000,
+  })
+}
+
+export function useAdminWorkspaces() {
+  const { data: isAdmin = false } = useIsSuperadmin()
+  return useQuery({
+    queryKey: ['admin', 'workspaces'],
+    queryFn: fetchAdminWorkspaces,
+    enabled: isAdmin,
+  })
+}
+
+export function useAdminUsers() {
+  const { data: isAdmin = false } = useIsSuperadmin()
+  return useQuery({
+    queryKey: ['admin', 'users'],
+    queryFn: fetchAdminUsers,
+    enabled: isAdmin,
+  })
+}
+
+export function useAdminSystemStats() {
+  const { data: isAdmin = false } = useIsSuperadmin()
+  return useQuery({
+    queryKey: ['admin', 'system'],
+    queryFn: fetchAdminSystemStats,
+    enabled: isAdmin,
+  })
+}
+
+export function useAdminActivity({ limit = 50 } = {}) {
+  const { data: isAdmin = false } = useIsSuperadmin()
+  return useQuery({
+    queryKey: ['admin', 'activity', limit],
+    queryFn: () => fetchAdminActivity({ limit }),
+    enabled: isAdmin,
+    staleTime: 30_000,
+  })
+}
+
+export function useAdminCreateWorkspace() {
+  const qc = useQueryClient()
+  const showToast = useToast()
+  return useMutation({
+    mutationFn: ({ name, ownerId }) => adminCreateWorkspace(name, ownerId),
+    onError: (err) => showToast(errMsg(err, 'Could not create workspace'), { type: 'error' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['admin'] }),
+  })
+}
+
+export function useAdminDeleteWorkspace() {
+  const qc = useQueryClient()
+  const showToast = useToast()
+  return useMutation({
+    mutationFn: (id) => adminDeleteWorkspace(id),
+    onError: (err) => showToast(errMsg(err, 'Could not delete workspace'), { type: 'error' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['admin'] }),
+  })
+}
+
+export function useAdminPromoteUser() {
+  const qc = useQueryClient()
+  const showToast = useToast()
+  return useMutation({
+    mutationFn: ({ userId, notes }) => adminPromoteUser(userId, notes),
+    onError: (err) => showToast(errMsg(err, 'Could not promote user'), { type: 'error' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['admin'] }),
+  })
+}
+
+export function useAdminDemoteUser() {
+  const qc = useQueryClient()
+  const showToast = useToast()
+  return useMutation({
+    mutationFn: (userId) => adminDemoteUser(userId),
+    onError: (err) => showToast(errMsg(err, 'Could not demote user'), { type: 'error' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['admin'] }),
+  })
+}
+
+export function useAdminAddMember() {
+  const qc = useQueryClient()
+  const showToast = useToast()
+  return useMutation({
+    mutationFn: ({ workspaceId, userId, role }) => adminAddMember(workspaceId, userId, role),
+    onError: (err) => showToast(errMsg(err, 'Could not add member'), { type: 'error' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['admin'] }),
+  })
+}
+
+export function useAdminRemoveMember() {
+  const qc = useQueryClient()
+  const showToast = useToast()
+  return useMutation({
+    mutationFn: ({ workspaceId, userId }) => adminRemoveMember(workspaceId, userId),
+    onError: (err) => showToast(errMsg(err, 'Could not remove member'), { type: 'error' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['admin'] }),
   })
 }
 
