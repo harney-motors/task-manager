@@ -53,8 +53,14 @@ export default function Home() {
       <div className="min-h-screen bg-bg flex items-center justify-center px-6">
         <div className="max-w-md text-center">
           <p className="text-text-2 text-sm">
-            You don't belong to any workspace yet. Run the seed in supabase/seed.sql,
-            then refresh.
+            No workspace found for{' '}
+            <span className="font-medium text-text">{user.email}</span>.
+          </p>
+          <p className="text-xs text-text-3 mt-2">
+            Either this account isn't in <code>workspace_members</code>, or the
+            seed used a different email. Run <code>supabase/seed.sql</code> with{' '}
+            <code>{user.email}</code> as the value of <code>YOUR_EMAIL</code>,
+            or sign out and sign in with the seeded account.
           </p>
           <button
             onClick={signOut}
