@@ -40,3 +40,10 @@ export async function deactivatePerson(id) {
 export async function reactivatePerson(id) {
   return updatePerson(id, { is_active: true })
 }
+
+// Hard delete. tasks.pic_id has ON DELETE SET NULL, so existing tasks
+// become unassigned rather than failing. task_watchers cascades.
+export async function deletePerson(id) {
+  const { error } = await supabase.from('people').delete().eq('id', id)
+  if (error) throw error
+}

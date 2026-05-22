@@ -21,7 +21,9 @@ import { supabase } from './supabase'
 import {
   createPerson,
   deactivatePerson,
+  deletePerson,
   fetchPeople,
+  reactivatePerson,
   updatePerson,
 } from '../api/people'
 import {
@@ -241,6 +243,33 @@ export function useDeactivatePerson() {
     onError: (err) => showToast(errMsg(err, 'Could not deactivate person'), { type: 'error' }),
     onSettled: () =>
       qc.invalidateQueries({ queryKey: queryKeys.people(workspace?.id) }),
+  })
+}
+
+export function useReactivatePerson() {
+  const { workspace } = useAuth()
+  const showToast = useToast()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id) => reactivatePerson(id),
+    onError: (err) => showToast(errMsg(err, 'Could not reactivate person'), { type: 'error' }),
+    onSettled: () =>
+      qc.invalidateQueries({ queryKey: queryKeys.people(workspace?.id) }),
+  })
+}
+
+export function useDeletePerson() {
+  const { workspace } = useAuth()
+  const showToast = useToast()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id) => deletePerson(id),
+    onError: (err) => showToast(errMsg(err, 'Could not delete person'), { type: 'error' }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.people(workspace?.id) })
+      // Hard delete unassigns tasks (FK ON DELETE SET NULL) — refresh tasks too.
+      qc.invalidateQueries({ queryKey: queryKeys.tasks(workspace?.id) })
+    },
   })
 }
 
