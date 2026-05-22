@@ -10,7 +10,11 @@ export default function TodayView({ onOpenTask }) {
   const today = startOfToday()
 
   const { overdue, dueToday, unscheduled } = useMemo(() => {
-    const active = tasks.filter((t) => t.status !== 'Done')
+    // Today is for actionable items. Done is finished; Ongoing is
+    // always-on initiatives that don't belong in a morning glance.
+    const active = tasks.filter(
+      (t) => t.status !== 'Done' && t.status !== 'Ongoing',
+    )
     return {
       overdue: active
         .filter((t) => t.due_date && isOverdue(t.due_date))

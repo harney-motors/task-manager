@@ -69,6 +69,7 @@ export default function GridView({ onOpenTask }) {
           <option value="all">All statuses</option>
           <option value="Open">Open</option>
           <option value="In progress">In progress</option>
+          <option value="Ongoing">Ongoing</option>
           <option value="Done">Done</option>
         </FilterSelect>
         {hasFilters && (

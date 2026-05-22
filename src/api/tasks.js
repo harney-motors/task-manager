@@ -2,10 +2,20 @@ import { supabase } from '../lib/supabase'
 
 const TASK_SELECT = `
   id, task_number, title, notes, status, priority,
-  start_date, due_date, tags, source,
+  start_date, due_date, raised_date, tags, source,
   workspace_id, pic_id, department_id, created_by, created_at, updated_at,
-  pic:people!tasks_pic_id_fkey(id, name, initials, color)
+  pic:people!tasks_pic_id_fkey(id, name, initials, color),
+  task_watchers(person:people(id, name, initials, color))
 `
+
+function flattenWatchers(task) {
+  if (!task) return task
+  const { task_watchers, ...rest } = task
+  return {
+    ...rest,
+    watchers: (task_watchers ?? []).map((tw) => tw.person).filter(Boolean),
+  }
+}
 
 export async function fetchTasks(workspaceId) {
   const { data, error } = await supabase
@@ -15,7 +25,7 @@ export async function fetchTasks(workspaceId) {
     .order('due_date', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false })
   if (error) throw error
-  return data ?? []
+  return (data ?? []).map(flattenWatchers)
 }
 
 export async function createTask(workspaceId, fields) {
@@ -25,7 +35,7 @@ export async function createTask(workspaceId, fields) {
     .select(TASK_SELECT)
     .single()
   if (error) throw error
-  return data
+  return flattenWatchers(data)
 }
 
 export async function updateTask(id, fields) {
@@ -36,7 +46,7 @@ export async function updateTask(id, fields) {
     .select(TASK_SELECT)
     .single()
   if (error) throw error
-  return data
+  return flattenWatchers(data)
 }
 
 export async function deleteTask(id) {

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../auth/AuthProvider'
 import { useToast } from '../components/Toast'
 import { createTask, fetchTasks, updateTask, deleteTask } from '../api/tasks'
+import { addWatcher, removeWatcher } from '../api/watchers'
 import { fetchJournalEntries, createJournalEntry } from '../api/journal'
 import {
   createPerson,
@@ -152,6 +153,32 @@ export function useDeleteTask() {
       showToast(errMsg(err, 'Could not delete task'), { type: 'error' })
     },
     onSettled: () => qc.invalidateQueries({ queryKey: key }),
+  })
+}
+
+// ---------- Watchers ----------
+
+export function useAddWatcher() {
+  const { workspace } = useAuth()
+  const showToast = useToast()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ taskId, personId }) => addWatcher(taskId, personId),
+    onError: (err) => showToast(errMsg(err, 'Could not add watcher'), { type: 'error' }),
+    onSettled: () =>
+      qc.invalidateQueries({ queryKey: queryKeys.tasks(workspace?.id) }),
+  })
+}
+
+export function useRemoveWatcher() {
+  const { workspace } = useAuth()
+  const showToast = useToast()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ taskId, personId }) => removeWatcher(taskId, personId),
+    onError: (err) => showToast(errMsg(err, 'Could not remove watcher'), { type: 'error' }),
+    onSettled: () =>
+      qc.invalidateQueries({ queryKey: queryKeys.tasks(workspace?.id) }),
   })
 }
 

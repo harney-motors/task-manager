@@ -52,6 +52,11 @@ export default function TaskRow({ task, onClick }) {
               {formatRelative(task.due_date)}
             </span>
           )}
+          {(task.watchers?.length ?? 0) > 0 && (
+            <span className="text-text-3 text-[10px]">
+              +{task.watchers.length} watching
+            </span>
+          )}
         </div>
       </div>
 

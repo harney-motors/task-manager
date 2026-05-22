@@ -35,11 +35,14 @@ export function picDot(color) {
 }
 
 // Status badge styling matches the prototype.
+// "Ongoing" is for initiatives with no end date — reuses the purple
+// PIC palette since purple reads as perpetual / always-running.
 export const STATUS_PILL = {
   Open:           'bg-warning-bg     text-warning-text',
   'In progress':  'bg-in-progress-bg text-in-progress-text',
   Done:           'bg-success-bg     text-success-text',
   Overdue:        'bg-danger-bg      text-danger-text',
+  Ongoing:        'bg-pic-purple-bg  text-pic-purple-text',
 }
 
 export function statusPill(status) {

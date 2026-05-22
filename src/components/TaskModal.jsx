@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react'
-import { useDepartments, useDeleteTask, usePeople, useUpdateTask } from '../lib/queries'
-import { statusPill } from '../lib/colors'
+import {
+  useAddWatcher,
+  useDeleteTask,
+  useDepartments,
+  usePeople,
+  useRemoveWatcher,
+  useUpdateTask,
+} from '../lib/queries'
+import { picPill, statusPill } from '../lib/colors'
 import { isOverdue, formatRelative } from '../lib/dates'
 import JournalPanel from './JournalPanel'
 
@@ -9,6 +16,8 @@ export default function TaskModal({ task, onClose }) {
   const { data: departments = [] } = useDepartments()
   const updateTask = useUpdateTask()
   const deleteTask = useDeleteTask()
+  const addWatcher = useAddWatcher()
+  const removeWatcher = useRemoveWatcher()
 
   const [showJournal, setShowJournal] = useState(false)
   const [title, setTitle] = useState('')
@@ -170,6 +179,21 @@ export default function TaskModal({ task, onClose }) {
               </select>
             </FieldRow>
 
+            <FieldRow label="Date raised" icon="ti-calendar-event">
+              <input
+                type="date"
+                value={task.raised_date ?? ''}
+                onChange={(e) =>
+                  updateField('raised_date', e.target.value || null)
+                }
+                disabled={isTemp}
+                className="text-sm bg-surface border border-border rounded px-2 py-1 hover:bg-surface-2 cursor-pointer disabled:opacity-60"
+              />
+              <span className="text-[11px] text-text-3">
+                meeting / origin date
+              </span>
+            </FieldRow>
+
             <FieldRow label="Due" icon="ti-calendar-due">
               <input
                 type="date"
@@ -209,8 +233,68 @@ export default function TaskModal({ task, onClose }) {
               >
                 <option value="Open">Open</option>
                 <option value="In progress">In progress</option>
+                <option value="Ongoing">Ongoing</option>
                 <option value="Done">Done</option>
               </select>
+            </FieldRow>
+
+            <FieldRow label="Watchers" icon="ti-users">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {(task.watchers ?? []).map((w) => (
+                  <span
+                    key={w.id}
+                    className={`text-[11px] px-2 py-0.5 rounded inline-flex items-center gap-1 ${picPill(w.color)}`}
+                  >
+                    {w.name.split(' ')[0]}
+                    <button
+                      onClick={() =>
+                        removeWatcher.mutate({
+                          taskId: task.id,
+                          personId: w.id,
+                        })
+                      }
+                      disabled={isTemp}
+                      className="opacity-70 hover:opacity-100"
+                      aria-label={`Remove watcher ${w.name}`}
+                    >
+                      <i className="ti ti-x text-[10px]" />
+                    </button>
+                  </span>
+                ))}
+                {(() => {
+                  const watcherIds = new Set((task.watchers ?? []).map((w) => w.id))
+                  const candidates = people.filter(
+                    (p) => p.id !== task.pic_id && !watcherIds.has(p.id),
+                  )
+                  if (candidates.length === 0) {
+                    return (
+                      <span className="text-[11px] text-text-3">No one else to add</span>
+                    )
+                  }
+                  return (
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        if (!e.target.value) return
+                        addWatcher.mutate({
+                          taskId: task.id,
+                          personId: e.target.value,
+                        })
+                        e.target.value = ''
+                      }}
+                      disabled={isTemp}
+                      className="text-[11px] bg-transparent border border-border rounded px-1.5 py-0.5 cursor-pointer disabled:opacity-50"
+                    >
+                      <option value="">+ Add watcher</option>
+                      {candidates.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  )
+                })()}
+              </div>
             </FieldRow>
 
             <FieldRow label="Tags" icon="ti-tag">
