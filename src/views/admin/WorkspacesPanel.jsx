@@ -344,6 +344,7 @@ function MembersModal({ workspace, onClose }) {
               >
                 <option value="owner">Owner</option>
                 <option value="editor">Editor</option>
+                <option value="pic">PIC (sees only own tasks)</option>
               </select>
               <button
                 onClick={handleAdd}

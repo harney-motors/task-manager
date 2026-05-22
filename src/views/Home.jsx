@@ -17,6 +17,7 @@ import SuperAdminView from './SuperAdminView'
 import SearchPalette from '../components/SearchPalette'
 import ExtractFromMeetingModal from '../components/ExtractFromMeetingModal'
 import ActivityFeed from '../components/ActivityFeed'
+import WorkspaceSwitcher from '../components/WorkspaceSwitcher'
 import { TickdMark, TickdWordmark } from '../components/TickdMark'
 import { useIsSuperadmin } from '../lib/queries'
 
@@ -106,21 +107,24 @@ export default function Home() {
     <div className="min-h-screen bg-bg text-text font-sans">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
         <div className="flex items-center justify-between mb-5 sm:mb-6">
-          <button
-            onClick={() => {
-              setView('today')
-              setOpenTaskId(null)
-              setShowSettings(false)
-              setShowSuperAdmin(false)
-              setShowSearch(false)
-              setShowExtract(false)
-            }}
-            aria-label="Home"
-            className="flex items-center gap-2 sm:gap-3 min-w-0 hover:opacity-80 transition-opacity"
-          >
-            <TickdMark size={32} className="flex-shrink-0" />
-            <TickdWordmark className="text-lg" />
-          </button>
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <button
+              onClick={() => {
+                setView('today')
+                setOpenTaskId(null)
+                setShowSettings(false)
+                setShowSuperAdmin(false)
+                setShowSearch(false)
+                setShowExtract(false)
+              }}
+              aria-label="Home"
+              className="flex items-center gap-2 sm:gap-3 min-w-0 hover:opacity-80 transition-opacity"
+            >
+              <TickdMark size={32} className="flex-shrink-0" />
+              <TickdWordmark className="text-lg" />
+            </button>
+            <WorkspaceSwitcher />
+          </div>
           <div className="flex items-center gap-2 sm:gap-3 text-sm min-w-0">
             <span className="text-text-2 hidden sm:inline truncate max-w-[180px]">
               {user.email}
