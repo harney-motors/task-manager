@@ -70,6 +70,7 @@ export default async (req) => {
   const workspaceId = body?.workspace_id ?? null
   const role = body?.role ?? null
   const promoteSuperadmin = !!body?.promote_superadmin
+  const linkPersonId = body?.link_person_id ?? null
 
   if (!email) return jsonError(400, 'Email is required')
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -129,7 +130,20 @@ export default async (req) => {
     }
   }
 
-  // 3. Optional: promote to superadmin
+  // 3. Optional: link existing people row to this new auth user
+  //    (so RLS recognises "their" tasks via people.user_id).
+  if (linkPersonId) {
+    const { error } = await adminClient
+      .from('people')
+      .update({ user_id: newUser.id })
+      .eq('id', linkPersonId)
+    if (error) {
+      warnings.push(`Created the user but couldn't link to the person record: ${error.message}`)
+      console.warn('[admin-create-user] link person failed', error)
+    }
+  }
+
+  // 4. Optional: promote to superadmin
   if (promoteSuperadmin) {
     const { error } = await adminClient
       .from('superadmins')

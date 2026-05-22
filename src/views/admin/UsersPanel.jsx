@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../../auth/AuthProvider'
 import {
   useAdminCreateUser,
@@ -8,6 +8,8 @@ import {
   useAdminWorkspaces,
 } from '../../lib/queries'
 import { useToast } from '../../components/Toast'
+import { supabase } from '../../lib/supabase'
+import { findPersonForEmail } from '../../lib/matchPerson'
 
 function fmtDate(iso) {
   if (!iso) return '—'
@@ -167,6 +169,65 @@ function CreateUserModal({ onClose }) {
   const [promoteSuperadmin, setPromoteSuperadmin] = useState(false)
   const [error, setError] = useState(null)
 
+  // Fetch the selected workspace's people so we can offer person-linking.
+  // Superadmin RLS lets us read across workspaces.
+  const [workspacePeople, setWorkspacePeople] = useState([])
+  const [peopleLoading, setPeopleLoading] = useState(false)
+  const [linkPersonId, setLinkPersonId] = useState('')
+  const [autoMatched, setAutoMatched] = useState(false)
+
+  useEffect(() => {
+    if (!workspaceId) {
+      setWorkspacePeople([])
+      setLinkPersonId('')
+      return
+    }
+    let cancelled = false
+    setPeopleLoading(true)
+    supabase
+      .from('people')
+      .select('id, name, title, department, color, user_id')
+      .eq('workspace_id', workspaceId)
+      .eq('is_active', true)
+      .order('name')
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) {
+          console.warn('[create-user] people fetch failed', error)
+          setWorkspacePeople([])
+        } else {
+          setWorkspacePeople(data ?? [])
+        }
+        setPeopleLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [workspaceId])
+
+  // Auto-match person whenever email or workspace people change,
+  // unless the user has manually picked something already.
+  const suggestedPerson = useMemo(
+    () => findPersonForEmail(email, workspacePeople),
+    [email, workspacePeople],
+  )
+
+  useEffect(() => {
+    // Only auto-apply if the user hasn't made a manual selection yet
+    if (autoMatched) return
+    if (!linkPersonId && suggestedPerson) {
+      setLinkPersonId(suggestedPerson.id)
+    }
+  }, [suggestedPerson, linkPersonId, autoMatched])
+
+  function handleLinkPersonChange(id) {
+    setLinkPersonId(id)
+    setAutoMatched(true) // user has taken control of this field
+  }
+
+  // Filter out people who already have a user_id linked (can't double-link)
+  const linkCandidates = workspacePeople.filter((p) => !p.user_id)
+
   async function submit(e) {
     e.preventDefault()
     setError(null)
@@ -182,6 +243,7 @@ function CreateUserModal({ onClose }) {
         workspaceId: workspaceId || null,
         role: workspaceId ? role : null,
         promoteSuperadmin,
+        linkPersonId: workspaceId && linkPersonId ? linkPersonId : null,
       })
       if (result.warnings && result.warnings.length > 0) {
         showToast(`Created. ${result.warnings.join(' ')}`, { type: 'error' })
@@ -260,7 +322,11 @@ function CreateUserModal({ onClose }) {
             <div className="flex gap-2">
               <select
                 value={workspaceId}
-                onChange={(e) => setWorkspaceId(e.target.value)}
+                onChange={(e) => {
+                  setWorkspaceId(e.target.value)
+                  setLinkPersonId('')
+                  setAutoMatched(false)
+                }}
                 className="flex-1 border border-border rounded-md px-2 py-1.5 text-xs bg-bg"
               >
                 <option value="">— No workspace assignment —</option>
@@ -281,6 +347,46 @@ function CreateUserModal({ onClose }) {
                 <option value="pic">PIC</option>
               </select>
             </div>
+
+            {workspaceId && (
+              <div className="mt-3">
+                <label className="block text-[11px] font-medium text-text-2 mb-1.5">
+                  Link to existing person record
+                  {suggestedPerson && (
+                    <span className="ml-1 text-text-3 font-normal">
+                      · auto-matched
+                      <i className="ti ti-sparkles text-info ml-0.5 text-[10px]" />
+                    </span>
+                  )}
+                </label>
+                {peopleLoading ? (
+                  <div className="text-[11px] text-text-3">Loading people…</div>
+                ) : linkCandidates.length === 0 ? (
+                  <div className="text-[11px] text-text-3">
+                    No unlinked person records in this workspace.
+                  </div>
+                ) : (
+                  <select
+                    value={linkPersonId}
+                    onChange={(e) => handleLinkPersonChange(e.target.value)}
+                    className="w-full border border-border rounded-md px-2 py-1.5 text-xs bg-bg"
+                  >
+                    <option value="">— Don&rsquo;t link to anyone —</option>
+                    {linkCandidates.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                        {p.title ? ` · ${p.title}` : ''}
+                        {p.department ? ` · ${p.department}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <p className="text-[11px] text-text-3 mt-1">
+                  Required for PIC role — without a link, RLS can&rsquo;t
+                  figure out which tasks are &ldquo;theirs.&rdquo;
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="border-t border-border pt-4">

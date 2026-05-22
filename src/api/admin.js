@@ -6,6 +6,7 @@ export async function adminCreateUser({
   workspaceId = null,
   role = null,
   promoteSuperadmin = false,
+  linkPersonId = null,
 }) {
   const {
     data: { session },
@@ -24,6 +25,7 @@ export async function adminCreateUser({
       workspace_id: workspaceId,
       role,
       promote_superadmin: promoteSuperadmin,
+      link_person_id: linkPersonId,
     }),
   })
 

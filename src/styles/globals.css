@@ -97,4 +97,15 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Respect iOS safe areas when launched as a standalone PWA */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+           env(safe-area-inset-bottom) env(safe-area-inset-left);
+  /* Prevent iOS rubber-band scrolling from showing white above the topbar */
+  overscroll-behavior-y: none;
+}
+
+/* Disable text-selection on tap-heavy elements (icons / chips) for a
+   more app-like feel on mobile, while keeping selection on actual text. */
+button, label, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
 }
