@@ -1,5 +1,46 @@
 import { supabase } from '../lib/supabase'
 
+export async function adminCreateUser({
+  email,
+  sendInvite = false,
+  workspaceId = null,
+  role = null,
+  promoteSuperadmin = false,
+}) {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  if (!session) throw new Error('Not signed in')
+
+  const res = await fetch('/.netlify/functions/admin-create-user', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({
+      email,
+      send_invite: sendInvite,
+      workspace_id: workspaceId,
+      role,
+      promote_superadmin: promoteSuperadmin,
+    }),
+  })
+
+  if (!res.ok) {
+    let msg = `Could not create user (${res.status})`
+    try {
+      const body = await res.json()
+      if (body?.error) msg = body.error
+    } catch {
+      // body wasn't JSON
+    }
+    throw new Error(msg)
+  }
+  return res.json()
+}
+
+
 // Thin wrappers over the admin_* / get_all_users RPC functions.
 // Each one runs server-side with security definer and rejects callers
 // that aren't in the superadmins table.

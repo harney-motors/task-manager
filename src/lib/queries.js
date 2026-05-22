@@ -12,6 +12,7 @@ import {
 } from '../api/savedFilters'
 import {
   adminAddMember,
+  adminCreateUser,
   adminCreateWorkspace,
   adminDeleteWorkspace,
   adminDemoteUser,
@@ -398,6 +399,16 @@ export function useAdminDeleteWorkspace() {
   return useMutation({
     mutationFn: (id) => adminDeleteWorkspace(id),
     onError: (err) => showToast(errMsg(err, 'Could not delete workspace'), { type: 'error' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['admin'] }),
+  })
+}
+
+export function useAdminCreateUser() {
+  const qc = useQueryClient()
+  const showToast = useToast()
+  return useMutation({
+    mutationFn: (opts) => adminCreateUser(opts),
+    onError: (err) => showToast(errMsg(err, 'Could not create user'), { type: 'error' }),
     onSettled: () => qc.invalidateQueries({ queryKey: ['admin'] }),
   })
 }
