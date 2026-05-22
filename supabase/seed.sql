@@ -23,7 +23,7 @@
 
 do $$
 declare
-  YOUR_EMAIL    constant text := 'asbert@example.com';  -- <<< EDIT THIS
+  YOUR_EMAIL    constant text := 'asbert@harneymotorsltd.com';  -- <<< EDIT THIS
   v_user_id     uuid;
   v_workspace   uuid;
 begin
