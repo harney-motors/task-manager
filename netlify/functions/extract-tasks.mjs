@@ -6,15 +6,20 @@
 // We verify it, load their workspace people + departments via the same JWT
 // (so RLS still applies), then call Claude with that context.
 //
-// Required Netlify env vars:
-//   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY  (already present)
-//   ANTHROPIC_API_KEY                          (add via Site settings → Env)
+// Required Netlify env vars (Functions scope):
+//   SUPABASE_URL, SUPABASE_ANON_KEY            (plain, not VITE_ prefixed)
+//   ANTHROPIC_API_KEY
+//
+// Note: VITE_* variants are kept as fallbacks for local `netlify dev` where
+// only the .env.local set exists. In production, set the plain names —
+// Netlify auto-restricts VITE_* to Builds scope only.
 
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL
-const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
+const SUPABASE_ANON_KEY =
+  process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
 
 const SYSTEM_BASE = `You extract action items from executive meeting transcripts/notes for the Tickd task manager.

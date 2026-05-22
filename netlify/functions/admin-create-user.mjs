@@ -8,14 +8,15 @@
 // requires the Supabase service-role key (admin API). That key can
 // never live in the browser, so the operation has to happen here.
 //
-// Required Netlify env vars:
-//   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY  (already present)
-//   SUPABASE_SERVICE_ROLE_KEY                  (already present for other ops)
+// Required Netlify env vars (Functions scope):
+//   SUPABASE_URL, SUPABASE_ANON_KEY            (plain, not VITE_ prefixed)
+//   SUPABASE_SERVICE_ROLE_KEY
 
 import { createClient } from '@supabase/supabase-js'
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL
-const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
+const SUPABASE_ANON_KEY =
+  process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 const VALID_ROLES = new Set(['owner', 'editor', 'pic'])
