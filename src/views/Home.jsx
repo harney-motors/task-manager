@@ -15,13 +15,19 @@ export default function Home() {
   const today = startOfToday()
   const sevenOut = addDays(today, 7)
 
+  // "Today & overdue" also acts as the inbox for unscheduled tasks
+  // (no due_date) — otherwise quick-entry tasks would vanish into neither panel.
   const todayAndOverdue = tasks
     .filter((t) => {
-      if (t.status === 'Done' || !t.due_date) return false
-      const d = parseDate(t.due_date)
-      return d <= today
+      if (t.status === 'Done') return false
+      if (!t.due_date) return true
+      return parseDate(t.due_date) <= today
     })
-    .sort((a, b) => parseDate(a.due_date) - parseDate(b.due_date))
+    .sort((a, b) => {
+      const ad = a.due_date ? parseDate(a.due_date).getTime() : Infinity
+      const bd = b.due_date ? parseDate(b.due_date).getTime() : Infinity
+      return ad - bd
+    })
 
   const upcoming = tasks
     .filter((t) => {
