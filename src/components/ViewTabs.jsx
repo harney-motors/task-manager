@@ -1,7 +1,8 @@
 const TABS = [
-  { id: 'list', label: 'List', icon: 'ti-list' },
-  { id: 'grid', label: 'Grid', icon: 'ti-table' },
-  { id: 'pic', label: 'By PIC', icon: 'ti-users' },
+  { id: 'today',    label: 'Today',    icon: 'ti-sun' },
+  { id: 'list',     label: 'List',     icon: 'ti-list' },
+  { id: 'grid',     label: 'Grid',     icon: 'ti-table' },
+  { id: 'pic',      label: 'By PIC',   icon: 'ti-users' },
   { id: 'calendar', label: 'Calendar', icon: 'ti-calendar' },
 ]
 

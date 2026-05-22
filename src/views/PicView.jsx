@@ -1,13 +1,12 @@
 import { useMemo, useState } from 'react'
-import { useAuth } from '../auth/AuthProvider'
-import { useTasks } from '../lib/queries'
+import { usePeople, useTasks } from '../lib/queries'
 import { isOverdue } from '../lib/dates'
 import { picDot, picPill } from '../lib/colors'
 import TaskRow from '../components/TaskRow'
 import ShareModal from '../components/ShareModal'
 
 export default function PicView({ onOpenTask }) {
-  const { people } = useAuth()
+  const { data: people = [] } = usePeople()
   const { data: tasks = [], isLoading } = useTasks()
 
   // Default to the first PIC with at least one task — fall back to first person

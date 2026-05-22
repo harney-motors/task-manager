@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useAuth } from '../auth/AuthProvider'
-import { useDepartments, useTasks, useUpdateTask } from '../lib/queries'
+import { useDepartments, usePeople, useTasks, useUpdateTask } from '../lib/queries'
 import { isOverdue } from '../lib/dates'
 import { statusPill } from '../lib/colors'
 
@@ -8,7 +7,7 @@ const COLS =
   'grid grid-cols-[28px_minmax(0,2.2fr)_140px_120px_120px_100px_110px] gap-3 px-4 items-center'
 
 export default function GridView({ onOpenTask }) {
-  const { people } = useAuth()
+  const { data: people = [] } = usePeople()
   const { data: tasks = [], isLoading } = useTasks()
   const { data: departments = [] } = useDepartments()
   const updateTask = useUpdateTask()

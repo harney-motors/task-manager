@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react'
-import { useAuth } from '../auth/AuthProvider'
-import { useCreateTask } from '../lib/queries'
+import { useCreateTask, usePeople } from '../lib/queries'
 
 export default function QuickEntry() {
-  const { people } = useAuth()
+  const { data: people = [] } = usePeople()
   const createTask = useCreateTask()
   const [value, setValue] = useState('')
 
@@ -50,11 +49,12 @@ export default function QuickEntry() {
     >
       <i className="ti ti-sparkles text-info text-lg" />
       <input
+        id="quick-entry-input"
         type="text"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder={`Type a task and press Enter — e.g. "Asbert to confirm board agenda by Friday"`}
-        className="flex-1 bg-transparent outline-none text-sm placeholder:text-text-3"
+        placeholder={`Type a task and press Enter — try "Asbert to confirm board agenda" · "/" focuses this input`}
+        className="flex-1 bg-transparent outline-none text-sm placeholder:text-text-3 min-w-0"
         autoComplete="off"
       />
     </form>

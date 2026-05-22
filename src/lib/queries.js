@@ -1,14 +1,31 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../auth/AuthProvider'
+import { useToast } from '../components/Toast'
 import { createTask, fetchTasks, updateTask, deleteTask } from '../api/tasks'
 import { fetchJournalEntries, createJournalEntry } from '../api/journal'
+import {
+  createPerson,
+  deactivatePerson,
+  fetchPeople,
+  updatePerson,
+} from '../api/people'
+import {
+  createDepartment,
+  deleteDepartment,
+  fetchDepartments,
+  updateDepartment,
+} from '../api/departments'
 import { logActivity } from '../api/activity'
-import { supabase } from './supabase'
+
+function errMsg(err, fallback) {
+  return err?.message ?? fallback
+}
 
 export const queryKeys = {
-  tasks:        (workspaceId) => ['tasks', workspaceId],
-  departments:  (workspaceId) => ['departments', workspaceId],
-  journal:      (taskId)      => ['journal', taskId],
+  tasks:       (workspaceId) => ['tasks', workspaceId],
+  people:      (workspaceId) => ['people', workspaceId],
+  departments: (workspaceId) => ['departments', workspaceId],
+  journal:     (taskId)      => ['journal', taskId],
 }
 
 // ---------- Tasks ----------
@@ -23,7 +40,9 @@ export function useTasks() {
 }
 
 export function useCreateTask() {
-  const { workspace, people, user } = useAuth()
+  const { workspace, user } = useAuth()
+  const { data: people = [] } = usePeople()
+  const showToast = useToast()
   const qc = useQueryClient()
   const key = queryKeys.tasks(workspace?.id)
 
@@ -63,8 +82,9 @@ export function useCreateTask() {
         payload: { title: task.title },
       })
     },
-    onError: (_err, _fields, ctx) => {
+    onError: (err, _fields, ctx) => {
       if (ctx?.previous) qc.setQueryData(key, ctx.previous)
+      showToast(errMsg(err, 'Could not add task'), { type: 'error' })
     },
     onSettled: () => qc.invalidateQueries({ queryKey: key }),
   })
@@ -72,6 +92,7 @@ export function useCreateTask() {
 
 export function useUpdateTask() {
   const { workspace, user } = useAuth()
+  const showToast = useToast()
   const qc = useQueryClient()
   const key = queryKeys.tasks(workspace?.id)
 
@@ -95,8 +116,9 @@ export function useUpdateTask() {
         payload: { changes },
       })
     },
-    onError: (_err, _fields, ctx) => {
+    onError: (err, _fields, ctx) => {
       if (ctx?.previous) qc.setQueryData(key, ctx.previous)
+      showToast(errMsg(err, 'Could not save task'), { type: 'error' })
     },
     onSettled: () => qc.invalidateQueries({ queryKey: key }),
   })
@@ -104,6 +126,7 @@ export function useUpdateTask() {
 
 export function useDeleteTask() {
   const { workspace, user } = useAuth()
+  const showToast = useToast()
   const qc = useQueryClient()
   const key = queryKeys.tasks(workspace?.id)
 
@@ -113,21 +136,69 @@ export function useDeleteTask() {
       await qc.cancelQueries({ queryKey: key })
       const previous = qc.getQueryData(key)
       qc.setQueryData(key, (old) => (old ?? []).filter((t) => t.id !== id))
-      return { previous, deletedId: id }
+      return { previous }
     },
     onSuccess: (_void, id) => {
       logActivity({
         workspaceId: workspace.id,
-        taskId: null, // task is gone; payload preserves the id
+        taskId: null,
         actorId: user?.id,
         action: 'task.deleted',
         payload: { task_id: id },
       })
     },
-    onError: (_err, _id, ctx) => {
+    onError: (err, _id, ctx) => {
       if (ctx?.previous) qc.setQueryData(key, ctx.previous)
+      showToast(errMsg(err, 'Could not delete task'), { type: 'error' })
     },
     onSettled: () => qc.invalidateQueries({ queryKey: key }),
+  })
+}
+
+// ---------- People ----------
+
+export function usePeople({ includeInactive = false } = {}) {
+  const { workspace } = useAuth()
+  return useQuery({
+    queryKey: [...queryKeys.people(workspace?.id), { includeInactive }],
+    queryFn: () => fetchPeople(workspace.id, { includeInactive }),
+    enabled: !!workspace,
+  })
+}
+
+export function useCreatePerson() {
+  const { workspace } = useAuth()
+  const showToast = useToast()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (fields) => createPerson(workspace.id, fields),
+    onError: (err) => showToast(errMsg(err, 'Could not add person'), { type: 'error' }),
+    onSettled: () =>
+      qc.invalidateQueries({ queryKey: queryKeys.people(workspace?.id) }),
+  })
+}
+
+export function useUpdatePerson() {
+  const { workspace } = useAuth()
+  const showToast = useToast()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...fields }) => updatePerson(id, fields),
+    onError: (err) => showToast(errMsg(err, 'Could not save person'), { type: 'error' }),
+    onSettled: () =>
+      qc.invalidateQueries({ queryKey: queryKeys.people(workspace?.id) }),
+  })
+}
+
+export function useDeactivatePerson() {
+  const { workspace } = useAuth()
+  const showToast = useToast()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id) => deactivatePerson(id),
+    onError: (err) => showToast(errMsg(err, 'Could not deactivate person'), { type: 'error' }),
+    onSettled: () =>
+      qc.invalidateQueries({ queryKey: queryKeys.people(workspace?.id) }),
   })
 }
 
@@ -137,16 +208,44 @@ export function useDepartments() {
   const { workspace } = useAuth()
   return useQuery({
     queryKey: queryKeys.departments(workspace?.id),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('departments')
-        .select('*')
-        .eq('workspace_id', workspace.id)
-        .order('name')
-      if (error) throw error
-      return data ?? []
-    },
+    queryFn: () => fetchDepartments(workspace.id),
     enabled: !!workspace,
+  })
+}
+
+export function useCreateDepartment() {
+  const { workspace } = useAuth()
+  const showToast = useToast()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (fields) => createDepartment(workspace.id, fields),
+    onError: (err) => showToast(errMsg(err, 'Could not add department'), { type: 'error' }),
+    onSettled: () =>
+      qc.invalidateQueries({ queryKey: queryKeys.departments(workspace?.id) }),
+  })
+}
+
+export function useUpdateDepartment() {
+  const { workspace } = useAuth()
+  const showToast = useToast()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...fields }) => updateDepartment(id, fields),
+    onError: (err) => showToast(errMsg(err, 'Could not save department'), { type: 'error' }),
+    onSettled: () =>
+      qc.invalidateQueries({ queryKey: queryKeys.departments(workspace?.id) }),
+  })
+}
+
+export function useDeleteDepartment() {
+  const { workspace } = useAuth()
+  const showToast = useToast()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id) => deleteDepartment(id),
+    onError: (err) => showToast(errMsg(err, 'Could not delete department'), { type: 'error' }),
+    onSettled: () =>
+      qc.invalidateQueries({ queryKey: queryKeys.departments(workspace?.id) }),
   })
 }
 

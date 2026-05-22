@@ -1,20 +1,41 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import { useTasks } from '../lib/queries'
 import QuickEntry from '../components/QuickEntry'
 import TaskModal from '../components/TaskModal'
 import Greeting from '../components/Greeting'
 import ViewTabs from '../components/ViewTabs'
+import TodayView from './TodayView'
 import ListView from './ListView'
 import GridView from './GridView'
 import PicView from './PicView'
 import CalendarView from './CalendarView'
+import SettingsView from './SettingsView'
 
 export default function Home() {
   const { user, workspace, workspaceLoading, signOut } = useAuth()
   const { data: tasks = [] } = useTasks()
   const [openTaskId, setOpenTaskId] = useState(null)
-  const [view, setView] = useState('list')
+  const [view, setView] = useState('today')
+  const [showSettings, setShowSettings] = useState(false)
+
+  // "/" keybind focuses the quick entry input from anywhere on the home page
+  // (unless already typing in a form field).
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key !== '/') return
+      const tag = e.target?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (e.target?.isContentEditable) return
+      const input = document.getElementById('quick-entry-input')
+      if (input) {
+        e.preventDefault()
+        input.focus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   if (workspaceLoading && !workspace) {
     return (
@@ -49,6 +70,10 @@ export default function Home() {
     )
   }
 
+  if (showSettings) {
+    return <SettingsView onBack={() => setShowSettings(false)} />
+  }
+
   const openTask = tasks.find((t) => t.id === openTaskId)
 
   return (
@@ -66,6 +91,13 @@ export default function Home() {
               {user.email}
             </span>
             <button
+              onClick={() => setShowSettings(true)}
+              className="p-2 rounded hover:bg-surface-2 text-text-2 hover:text-text"
+              aria-label="Settings"
+            >
+              <i className="ti ti-settings text-base" />
+            </button>
+            <button
               onClick={signOut}
               className="text-text-3 hover:text-text underline text-xs whitespace-nowrap"
             >
@@ -81,6 +113,7 @@ export default function Home() {
           <ViewTabs active={view} onChange={setView} />
         </div>
 
+        {view === 'today'    && <TodayView    onOpenTask={setOpenTaskId} />}
         {view === 'list'     && <ListView     onOpenTask={setOpenTaskId} />}
         {view === 'grid'     && <GridView     onOpenTask={setOpenTaskId} />}
         {view === 'pic'      && <PicView      onOpenTask={setOpenTaskId} />}

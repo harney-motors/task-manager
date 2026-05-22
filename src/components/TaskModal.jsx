@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react'
-import { useAuth } from '../auth/AuthProvider'
-import { useDepartments, useUpdateTask, useDeleteTask } from '../lib/queries'
+import { useDepartments, useDeleteTask, usePeople, useUpdateTask } from '../lib/queries'
 import { statusPill } from '../lib/colors'
 import { isOverdue, formatRelative } from '../lib/dates'
 import JournalPanel from './JournalPanel'
 
 export default function TaskModal({ task, onClose }) {
-  const { people } = useAuth()
+  const { data: people = [] } = usePeople()
   const { data: departments = [] } = useDepartments()
   const updateTask = useUpdateTask()
   const deleteTask = useDeleteTask()
