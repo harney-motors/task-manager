@@ -14,6 +14,7 @@ import {
   adminAddMember,
   adminCreateUser,
   adminCreateWorkspace,
+  adminDeleteUser,
   adminDeleteWorkspace,
   adminDemoteUser,
   adminPromoteUser,
@@ -409,6 +410,16 @@ export function useAdminCreateUser() {
   return useMutation({
     mutationFn: (opts) => adminCreateUser(opts),
     onError: (err) => showToast(errMsg(err, 'Could not create user'), { type: 'error' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['admin'] }),
+  })
+}
+
+export function useAdminDeleteUser() {
+  const qc = useQueryClient()
+  const showToast = useToast()
+  return useMutation({
+    mutationFn: (userId) => adminDeleteUser(userId),
+    onError: (err) => showToast(errMsg(err, 'Could not delete user'), { type: 'error' }),
     onSettled: () => qc.invalidateQueries({ queryKey: ['admin'] }),
   })
 }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../../auth/AuthProvider'
 import {
   useAdminCreateUser,
+  useAdminDeleteUser,
   useAdminDemoteUser,
   useAdminPromoteUser,
   useAdminUsers,
@@ -25,6 +26,7 @@ export default function UsersPanel() {
   const { user: currentUser } = useAuth()
   const promote = useAdminPromoteUser()
   const demote = useAdminDemoteUser()
+  const remove = useAdminDeleteUser()
   const showToast = useToast()
   const [createOpen, setCreateOpen] = useState(false)
 
@@ -39,6 +41,25 @@ export default function UsersPanel() {
     try {
       await demote.mutateAsync(u.id)
       showToast(`${u.email} demoted`)
+    } catch {}
+  }
+
+  async function handleDelete(u) {
+    const wsLabel =
+      u.workspaces.length > 0
+        ? `\n\nThey are a member of: ${u.workspaces.map((w) => w.name).join(', ')}. Those memberships will be removed; their workspaces will remain.`
+        : ''
+    const contentLabel =
+      `\n\nTheir created tasks, journal notes, and activity history will stay but lose attribution (shown as "Unknown" or unattributed).`
+    if (
+      !confirm(
+        `Permanently delete ${u.email}?${wsLabel}${contentLabel}\n\nThis cannot be undone.`,
+      )
+    )
+      return
+    try {
+      await remove.mutateAsync(u.id)
+      showToast(`Deleted ${u.email}`)
     } catch {}
   }
 
@@ -138,6 +159,18 @@ export default function UsersPanel() {
                         Promote
                       </button>
                     )}
+                    <button
+                      onClick={() => handleDelete(u)}
+                      disabled={u.id === currentUser?.id}
+                      className="text-text-3 hover:text-danger-text hover:bg-danger-bg rounded px-2 py-0.5 ml-1 disabled:opacity-50"
+                      title={
+                        u.id === currentUser?.id
+                          ? "Can't delete yourself"
+                          : 'Permanently delete this user'
+                      }
+                    >
+                      Delete
+                    </button>
                   </td>
                 </tr>
               ))}
