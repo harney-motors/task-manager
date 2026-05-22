@@ -1,18 +1,22 @@
-// Netlify Function — extracts action items from a pasted meeting transcript
-// using Claude. Returns structured task drafts the client can review and
-// bulk-insert.
+// Netlify Background Function — extracts action items from a meeting
+// transcript stored in an ai_extraction_jobs row.
 //
-// Auth: caller must pass their Supabase JWT in Authorization: Bearer <jwt>.
-// We verify it, load their workspace people + departments via the same JWT
-// (so RLS still applies), then call Claude with that context.
+// The `-background` suffix is significant: Netlify recognises it,
+// returns 202 to the caller immediately, then runs the function for
+// up to 15 minutes. That sidesteps the 26s synchronous ceiling that
+// kept timing out Opus extraction on long transcripts.
+//
+// Flow:
+//   1. Client INSERTs an ai_extraction_jobs row (pending) and POSTs
+//      its id here in `{ job_id }`. The user's JWT is in Authorization.
+//   2. We read the row via the user's JWT (RLS gates it).
+//   3. Call Claude.
+//   4. UPDATE the row with result + status='completed' (or 'failed').
+//   5. Client polls the row until status != 'pending'.
 //
 // Required Netlify env vars (Functions scope):
-//   SUPABASE_URL, SUPABASE_ANON_KEY            (plain, not VITE_ prefixed)
+//   SUPABASE_URL, SUPABASE_ANON_KEY
 //   ANTHROPIC_API_KEY
-//
-// Note: VITE_* variants are kept as fallbacks for local `netlify dev` where
-// only the .env.local set exists. In production, set the plain names —
-// Netlify auto-restricts VITE_* to Builds scope only.
 
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
@@ -41,15 +45,19 @@ export default async (req) => {
   if (req.method !== 'POST') {
     return new Response('method not allowed', { status: 405 })
   }
-
   if (!ANTHROPIC_API_KEY) {
-    return jsonError(500, 'Server missing ANTHROPIC_API_KEY')
+    // No row to update yet at this point; just log and bail. Caller
+    // already got their 202 so this only surfaces in function logs.
+    console.error('[extract-tasks-background] missing ANTHROPIC_API_KEY')
+    return new Response('missing key', { status: 500 })
   }
 
   // ---------- Auth ----------
-  const authHeader = req.headers.get('authorization') ?? req.headers.get('Authorization')
+  const authHeader =
+    req.headers.get('authorization') ?? req.headers.get('Authorization')
   if (!authHeader?.startsWith('Bearer ')) {
-    return jsonError(401, 'Missing bearer token')
+    console.warn('[extract-tasks-background] missing bearer')
+    return new Response('unauthorized', { status: 401 })
   }
   const jwt = authHeader.slice('Bearer '.length).trim()
 
@@ -57,48 +65,46 @@ export default async (req) => {
     global: { headers: { Authorization: `Bearer ${jwt}` } },
     auth: { persistSession: false, autoRefreshToken: false },
   })
-  const { data: userData, error: userErr } = await supabase.auth.getUser(jwt)
-  if (userErr || !userData?.user) {
-    return jsonError(401, 'Invalid token')
-  }
-  const user = userData.user
 
   // ---------- Body ----------
   let body
   try {
     body = await req.json()
   } catch {
-    return jsonError(400, 'Invalid JSON body')
+    return new Response('bad json', { status: 400 })
   }
-  const transcript = String(body?.transcript ?? '').trim()
-  if (!transcript) {
-    return jsonError(400, 'transcript is required')
+  const jobId = String(body?.job_id ?? '').trim()
+  if (!jobId) {
+    return new Response('job_id required', { status: 400 })
   }
-  if (transcript.length > 50000) {
-    return jsonError(413, 'transcript too long (max 50k chars)')
+
+  // ---------- Load job row (RLS gates ownership) ----------
+  const { data: job, error: jobErr } = await supabase
+    .from('ai_extraction_jobs')
+    .select('id, workspace_id, transcript, status')
+    .eq('id', jobId)
+    .maybeSingle()
+  if (jobErr || !job) {
+    console.warn('[extract-tasks-background] job not found', jobId, jobErr)
+    return new Response('job not found', { status: 404 })
+  }
+  if (job.status !== 'pending') {
+    // Already processed (or retry collision). Idempotent no-op.
+    return new Response('already processed', { status: 200 })
   }
 
   // ---------- Load workspace context ----------
-  const { data: member, error: memberErr } = await supabase
-    .from('workspace_members')
-    .select('workspace_id')
-    .eq('user_id', user.id)
-    .maybeSingle()
-  if (memberErr || !member) {
-    return jsonError(403, 'No workspace for this user')
-  }
-
   const [peopleRes, deptsRes] = await Promise.all([
     supabase
       .from('people')
       .select('name, title, department, role')
-      .eq('workspace_id', member.workspace_id)
+      .eq('workspace_id', job.workspace_id)
       .eq('is_active', true)
       .order('name'),
     supabase
       .from('departments')
       .select('name')
-      .eq('workspace_id', member.workspace_id)
+      .eq('workspace_id', job.workspace_id)
       .order('name'),
   ])
 
@@ -106,7 +112,8 @@ export default async (req) => {
   const departments = deptsRes.data ?? []
 
   if (people.length === 0) {
-    return jsonError(400, 'No active people in workspace — onboard PICs first')
+    await failJob(supabase, jobId, 'No active people in workspace — onboard PICs first')
+    return new Response('no people', { status: 200 })
   }
 
   const today = new Date().toISOString().slice(0, 10)
@@ -133,9 +140,6 @@ ${deptList}`
   let response
   try {
     response = await anthropic.messages.create({
-      // Opus, intentional. Netlify Pro gives 26s sync timeout, which is
-      // comfortable for long-transcript extraction. On the free tier
-      // (10s) this routinely 504s — upgrade Netlify rather than the model.
       model: 'claude-opus-4-7',
       max_tokens: 8192,
       system: systemPrompt,
@@ -205,35 +209,51 @@ ${deptList}`
       messages: [
         {
           role: 'user',
-          content: `Today's date: ${today}\n\nMeeting transcript / notes:\n\n${transcript}`,
+          content: `Today's date: ${today}\n\nMeeting transcript / notes:\n\n${job.transcript}`,
         },
       ],
     })
   } catch (err) {
-    console.warn('[extract-tasks] anthropic error', err)
-    if (err instanceof Anthropic.APIError) {
-      return jsonError(err.status ?? 500, `Claude API error: ${err.message}`)
-    }
-    return jsonError(500, 'Extraction failed')
+    console.warn('[extract-tasks-background] anthropic error', err)
+    const msg =
+      err instanceof Anthropic.APIError
+        ? `Claude API error: ${err.message}`
+        : 'Extraction failed'
+    await failJob(supabase, jobId, msg)
+    return new Response('claude error', { status: 200 })
   }
 
   const toolUse = response.content.find((b) => b.type === 'tool_use')
   if (!toolUse) {
-    return jsonError(500, 'Model did not return a structured extraction')
+    await failJob(supabase, jobId, 'Model did not return a structured extraction')
+    return new Response('no tool use', { status: 200 })
   }
 
-  return new Response(
-    JSON.stringify({
-      tasks: toolUse.input?.tasks ?? [],
-      usage: response.usage,
-    }),
-    { status: 200, headers: { 'content-type': 'application/json' } },
-  )
+  const tasks = toolUse.input?.tasks ?? []
+
+  const { error: updateErr } = await supabase
+    .from('ai_extraction_jobs')
+    .update({
+      status: 'completed',
+      result: { tasks, usage: response.usage },
+      completed_at: new Date().toISOString(),
+    })
+    .eq('id', jobId)
+
+  if (updateErr) {
+    console.warn('[extract-tasks-background] update error', updateErr)
+  }
+
+  return new Response('ok', { status: 200 })
 }
 
-function jsonError(status, message) {
-  return new Response(JSON.stringify({ error: message }), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  })
+async function failJob(supabase, jobId, message) {
+  await supabase
+    .from('ai_extraction_jobs')
+    .update({
+      status: 'failed',
+      error: message,
+      completed_at: new Date().toISOString(),
+    })
+    .eq('id', jobId)
 }

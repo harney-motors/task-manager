@@ -71,7 +71,9 @@ export default function ExtractFromMeetingModal({ open, onClose }) {
     setError(null)
     setDrafts([])
     try {
-      const result = await extractTasksFromTranscript(transcript)
+      const result = await extractTasksFromTranscript(transcript, {
+        workspaceId: workspace.id,
+      })
       const enriched = (result.tasks ?? []).map((t, idx) => {
         const pic = findPerson(t.pic_first_name)
         const dept = findDepartment(t.department)
@@ -223,7 +225,7 @@ export default function ExtractFromMeetingModal({ open, onClose }) {
                 {extracting ? (
                   <>
                     <i className="ti ti-loader-2 animate-spin text-sm" />
-                    Extracting…
+                    Extracting (up to a minute)…
                   </>
                 ) : (
                   <>
