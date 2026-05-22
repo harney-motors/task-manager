@@ -128,10 +128,10 @@ ${deptList}`
   let response
   try {
     response = await anthropic.messages.create({
-      // Sonnet, not Opus — Netlify sync functions are capped at ~10s and
-      // Opus routinely overshoots on long transcripts (returns 504). Sonnet
-      // 4.7 handles structured tool-use extraction well within budget.
-      model: 'claude-sonnet-4-7',
+      // Opus, intentional. Netlify Pro gives 26s sync timeout, which is
+      // comfortable for long-transcript extraction. On the free tier
+      // (10s) this routinely 504s — upgrade Netlify rather than the model.
+      model: 'claude-opus-4-7',
       max_tokens: 8192,
       system: systemPrompt,
       tools: [
