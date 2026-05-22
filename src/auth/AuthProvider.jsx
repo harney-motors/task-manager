@@ -33,25 +33,52 @@ export function AuthProvider({ children }) {
     let cancelled = false
     setWorkspaceLoading(true)
     ;(async () => {
+      // Step 1: find the user's membership row
       const { data: member, error: memberErr } = await supabase
         .from('workspace_members')
-        .select('workspace_id, role, workspaces(*)')
+        .select('workspace_id, role')
         .eq('user_id', user.id)
         .limit(1)
         .maybeSingle()
 
       if (cancelled) return
-      if (memberErr || !member?.workspaces) {
+
+      if (memberErr) {
+        console.warn('[auth] workspace_members query error', memberErr)
+        setWorkspace(null)
+        setPeople([])
+        setWorkspaceLoading(false)
+        return
+      }
+      if (!member) {
+        console.warn('[auth] no workspace_members row for user', user.id, user.email)
         setWorkspace(null)
         setPeople([])
         setWorkspaceLoading(false)
         return
       }
 
-      const ws = member.workspaces
+      // Step 2: fetch the workspace itself
+      const { data: ws, error: wsErr } = await supabase
+        .from('workspaces')
+        .select('*')
+        .eq('id', member.workspace_id)
+        .maybeSingle()
+
+      if (cancelled) return
+
+      if (wsErr || !ws) {
+        console.warn('[auth] workspaces query failed', { wsErr, workspaceId: member.workspace_id })
+        setWorkspace(null)
+        setPeople([])
+        setWorkspaceLoading(false)
+        return
+      }
+
       setWorkspace(ws)
 
-      const { data: peopleData } = await supabase
+      // Step 3: load people in that workspace
+      const { data: peopleData, error: peopleErr } = await supabase
         .from('people')
         .select('*')
         .eq('workspace_id', ws.id)
@@ -59,6 +86,9 @@ export function AuthProvider({ children }) {
         .order('name')
 
       if (cancelled) return
+      if (peopleErr) {
+        console.warn('[auth] people query error', peopleErr)
+      }
       setPeople(peopleData ?? [])
       setWorkspaceLoading(false)
     })()
