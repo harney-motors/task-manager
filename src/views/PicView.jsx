@@ -5,11 +5,14 @@ import { picDot, picPill } from '../lib/colors'
 import TaskRow from '../components/TaskRow'
 import ShareModal from '../components/ShareModal'
 
-export default function PicView({ onOpenTask }) {
+// `selectedPicId` and `onSelectPic` are optional — when passed, PicView
+// becomes controlled and the parent owns the selection (used by the
+// search palette to jump directly to a person). When omitted, PicView
+// defaults to the first PIC with tasks.
+export default function PicView({ onOpenTask, selectedPicId: controlledId, onSelectPic }) {
   const { data: people = [] } = usePeople()
   const { data: tasks = [], isLoading } = useTasks()
 
-  // Default to the first PIC with at least one task — fall back to first person
   const defaultPicId = useMemo(() => {
     const withTasks = people.find((p) =>
       tasks.some((t) => t.pic_id === p.id),
@@ -17,10 +20,12 @@ export default function PicView({ onOpenTask }) {
     return withTasks?.id ?? people[0]?.id ?? null
   }, [people, tasks])
 
-  const [selectedPicId, setSelectedPicId] = useState(defaultPicId)
+  const [internalPicId, setInternalPicId] = useState(defaultPicId)
+  const selectedPicId = controlledId ?? internalPicId
+  const setSelectedPicId = onSelectPic ?? setInternalPicId
+
   const [shareOpen, setShareOpen] = useState(false)
 
-  // Re-default if selected PIC no longer in list (rare)
   const effectivePicId =
     people.some((p) => p.id === selectedPicId) ? selectedPicId : defaultPicId
 

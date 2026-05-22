@@ -11,6 +11,7 @@ import GridView from './GridView'
 import PicView from './PicView'
 import CalendarView from './CalendarView'
 import SettingsView from './SettingsView'
+import SearchPalette from '../components/SearchPalette'
 import { TickdMark, TickdWordmark } from '../components/TickdMark'
 
 export default function Home() {
@@ -19,11 +20,19 @@ export default function Home() {
   const [openTaskId, setOpenTaskId] = useState(null)
   const [view, setView] = useState('today')
   const [showSettings, setShowSettings] = useState(false)
+  const [showSearch, setShowSearch] = useState(false)
+  const [picViewSelectedId, setPicViewSelectedId] = useState(null)
 
   // "/" keybind focuses the quick entry input from anywhere on the home page
   // (unless already typing in a form field).
   useEffect(() => {
     function onKey(e) {
+      // Cmd+K (Mac) / Ctrl+K (Win) opens search from anywhere
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setShowSearch(true)
+        return
+      }
       if (e.key !== '/') return
       const tag = e.target?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
@@ -90,6 +99,15 @@ export default function Home() {
               {user.email}
             </span>
             <button
+              onClick={() => setShowSearch(true)}
+              className="px-2 py-1 rounded hover:bg-surface-2 text-text-2 hover:text-text inline-flex items-center gap-1.5 text-xs border border-border"
+              aria-label="Search"
+              title="Search (Cmd+K)"
+            >
+              <i className="ti ti-search text-sm" />
+              <kbd className="hidden sm:inline text-[10px] text-text-3">⌘K</kbd>
+            </button>
+            <button
               onClick={() => setShowSettings(true)}
               className="p-2 rounded hover:bg-surface-2 text-text-2 hover:text-text"
               aria-label="Settings"
@@ -115,10 +133,25 @@ export default function Home() {
         {view === 'today'    && <TodayView    onOpenTask={setOpenTaskId} />}
         {view === 'list'     && <ListView     onOpenTask={setOpenTaskId} />}
         {view === 'grid'     && <GridView     onOpenTask={setOpenTaskId} />}
-        {view === 'pic'      && <PicView      onOpenTask={setOpenTaskId} />}
+        {view === 'pic'      && (
+          <PicView
+            onOpenTask={setOpenTaskId}
+            selectedPicId={picViewSelectedId ?? undefined}
+            onSelectPic={setPicViewSelectedId}
+          />
+        )}
         {view === 'calendar' && <CalendarView onOpenTask={setOpenTaskId} />}
 
         <TaskModal task={openTask} onClose={() => setOpenTaskId(null)} />
+        <SearchPalette
+          open={showSearch}
+          onClose={() => setShowSearch(false)}
+          onOpenTask={(id) => setOpenTaskId(id)}
+          onSelectPic={(id) => {
+            setView('pic')
+            setPicViewSelectedId(id)
+          }}
+        />
       </div>
     </div>
   )
