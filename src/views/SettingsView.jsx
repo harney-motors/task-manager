@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import {
   useDeactivatePerson,
@@ -14,10 +14,19 @@ import { picDot } from '../lib/colors'
 import PersonModal from '../components/PersonModal'
 import DepartmentModal from '../components/DepartmentModal'
 import Skeleton from '../components/Skeleton'
+import {
+  calendarFeedUrl,
+  createCalendarToken,
+  fetchCalendarToken,
+  revokeCalendarToken,
+  rotateCalendarToken,
+  webcalFeedUrl,
+} from '../api/calendarFeed'
 
 const TABS = [
   { id: 'people',      label: 'People',      icon: 'ti-users' },
   { id: 'departments', label: 'Departments', icon: 'ti-building' },
+  { id: 'calendar',    label: 'Calendar',    icon: 'ti-calendar' },
   { id: 'profile',     label: 'My profile',  icon: 'ti-user' },
 ]
 
@@ -59,6 +68,7 @@ export default function SettingsView({ onBack }) {
 
         {tab === 'people' && <PeoplePanel />}
         {tab === 'departments' && <DepartmentsPanel />}
+        {tab === 'calendar' && <CalendarSyncPanel />}
         {tab === 'profile' && <ProfilePanel />}
       </div>
     </div>
@@ -511,6 +521,253 @@ function DepartmentsPanel() {
       )}
     </div>
   )
+}
+
+// ============================================================
+// Calendar sync
+// ============================================================
+
+function CalendarSyncPanel() {
+  const { workspace, workspaces } = useAuth()
+  return (
+    <div className="space-y-3">
+      <div className="bg-surface border border-border rounded-xl p-5">
+        <h2 className="text-sm font-medium">Calendar sync</h2>
+        <p className="text-xs text-text-2 mt-1 leading-relaxed">
+          Subscribe to your tasks in Apple Calendar, Google Calendar, or
+          Outlook. Tasks with a due date show as all-day events; your
+          calendar app refreshes the feed automatically every ~hour.
+          Each workspace gets its own subscription URL so you can
+          add only the ones you want to see.
+        </p>
+      </div>
+      {workspaces.length === 0 ? (
+        <div className="bg-surface border border-border rounded-xl p-5 text-xs text-text-3">
+          You aren&rsquo;t a member of any workspace yet.
+        </div>
+      ) : (
+        workspaces.map((w) => (
+          <WorkspaceCalendarRow
+            key={w.id}
+            workspace={w}
+            isActive={w.id === workspace?.id}
+          />
+        ))
+      )}
+    </div>
+  )
+}
+
+function WorkspaceCalendarRow({ workspace, isActive }) {
+  const showToast = useToast()
+  const [tokenRow, setTokenRow] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    fetchCalendarToken(workspace.id)
+      .then((row) => {
+        if (!cancelled) setTokenRow(row)
+      })
+      .catch(() => {
+        if (!cancelled) setTokenRow(null)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [workspace.id])
+
+  async function handleEnable() {
+    setBusy(true)
+    try {
+      const row = await createCalendarToken(workspace.id)
+      setTokenRow(row)
+      showToast('Subscription enabled.')
+    } catch (err) {
+      showToast(err.message ?? 'Could not enable subscription', { type: 'error' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleRotate() {
+    if (
+      !confirm(
+        `Rotate the subscription URL for "${workspace.name}"? The old URL will stop working immediately and you'll need to re-add the new one in your calendar app.`,
+      )
+    )
+      return
+    setBusy(true)
+    try {
+      const row = await rotateCalendarToken(workspace.id)
+      setTokenRow(row)
+      showToast('Subscription URL rotated.')
+    } catch (err) {
+      showToast(err.message ?? 'Could not rotate', { type: 'error' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleRevoke() {
+    if (
+      !confirm(
+        `Disable calendar sync for "${workspace.name}"? Your calendar app will stop seeing updates on the next refresh.`,
+      )
+    )
+      return
+    setBusy(true)
+    try {
+      await revokeCalendarToken(workspace.id)
+      setTokenRow(null)
+      showToast('Subscription disabled.')
+    } catch (err) {
+      showToast(err.message ?? 'Could not disable', { type: 'error' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function handleCopy() {
+    if (!tokenRow) return
+    navigator.clipboard.writeText(calendarFeedUrl(tokenRow.token)).then(
+      () => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1500)
+      },
+      () => showToast('Copy failed — long-press the URL to copy', { type: 'error' }),
+    )
+  }
+
+  return (
+    <div className="bg-surface border border-border rounded-xl p-5">
+      <div className="flex items-center gap-2 flex-wrap">
+        <h3 className="text-sm font-medium">{workspace.name}</h3>
+        {isActive && (
+          <span className="text-[10px] uppercase tracking-wider text-text-3 bg-surface-2 rounded px-1.5 py-0.5">
+            Active
+          </span>
+        )}
+        <span className="text-[10px] uppercase tracking-wider text-text-3">
+          {workspace.role}
+        </span>
+      </div>
+
+      {loading ? (
+        <div className="text-xs text-text-3 mt-3">Loading…</div>
+      ) : !tokenRow ? (
+        <div className="mt-3">
+          <p className="text-xs text-text-2 mb-3">
+            Not subscribed yet. Enable to get a private URL you can paste
+            into your calendar app.
+          </p>
+          <button
+            onClick={handleEnable}
+            disabled={busy}
+            className="text-xs px-3 py-1.5 rounded bg-info text-white font-medium hover:opacity-90 disabled:opacity-50 inline-flex items-center gap-1.5"
+          >
+            <i className="ti ti-calendar-plus text-sm" />
+            Enable subscription
+          </button>
+        </div>
+      ) : (
+        <div className="mt-3 space-y-3">
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-text-3 mb-1">
+              Subscription URL
+            </div>
+            <div className="flex items-center gap-1 flex-wrap">
+              <code className="text-[11px] bg-surface-2 border border-border rounded px-2 py-1 break-all font-mono flex-1 min-w-0">
+                {calendarFeedUrl(tokenRow.token)}
+              </code>
+              <button
+                onClick={handleCopy}
+                className="text-xs px-2 py-1 rounded border border-border hover:bg-surface-2 text-text-2 hover:text-text inline-flex items-center gap-1"
+              >
+                <i className={`ti ${copied ? 'ti-check' : 'ti-copy'} text-sm`} />
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+            <a
+              href={webcalFeedUrl(tokenRow.token)}
+              className="text-[11px] text-info hover:underline mt-1 inline-flex items-center gap-1"
+            >
+              <i className="ti ti-external-link text-xs" />
+              Open in Apple Calendar (webcal://)
+            </a>
+          </div>
+
+          <details className="text-xs text-text-2">
+            <summary className="cursor-pointer hover:text-text">
+              How to subscribe
+            </summary>
+            <div className="mt-2 space-y-2 pl-3 border-l-2 border-border">
+              <div>
+                <span className="font-medium text-text">iPhone / iPad:</span>{' '}
+                Settings → Calendar → Accounts → Add Account → Other → Add
+                Subscribed Calendar → paste URL.
+              </div>
+              <div>
+                <span className="font-medium text-text">Mac (Calendar app):</span>{' '}
+                File → New Calendar Subscription → paste URL → set
+                auto-refresh to Every hour.
+              </div>
+              <div>
+                <span className="font-medium text-text">Google Calendar:</span>{' '}
+                Settings → Add calendar → From URL → paste URL.
+              </div>
+              <div>
+                <span className="font-medium text-text">Outlook:</span> Add
+                calendar → Subscribe from web → paste URL.
+              </div>
+            </div>
+          </details>
+
+          <div className="flex items-center gap-2 pt-2 border-t border-border">
+            <button
+              onClick={handleRotate}
+              disabled={busy}
+              className="text-xs px-2.5 py-1 rounded border border-border hover:bg-surface-2 text-text-2 hover:text-text disabled:opacity-50"
+              title="Replace this URL with a new one. Old URL stops working immediately."
+            >
+              Rotate URL
+            </button>
+            <button
+              onClick={handleRevoke}
+              disabled={busy}
+              className="text-xs px-2.5 py-1 rounded text-text-3 hover:text-danger-text hover:bg-danger-bg disabled:opacity-50"
+            >
+              Disable
+            </button>
+            <span className="text-[11px] text-text-3 ml-auto">
+              {tokenRow.last_accessed_at
+                ? `Last fetched ${formatRelativeTime(tokenRow.last_accessed_at)}`
+                : 'Never fetched yet'}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function formatRelativeTime(iso) {
+  const then = new Date(iso).getTime()
+  const now = Date.now()
+  const sec = Math.round((now - then) / 1000)
+  if (sec < 60) return `${sec}s ago`
+  const min = Math.round(sec / 60)
+  if (min < 60) return `${min}m ago`
+  const hr = Math.round(min / 60)
+  if (hr < 24) return `${hr}h ago`
+  const day = Math.round(hr / 24)
+  return `${day}d ago`
 }
 
 // ============================================================
