@@ -1,10 +1,23 @@
 import { useMemo, useState } from 'react'
 import { useCreateTask, usePeople } from '../lib/queries'
+import { useDictation } from '../lib/useDictation'
+import { useToast } from './Toast'
 
 export default function QuickEntry() {
   const { data: people = [] } = usePeople()
   const createTask = useCreateTask()
   const [value, setValue] = useState('')
+  const showToast = useToast()
+
+  // Voice input: appends each final transcript chunk to the input,
+  // separated by spaces so successive utterances build up cleanly.
+  const dict = useDictation({
+    onResult: (chunk) => {
+      const trimmed = chunk.trim()
+      if (!trimmed) return
+      setValue((prev) => (prev ? `${prev.trimEnd()} ${trimmed}` : trimmed))
+    },
+  })
 
   // Build a regex of first names so we can detect "Asbert to do X" etc.
   // Derived from the people table, so adding a new PIC in Settings will
@@ -42,6 +55,28 @@ export default function QuickEntry() {
     })
   }
 
+  function handleMicClick() {
+    if (dict.listening) {
+      dict.stop()
+      return
+    }
+    if (!dict.supported) {
+      showToast(
+        'Voice input not supported in this browser. Try Safari or Chrome.',
+        { type: 'error' },
+      )
+      return
+    }
+    dict.start()
+  }
+
+  // Compose what the user sees in the input: settled value + in-flight
+  // interim transcript (shown as you speak, before it commits).
+  const inputDisplay =
+    dict.listening && dict.interim
+      ? `${value}${value ? ' ' : ''}${dict.interim}`
+      : value
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -51,12 +86,37 @@ export default function QuickEntry() {
       <input
         id="quick-entry-input"
         type="text"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder={`Type a task and press Enter — try "Asbert to confirm board agenda" · "/" focuses this input`}
+        value={inputDisplay}
+        onChange={(e) => {
+          // While listening, don't let the input fight the interim text
+          if (dict.listening) return
+          setValue(e.target.value)
+        }}
+        placeholder={
+          dict.listening
+            ? 'Listening… speak your task'
+            : 'Type a task and press Enter — try "Asbert to confirm board agenda" · "/" focuses this input'
+        }
         className="flex-1 bg-transparent outline-none text-sm placeholder:text-text-3 min-w-0"
         autoComplete="off"
       />
+      {dict.supported && (
+        <button
+          type="button"
+          onClick={handleMicClick}
+          title={dict.listening ? 'Stop listening' : 'Dictate a task'}
+          className={`flex-shrink-0 p-1.5 rounded ${
+            dict.listening
+              ? 'bg-danger-bg text-danger-text animate-pulse'
+              : 'text-text-3 hover:text-text hover:bg-surface-2'
+          }`}
+          aria-label={dict.listening ? 'Stop listening' : 'Start dictation'}
+        >
+          <i
+            className={`ti ${dict.listening ? 'ti-microphone-filled' : 'ti-microphone'} text-base`}
+          />
+        </button>
+      )}
     </form>
   )
 }

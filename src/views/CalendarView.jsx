@@ -14,20 +14,21 @@ import {
   endOfMonth,
   endOfWeek,
   format,
-  isSameDay,
   isSameMonth,
   isToday as isTodayDF,
   startOfMonth,
   startOfWeek,
 } from 'date-fns'
 import { useTasks, useUpdateTask } from '../lib/queries'
+import { isOverdue } from '../lib/dates'
 import { picPill } from '../lib/colors'
 import TaskRow from '../components/TaskRow'
 
 const RANGES = [
-  { id: '1w', label: '1 week' },
-  { id: '2w', label: '2 weeks' },
-  { id: '4w', label: '4 weeks' },
+  { id: 'day',   label: 'Day' },
+  { id: '1w',    label: '1 week' },
+  { id: '2w',    label: '2 weeks' },
+  { id: '4w',    label: '4 weeks' },
   { id: 'month', label: 'Month' },
 ]
 
@@ -45,13 +46,15 @@ export default function CalendarView({ onOpenTask }) {
   const [range, setRange] = useState('4w')
   const [anchor, setAnchor] = useState(() => new Date())
   const [activeId, setActiveId] = useState(null)
-  const [selectedDay, setSelectedDay] = useState(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   )
 
   const days = useMemo(() => {
+    if (range === 'day') {
+      return [anchor]
+    }
     if (range === 'month') {
       const monthStart = startOfMonth(anchor)
       const monthEnd = endOfMonth(anchor)
@@ -76,6 +79,7 @@ export default function CalendarView({ onOpenTask }) {
   }, [tasks])
 
   const navTitle = useMemo(() => {
+    if (range === 'day') return format(anchor, 'EEEE, MMM d, yyyy')
     if (range === 'month') return format(anchor, 'MMMM yyyy')
     const first = days[0]
     const last = days[days.length - 1]
@@ -87,6 +91,10 @@ export default function CalendarView({ onOpenTask }) {
 
   function step(direction) {
     const factor = direction === 'next' ? 1 : -1
+    if (range === 'day') {
+      setAnchor((prev) => addDays(prev, factor))
+      return
+    }
     if (range === 'month') {
       setAnchor((prev) => {
         const d = new Date(prev)
@@ -99,6 +107,14 @@ export default function CalendarView({ onOpenTask }) {
     }
   }
 
+  // Clicking a day cell in any non-day range jumps into the 1-day view
+  // anchored on that date.
+  function handleDayCellClick(day) {
+    if (range === 'day') return // already there
+    setAnchor(day)
+    setRange('day')
+  }
+
   function handleDragEnd(e) {
     setActiveId(null)
     if (!e.over) return
@@ -109,9 +125,6 @@ export default function CalendarView({ onOpenTask }) {
   }
 
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : null
-  const selectedTasks = selectedDay
-    ? tasksByDay.get(toIso(selectedDay)) ?? []
-    : []
 
   return (
     <div className="bg-surface border border-border rounded-xl overflow-hidden">
@@ -156,90 +169,153 @@ export default function CalendarView({ onOpenTask }) {
         </div>
       </div>
 
-      <DndContext
-        sensors={sensors}
-        onDragStart={(e) => setActiveId(e.active.id)}
-        onDragEnd={handleDragEnd}
-        onDragCancel={() => setActiveId(null)}
-      >
-        {/* Mobile: vertical day list */}
-        <div className="sm:hidden">
-          {days.map((d) => (
-            <DayList
-              key={d.toISOString()}
-              day={d}
-              tasks={tasksByDay.get(toIso(d)) ?? []}
-              onOpenTask={onOpenTask}
-            />
-          ))}
-        </div>
-
-        {/* Tablet+: grid */}
-        <div className="hidden sm:block">
-          <div className="grid grid-cols-7 gap-1.5 px-4 pt-3 pb-2">
-            {DAY_LABELS.map((d) => (
-              <div
-                key={d}
-                className="text-[10px] uppercase tracking-wider text-text-2 text-center font-medium"
-              >
-                {d}
-              </div>
-            ))}
-          </div>
-          <div
-            className={`grid grid-cols-7 px-4 pb-4 ${
-              range === 'month' ? 'gap-1' : 'gap-1.5'
-            }`}
-          >
+      {range === 'day' ? (
+        <DayDetailView
+          day={anchor}
+          tasks={tasksByDay.get(toIso(anchor)) ?? []}
+          onOpenTask={onOpenTask}
+        />
+      ) : (
+        <DndContext
+          sensors={sensors}
+          onDragStart={(e) => setActiveId(e.active.id)}
+          onDragEnd={handleDragEnd}
+          onDragCancel={() => setActiveId(null)}
+        >
+          {/* Mobile: vertical day list */}
+          <div className="sm:hidden">
             {days.map((d) => (
-              <DayCell
+              <DayList
                 key={d.toISOString()}
                 day={d}
-                anchor={anchor}
-                range={range}
                 tasks={tasksByDay.get(toIso(d)) ?? []}
                 onOpenTask={onOpenTask}
-                onSelectDay={setSelectedDay}
-                isSelected={selectedDay && isSameDay(selectedDay, d)}
+                onSelectDay={handleDayCellClick}
               />
             ))}
           </div>
-        </div>
 
-        <DragOverlay>
-          {activeTask ? (
-            <div
-              className={`text-[10px] px-1.5 py-0.5 rounded font-medium shadow-lg ${picPill(activeTask.pic?.color)} max-w-[200px] truncate -rotate-2`}
-            >
-              {activeTask.title}
+          {/* Tablet+: grid */}
+          <div className="hidden sm:block">
+            <div className="grid grid-cols-7 gap-1.5 px-4 pt-3 pb-2">
+              {DAY_LABELS.map((d) => (
+                <div
+                  key={d}
+                  className="text-[10px] uppercase tracking-wider text-text-2 text-center font-medium"
+                >
+                  {d}
+                </div>
+              ))}
             </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
-
-      {/* Day detail panel (desktop) */}
-      {selectedDay && (
-        <div className="border-t border-border p-4 hidden sm:block">
-          <div className="text-sm font-medium mb-3 flex items-center justify-between">
-            <span>{format(selectedDay, 'EEEE, MMMM d')}</span>
-            <button
-              onClick={() => setSelectedDay(null)}
-              className="text-xs text-text-3 hover:text-text underline"
+            <div
+              className={`grid grid-cols-7 px-4 pb-4 ${
+                range === 'month' ? 'gap-1' : 'gap-1.5'
+              }`}
             >
-              Clear
-            </button>
-          </div>
-          {selectedTasks.length === 0 ? (
-            <div className="text-xs text-text-3">Nothing scheduled this day.</div>
-          ) : (
-            <div className="-mx-4 px-4">
-              {selectedTasks.map((t) => (
-                <TaskRow
-                  key={t.id}
-                  task={t}
-                  onClick={() => onOpenTask(t.id)}
+              {days.map((d) => (
+                <DayCell
+                  key={d.toISOString()}
+                  day={d}
+                  anchor={anchor}
+                  range={range}
+                  tasks={tasksByDay.get(toIso(d)) ?? []}
+                  onOpenTask={onOpenTask}
+                  onSelectDay={handleDayCellClick}
                 />
               ))}
+            </div>
+          </div>
+
+          <DragOverlay>
+            {activeTask ? (
+              <div
+                className={`text-[10px] px-1.5 py-0.5 rounded font-medium shadow-lg ${picPill(activeTask.pic?.color)} max-w-[200px] truncate -rotate-2`}
+              >
+                {activeTask.title}
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      )}
+    </div>
+  )
+}
+
+// ---- 1-day view ----
+// Single big column showing rich TaskRows for the anchored date. Used
+// when range === 'day' (selected by clicking a day in any other range,
+// or by clicking the Day tab in the range switcher).
+function DayDetailView({ day, tasks, onOpenTask }) {
+  const active = tasks.filter((t) => t.status !== 'Done')
+  const done = tasks.filter((t) => t.status === 'Done')
+  const overdueCount = active.filter((t) => isOverdue(t.due_date)).length
+  const isOnToday = isTodayDF(day)
+
+  return (
+    <div className="p-4 sm:p-6">
+      <div className="mb-4 flex items-baseline justify-between gap-3 flex-wrap">
+        <div>
+          <div className="text-xs uppercase tracking-wider text-text-3">
+            {format(day, 'EEEE')}
+            {isOnToday && (
+              <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-info-bg text-info-text font-medium tracking-normal normal-case">
+                Today
+              </span>
+            )}
+          </div>
+          <div className="text-2xl font-medium tracking-tight mt-0.5">
+            {format(day, 'MMM d')}
+          </div>
+        </div>
+        <div className="text-xs text-text-2">
+          {active.length} active
+          {overdueCount > 0 && (
+            <span className="text-danger-text font-medium">
+              {' · '}
+              {overdueCount} overdue
+            </span>
+          )}
+          {done.length > 0 && (
+            <span className="text-text-3">{' · '}{done.length} done</span>
+          )}
+        </div>
+      </div>
+
+      {tasks.length === 0 ? (
+        <div className="py-12 text-center text-xs text-text-3">
+          Nothing scheduled this day.
+        </div>
+      ) : (
+        <div>
+          {active.length > 0 && (
+            <div className="-mx-4 sm:-mx-6">
+              <div className="px-4 sm:px-6">
+                {active.map((t) => (
+                  <TaskRow
+                    key={t.id}
+                    task={t}
+                    onClick={() => onOpenTask(t.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          {done.length > 0 && (
+            <div className="mt-6">
+              <div className="text-[11px] uppercase tracking-wider text-text-3 mb-2">
+                Completed
+              </div>
+              <div className="-mx-4 sm:-mx-6 opacity-70">
+                <div className="px-4 sm:px-6">
+                  {done.map((t) => (
+                    <TaskRow
+                      key={t.id}
+                      task={t}
+                      onClick={() => onOpenTask(t.id)}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -255,7 +331,6 @@ function DayCell({
   tasks,
   onOpenTask,
   onSelectDay,
-  isSelected,
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: 'day-' + toIso(day) })
   const isToday = isTodayDF(day)
@@ -270,13 +345,14 @@ function DayCell({
     <div
       ref={setNodeRef}
       onClick={() => onSelectDay(day)}
+      title="Click to open this day"
       className={`
         ${range === 'month' ? 'min-h-[80px] p-1.5' : 'min-h-[110px] p-2'}
         rounded-md border transition-colors cursor-pointer overflow-hidden
         ${isOver ? 'bg-info-bg border-info border-dashed' : 'border-border'}
         ${isToday ? 'bg-info-bg/40' : isWeekend ? 'bg-surface-2/60' : 'bg-surface'}
         ${isOtherMonth ? 'opacity-40' : ''}
-        ${isSelected ? 'ring-2 ring-info ring-inset' : ''}
+        hover:border-border-strong
       `}
     >
       <div
@@ -315,16 +391,18 @@ function DayTaskChip({ task, onClick }) {
   )
 }
 
-function DayList({ day, tasks, onOpenTask }) {
+function DayList({ day, tasks, onOpenTask, onSelectDay }) {
   const isToday = isTodayDF(day)
   return (
     <div className="border-b border-border last:border-b-0 p-3">
-      <div
-        className={`text-xs font-medium mb-1.5 ${isToday ? 'text-info-text' : 'text-text-2'}`}
+      <button
+        type="button"
+        onClick={() => onSelectDay?.(day)}
+        className={`text-xs font-medium mb-1.5 inline-flex items-center hover:text-text ${isToday ? 'text-info-text' : 'text-text-2'}`}
       >
         {format(day, 'EEE, MMM d')}
         {isToday && <span className="ml-1 text-[10px] text-info">· Today</span>}
-      </div>
+      </button>
       {tasks.length === 0 ? (
         <div className="text-[11px] text-text-3 pl-1">Nothing scheduled</div>
       ) : (
