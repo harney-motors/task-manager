@@ -68,27 +68,35 @@ export default async (req) => {
     return jsonError(413, 'query too long (max 1000 chars)')
   }
 
-  // Workspace context
-  const { data: member } = await supabase
+  // Workspace context — caller passes workspace_id (they own the
+  // multi-workspace state). We verify membership via RLS by selecting
+  // through workspace_members; the row only comes back if the caller
+  // is a member, so an empty result means "not allowed".
+  const workspaceId = String(body?.workspace_id ?? '').trim()
+  if (!workspaceId) {
+    return jsonError(400, 'workspace_id is required')
+  }
+  const { data: membership } = await supabase
     .from('workspace_members')
-    .select('workspace_id')
+    .select('workspace_id, role')
     .eq('user_id', user.id)
+    .eq('workspace_id', workspaceId)
     .maybeSingle()
-  if (!member) {
-    return jsonError(403, 'No workspace for this user')
+  if (!membership) {
+    return jsonError(403, 'Not a member of that workspace')
   }
 
   const [peopleRes, deptsRes] = await Promise.all([
     supabase
       .from('people')
       .select('name, title, department')
-      .eq('workspace_id', member.workspace_id)
+      .eq('workspace_id', workspaceId)
       .eq('is_active', true)
       .order('name'),
     supabase
       .from('departments')
       .select('name')
-      .eq('workspace_id', member.workspace_id)
+      .eq('workspace_id', workspaceId)
       .order('name'),
   ])
   const people = peopleRes.data ?? []

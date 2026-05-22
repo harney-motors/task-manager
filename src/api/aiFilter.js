@@ -1,10 +1,11 @@
 import { supabase } from '../lib/supabase'
 
-export async function nlFilter(query) {
+export async function nlFilter(query, { workspaceId } = {}) {
   const {
     data: { session },
   } = await supabase.auth.getSession()
   if (!session) throw new Error('Not signed in')
+  if (!workspaceId) throw new Error('No active workspace')
 
   const res = await fetch('/.netlify/functions/nl-filter', {
     method: 'POST',
@@ -12,7 +13,7 @@ export async function nlFilter(query) {
       'content-type': 'application/json',
       Authorization: `Bearer ${session.access_token}`,
     },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query, workspace_id: workspaceId }),
   })
 
   if (!res.ok) {

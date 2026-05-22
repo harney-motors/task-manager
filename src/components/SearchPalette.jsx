@@ -59,7 +59,7 @@ export default function SearchPalette({
     setAskingAi(true)
     setAiError(null)
     try {
-      const { filter } = await nlFilter(query)
+      const { filter } = await nlFilter(query, { workspaceId: workspace?.id })
       onApplyFilter(filter)
       onClose()
     } catch (e) {
