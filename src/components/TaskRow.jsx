@@ -57,6 +57,15 @@ export default function TaskRow({ task, onClick }) {
               +{task.watchers.length} watching
             </span>
           )}
+          {(task.note_count ?? 0) > 0 && (
+            <span
+              className="text-text-3 text-[10px] inline-flex items-center gap-0.5"
+              title={`${task.note_count} journal ${task.note_count === 1 ? 'note' : 'notes'}`}
+            >
+              <i className="ti ti-notebook text-[11px]" />
+              {task.note_count}
+            </span>
+          )}
         </div>
       </div>
 

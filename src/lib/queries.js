@@ -522,9 +522,30 @@ export function useJournalEntries(taskId) {
 }
 
 export function useCreateJournalEntry(taskId) {
-  const { user } = useAuth()
+  const { user, workspace } = useAuth()
   const qc = useQueryClient()
   const key = queryKeys.journal(taskId)
+
+  // For optimistic display: prefer the linked person's name (from the
+  // people cache for the active workspace), else the auth user's name
+  // or email. Resolved at mutation time so it picks up whatever's in
+  // cache by then.
+  function currentAuthorName() {
+    if (!user) return null
+    const peopleCache = workspace?.id
+      ? qc.getQueriesData({ queryKey: queryKeys.people(workspace.id) })
+      : []
+    for (const [, data] of peopleCache) {
+      const linked = (data ?? []).find((p) => p.user_id === user.id)
+      if (linked?.name) return linked.name
+    }
+    return (
+      user.user_metadata?.full_name ||
+      user.user_metadata?.name ||
+      user.email ||
+      null
+    )
+  }
 
   return useMutation({
     mutationFn: (body) =>
@@ -536,6 +557,7 @@ export function useCreateJournalEntry(taskId) {
         id: `temp-${Date.now()}`,
         task_id: taskId,
         author_id: user.id,
+        author_name: currentAuthorName(),
         body,
         entry_type: 'note',
         status_value: null,
@@ -547,6 +569,12 @@ export function useCreateJournalEntry(taskId) {
     onError: (_err, _body, ctx) => {
       if (ctx?.previous) qc.setQueryData(key, ctx.previous)
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: key }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: key })
+      // Refresh task list so the note-count badge updates.
+      if (workspace?.id) {
+        qc.invalidateQueries({ queryKey: queryKeys.tasks(workspace.id) })
+      }
+    },
   })
 }

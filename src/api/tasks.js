@@ -5,15 +5,17 @@ const TASK_SELECT = `
   start_date, due_date, raised_date, tags, source,
   workspace_id, pic_id, department_id, created_by, created_at, updated_at,
   pic:people!tasks_pic_id_fkey(id, name, initials, color),
-  task_watchers(person:people(id, name, initials, color))
+  task_watchers(person:people(id, name, initials, color)),
+  journal_entries(count)
 `
 
 function flattenWatchers(task) {
   if (!task) return task
-  const { task_watchers, ...rest } = task
+  const { task_watchers, journal_entries, ...rest } = task
   return {
     ...rest,
     watchers: (task_watchers ?? []).map((tw) => tw.person).filter(Boolean),
+    note_count: journal_entries?.[0]?.count ?? 0,
   }
 }
 

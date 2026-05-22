@@ -43,8 +43,13 @@ export default function JournalPanel({ taskId, onClose }) {
         ) : (
           entries.map((e) => (
             <div key={e.id}>
-              <div className="text-[11px] text-text-2 font-medium mb-1">
-                {formatJournalTime(e.created_at)}
+              <div className="text-[11px] text-text-2 font-medium mb-1 flex items-center gap-1.5">
+                {e.author_name && (
+                  <span className="text-text">{e.author_name}</span>
+                )}
+                <span className="text-text-3">
+                  {formatJournalTime(e.created_at)}
+                </span>
               </div>
               <div className="text-xs leading-relaxed bg-surface rounded p-2 border-l-2 border-info">
                 {e.body}
