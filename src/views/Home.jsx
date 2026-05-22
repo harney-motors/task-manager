@@ -12,6 +12,7 @@ import PicView from './PicView'
 import CalendarView from './CalendarView'
 import SettingsView from './SettingsView'
 import SearchPalette from '../components/SearchPalette'
+import ExtractFromMeetingModal from '../components/ExtractFromMeetingModal'
 import { TickdMark, TickdWordmark } from '../components/TickdMark'
 
 export default function Home() {
@@ -21,6 +22,7 @@ export default function Home() {
   const [view, setView] = useState('today')
   const [showSettings, setShowSettings] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
+  const [showExtract, setShowExtract] = useState(false)
   const [picViewSelectedId, setPicViewSelectedId] = useState(null)
 
   // "/" keybind focuses the quick entry input from anywhere on the home page
@@ -99,6 +101,15 @@ export default function Home() {
               {user.email}
             </span>
             <button
+              onClick={() => setShowExtract(true)}
+              className="px-2 py-1 rounded hover:bg-surface-2 text-text-2 hover:text-text inline-flex items-center gap-1.5 text-xs border border-border"
+              aria-label="Import from meeting"
+              title="Import tasks from meeting notes"
+            >
+              <i className="ti ti-sparkles text-sm text-info" />
+              <span className="hidden sm:inline">Meeting</span>
+            </button>
+            <button
               onClick={() => setShowSearch(true)}
               className="px-2 py-1 rounded hover:bg-surface-2 text-text-2 hover:text-text inline-flex items-center gap-1.5 text-xs border border-border"
               aria-label="Search"
@@ -151,6 +162,10 @@ export default function Home() {
             setView('pic')
             setPicViewSelectedId(id)
           }}
+        />
+        <ExtractFromMeetingModal
+          open={showExtract}
+          onClose={() => setShowExtract(false)}
         />
       </div>
     </div>

@@ -1,0 +1,364 @@
+import { useEffect, useState } from 'react'
+import { usePeople, useDepartments, useCreateTask } from '../lib/queries'
+import { useAuth } from '../auth/AuthProvider'
+import { useToast } from './Toast'
+import { extractTasksFromTranscript } from '../api/aiExtract'
+import { addWatcher } from '../api/watchers'
+import { picPill, statusPill } from '../lib/colors'
+
+const SAMPLE_PLACEHOLDER = `Paste meeting notes or transcript here. e.g.
+
+WEM 2026-05-22
+- Asbert to confirm board agenda by Friday
+- Clem to fix lift bay 2 hydraulics — urgent
+- Richard to reply to PwC audit follow-up next week
+- Ongoing: monthly Takata recall visits (Iandre)
+…`
+
+export default function ExtractFromMeetingModal({ open, onClose }) {
+  const { workspace, user } = useAuth()
+  const { data: people = [] } = usePeople()
+  const { data: departments = [] } = useDepartments()
+  const createTask = useCreateTask()
+  const showToast = useToast()
+
+  const [transcript, setTranscript] = useState('')
+  const [drafts, setDrafts] = useState([])
+  const [selected, setSelected] = useState(new Set())
+  const [extracting, setExtracting] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    if (!open) {
+      setTranscript('')
+      setDrafts([])
+      setSelected(new Set())
+      setError(null)
+      setExtracting(false)
+      setCreating(false)
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    function handler(e) {
+      if (e.key === 'Escape' && !extracting && !creating) onClose()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [open, extracting, creating, onClose])
+
+  if (!open) return null
+
+  function findPerson(firstName) {
+    if (!firstName) return null
+    const norm = firstName.toLowerCase().trim()
+    return (
+      people.find((p) => p.name.split(' ')[0].toLowerCase() === norm) ?? null
+    )
+  }
+
+  function findDepartment(name) {
+    if (!name) return null
+    const norm = name.toLowerCase().trim()
+    return departments.find((d) => d.name.toLowerCase() === norm) ?? null
+  }
+
+  async function handleExtract() {
+    if (!transcript.trim()) return
+    setExtracting(true)
+    setError(null)
+    setDrafts([])
+    try {
+      const result = await extractTasksFromTranscript(transcript)
+      const enriched = (result.tasks ?? []).map((t, idx) => {
+        const pic = findPerson(t.pic_first_name)
+        const dept = findDepartment(t.department)
+        const watcherPeople = (t.watcher_first_names ?? [])
+          .map(findPerson)
+          .filter(Boolean)
+          .filter((p) => p.id !== pic?.id)
+        return {
+          ...t,
+          _idx: idx,
+          _pic: pic,
+          _dept: dept,
+          _watchers: watcherPeople,
+        }
+      })
+      setDrafts(enriched)
+      setSelected(new Set(enriched.map((d) => d._idx)))
+      if (enriched.length === 0) {
+        setError('No action items found in that transcript.')
+      }
+    } catch (err) {
+      setError(err.message ?? 'Extraction failed')
+    } finally {
+      setExtracting(false)
+    }
+  }
+
+  async function handleCreate() {
+    const toCreate = drafts.filter((d) => selected.has(d._idx))
+    if (toCreate.length === 0) return
+    setCreating(true)
+    let created = 0
+    let failed = 0
+    for (const draft of toCreate) {
+      try {
+        const task = await new Promise((resolve, reject) => {
+          createTask.mutate(
+            {
+              title: draft.title,
+              pic_id: draft._pic?.id ?? null,
+              department_id: draft._dept?.id ?? null,
+              due_date: draft.due_date || null,
+              priority: draft.priority,
+              status: draft.status,
+              source: `Meeting (AI · ${new Date().toISOString().slice(0, 10)})`,
+              notes: draft.source_quote ?? null,
+            },
+            {
+              onSuccess: (data) => resolve(data),
+              onError: (err) => reject(err),
+            },
+          )
+        })
+        // Attach watchers (fire-and-forget)
+        for (const w of draft._watchers ?? []) {
+          addWatcher(task.id, w.id).catch(() => {})
+        }
+        created++
+      } catch {
+        failed++
+      }
+    }
+    setCreating(false)
+    if (failed === 0) {
+      showToast(
+        `Created ${created} task${created === 1 ? '' : 's'} from the meeting.`,
+      )
+    } else {
+      showToast(
+        `Created ${created}, failed ${failed}. Check the failed items.`,
+        { type: 'error' },
+      )
+    }
+    if (failed === 0) onClose()
+  }
+
+  function toggle(idx) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(idx)) next.delete(idx)
+      else next.add(idx)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    if (selected.size === drafts.length) setSelected(new Set())
+    else setSelected(new Set(drafts.map((d) => d._idx)))
+  }
+
+  const hasDrafts = drafts.length > 0
+  const selectedCount = selected.size
+
+  return (
+    <div
+      onClick={(e) => e.target === e.currentTarget && !extracting && !creating && onClose()}
+      className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-2 sm:p-10 overflow-y-auto"
+    >
+      <div className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            <i className="ti ti-sparkles text-info text-base" />
+            <span className="text-sm font-medium">Import from meeting</span>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={extracting || creating}
+            className="text-text-3 hover:text-text p-1 rounded hover:bg-surface-2 disabled:opacity-50"
+            aria-label="Close"
+          >
+            <i className="ti ti-x text-sm" />
+          </button>
+        </div>
+
+        {!hasDrafts ? (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="px-5 py-3 text-xs text-text-2 border-b border-border">
+              Paste meeting notes or a transcript. Claude will extract the
+              action items, infer PICs by first name, and pre-fill dates,
+              priority, and status. You review before anything saves.
+            </div>
+            <textarea
+              value={transcript}
+              onChange={(e) => setTranscript(e.target.value)}
+              placeholder={SAMPLE_PLACEHOLDER}
+              disabled={extracting}
+              className="flex-1 min-h-[260px] m-5 mt-3 mb-2 p-3 border border-border rounded-md text-sm bg-bg outline-none focus:border-info resize-none font-mono leading-relaxed"
+            />
+            {error && (
+              <p className="px-5 pb-2 text-xs text-danger-text">{error}</p>
+            )}
+            <div className="px-5 pb-2 text-[11px] text-text-3">
+              Max 50,000 characters. Workspace context (people, departments) is
+              sent along automatically.
+            </div>
+            <div className="flex justify-end gap-2 px-4 py-3 bg-surface-2 border-t border-border">
+              <button
+                onClick={onClose}
+                disabled={extracting}
+                className="text-xs px-3 py-1.5 rounded border border-border hover:bg-surface disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleExtract}
+                disabled={!transcript.trim() || extracting}
+                className="text-xs px-3 py-1.5 rounded bg-info text-white font-medium hover:opacity-90 disabled:opacity-50 inline-flex items-center gap-1.5"
+              >
+                {extracting ? (
+                  <>
+                    <i className="ti ti-loader-2 animate-spin text-sm" />
+                    Extracting…
+                  </>
+                ) : (
+                  <>
+                    <i className="ti ti-sparkles text-sm" />
+                    Extract tasks
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="px-5 py-3 border-b border-border flex items-center justify-between gap-3 flex-wrap">
+              <div className="text-xs text-text-2">
+                Found <span className="font-medium text-text">{drafts.length}</span>{' '}
+                action item{drafts.length === 1 ? '' : 's'}. Uncheck any you
+                don&rsquo;t want to create.
+              </div>
+              <button
+                onClick={toggleAll}
+                className="text-[11px] text-text-3 underline hover:text-text"
+              >
+                {selectedCount === drafts.length ? 'Deselect all' : 'Select all'}
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-3 space-y-2">
+              {drafts.map((d) => {
+                const isSelected = selected.has(d._idx)
+                return (
+                  <div
+                    key={d._idx}
+                    className={`border rounded-lg p-3 transition-colors ${
+                      isSelected
+                        ? 'border-border bg-surface'
+                        : 'border-border bg-surface-2 opacity-60'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggle(d._idx)}
+                        className="mt-1 cursor-pointer"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium">{d.title}</div>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                          {d._pic ? (
+                            <span
+                              className={`px-1.5 py-px rounded text-[10px] font-medium ${picPill(d._pic.color)}`}
+                            >
+                              {d._pic.name.split(' ')[0]}
+                            </span>
+                          ) : d.pic_first_name ? (
+                            <span className="px-1.5 py-px rounded text-[10px] bg-danger-bg text-danger-text">
+                              ? {d.pic_first_name}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-text-3">
+                              Unassigned
+                            </span>
+                          )}
+                          <span
+                            className={`px-1.5 py-px rounded-full text-[10px] font-medium ${statusPill(d.status)}`}
+                          >
+                            {d.status}
+                          </span>
+                          <span className="text-[10px] text-text-2">
+                            {d.priority}
+                          </span>
+                          {d._dept && (
+                            <span className="text-[10px] text-text-2">
+                              · {d._dept.name}
+                            </span>
+                          )}
+                          {d.due_date && (
+                            <span className="text-[10px] text-text-2">
+                              · due {d.due_date}
+                            </span>
+                          )}
+                          {(d._watchers ?? []).length > 0 && (
+                            <span className="text-[10px] text-text-3">
+                              + {d._watchers.map((w) => w.name.split(' ')[0]).join(', ')}
+                            </span>
+                          )}
+                        </div>
+                        {d.source_quote && (
+                          <div className="text-[11px] text-text-3 italic mt-1.5 line-clamp-2">
+                            &ldquo;{d.source_quote}&rdquo;
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {error && (
+              <p className="px-5 pb-2 text-xs text-danger-text">{error}</p>
+            )}
+
+            <div className="flex justify-between gap-2 px-4 py-3 bg-surface-2 border-t border-border">
+              <button
+                onClick={() => {
+                  setDrafts([])
+                  setSelected(new Set())
+                }}
+                disabled={creating}
+                className="text-xs px-3 py-1.5 rounded border border-border hover:bg-surface disabled:opacity-50"
+              >
+                ← Back / try again
+              </button>
+              <button
+                onClick={handleCreate}
+                disabled={selectedCount === 0 || creating}
+                className="text-xs px-3 py-1.5 rounded bg-info text-white font-medium hover:opacity-90 disabled:opacity-50 inline-flex items-center gap-1.5"
+              >
+                {creating ? (
+                  <>
+                    <i className="ti ti-loader-2 animate-spin text-sm" />
+                    Creating…
+                  </>
+                ) : (
+                  <>
+                    <i className="ti ti-plus text-sm" />
+                    Create {selectedCount} task{selectedCount === 1 ? '' : 's'}
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
