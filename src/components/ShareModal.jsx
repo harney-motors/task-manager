@@ -64,9 +64,9 @@ export default function ShareModal({ pic, tasks, onClose }) {
         <div className="mx-5 mb-3 rounded-xl p-3 bg-[#ECE5DD]">
           <div className="flex items-center gap-2 pb-2 mb-2 border-b border-black/10">
             <div className="w-7 h-7 rounded-full bg-[#25D366] text-white text-xs flex items-center justify-center font-medium">
-              L
+              T
             </div>
-            <div className="text-xs font-medium text-[#075E54]">Loop · Tasks</div>
+            <div className="text-xs font-medium text-[#075E54]">Tickd · Tasks</div>
           </div>
           <div className="bg-white rounded-xl p-3 text-[12px] leading-relaxed text-[#1f2c34] whitespace-pre-wrap font-mono">
             {message}

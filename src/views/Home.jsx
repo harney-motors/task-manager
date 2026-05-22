@@ -11,6 +11,7 @@ import GridView from './GridView'
 import PicView from './PicView'
 import CalendarView from './CalendarView'
 import SettingsView from './SettingsView'
+import { TickdMark, TickdWordmark } from '../components/TickdMark'
 
 export default function Home() {
   const { user, workspace, workspaceLoading, signOut } = useAuth()
@@ -81,10 +82,8 @@ export default function Home() {
       <div className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
         <div className="flex items-center justify-between mb-5 sm:mb-6">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-info text-white flex items-center justify-center flex-shrink-0">
-              <i className="ti ti-checkbox text-base" />
-            </div>
-            <span className="text-lg font-medium tracking-tight">Loop</span>
+            <TickdMark size={32} className="flex-shrink-0" />
+            <TickdWordmark className="text-lg" />
           </div>
           <div className="flex items-center gap-2 sm:gap-3 text-sm min-w-0">
             <span className="text-text-2 hidden sm:inline truncate max-w-[180px]">

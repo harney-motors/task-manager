@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { TickdMark, TickdWordmark } from '../components/TickdMark'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -24,10 +25,8 @@ export default function Login() {
     <div className="min-h-screen bg-bg flex items-center justify-center px-6">
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-3 mb-8 justify-center">
-          <div className="w-9 h-9 rounded-lg bg-info text-white flex items-center justify-center">
-            <i className="ti ti-checkbox text-base" />
-          </div>
-          <span className="text-xl font-medium tracking-tight">Loop</span>
+          <TickdMark size={36} />
+          <TickdWordmark className="text-xl" />
         </div>
 
         {sent ? (
