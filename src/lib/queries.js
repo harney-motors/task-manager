@@ -6,6 +6,11 @@ import { addWatcher, removeWatcher } from '../api/watchers'
 import { fetchJournalEntries, createJournalEntry } from '../api/journal'
 import { fetchRecentActivity } from '../api/activity'
 import {
+  createSavedFilter,
+  deleteSavedFilter,
+  fetchSavedFilters,
+} from '../api/savedFilters'
+import {
   adminAddMember,
   adminCreateWorkspace,
   adminDeleteWorkspace,
@@ -39,11 +44,12 @@ function errMsg(err, fallback) {
 }
 
 export const queryKeys = {
-  tasks:       (workspaceId) => ['tasks', workspaceId],
-  people:      (workspaceId) => ['people', workspaceId],
-  departments: (workspaceId) => ['departments', workspaceId],
-  journal:     (taskId)      => ['journal', taskId],
-  activity:    (workspaceId, limit) => ['activity', workspaceId, limit],
+  tasks:         (workspaceId) => ['tasks', workspaceId],
+  people:        (workspaceId) => ['people', workspaceId],
+  departments:   (workspaceId) => ['departments', workspaceId],
+  journal:       (taskId)      => ['journal', taskId],
+  activity:      (workspaceId, limit) => ['activity', workspaceId, limit],
+  savedFilters:  (workspaceId) => ['savedFilters', workspaceId],
 }
 
 // ---------- Tasks ----------
@@ -445,6 +451,41 @@ export function useRecentActivity({ limit = 20 } = {}) {
     queryFn: () => fetchRecentActivity(workspace.id, limit),
     enabled: !!workspace,
     staleTime: 30_000, // 30s — activity is live-ish but doesn't need to refetch on every interaction
+  })
+}
+
+// ---------- Saved filters ----------
+
+export function useSavedFilters() {
+  const { workspace } = useAuth()
+  return useQuery({
+    queryKey: queryKeys.savedFilters(workspace?.id),
+    queryFn: () => fetchSavedFilters(workspace.id),
+    enabled: !!workspace,
+  })
+}
+
+export function useCreateSavedFilter() {
+  const { workspace } = useAuth()
+  const showToast = useToast()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ name, spec }) => createSavedFilter(workspace.id, name, spec),
+    onError: (err) => showToast(errMsg(err, 'Could not save filter'), { type: 'error' }),
+    onSettled: () =>
+      qc.invalidateQueries({ queryKey: queryKeys.savedFilters(workspace?.id) }),
+  })
+}
+
+export function useDeleteSavedFilter() {
+  const { workspace } = useAuth()
+  const showToast = useToast()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id) => deleteSavedFilter(id),
+    onError: (err) => showToast(errMsg(err, 'Could not delete filter'), { type: 'error' }),
+    onSettled: () =>
+      qc.invalidateQueries({ queryKey: queryKeys.savedFilters(workspace?.id) }),
   })
 }
 

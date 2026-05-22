@@ -13,6 +13,7 @@ import { useToast } from '../components/Toast'
 import { picDot } from '../lib/colors'
 import PersonModal from '../components/PersonModal'
 import DepartmentModal from '../components/DepartmentModal'
+import Skeleton from '../components/Skeleton'
 
 const TABS = [
   { id: 'people',      label: 'People',      icon: 'ti-users' },
@@ -229,7 +230,9 @@ function PeoplePanel() {
       )}
 
       {isLoading ? (
-        <div className="p-8 text-center text-xs text-text-3">Loading…</div>
+        <div className="px-4 py-4">
+          <Skeleton rows={6} height={48} />
+        </div>
       ) : visiblePeople.length === 0 ? (
         <div className="p-8 text-center text-xs text-text-3">
           {showInactive ? 'No people.' : 'No active people.'}
@@ -438,7 +441,9 @@ function DepartmentsPanel() {
       </div>
 
       {isLoading ? (
-        <div className="p-8 text-center text-xs text-text-3">Loading…</div>
+        <div className="px-4 py-4">
+          <Skeleton rows={4} height={48} />
+        </div>
       ) : departments.length === 0 ? (
         <div className="p-8 text-center text-xs text-text-3">
           No departments yet. Add the first one.

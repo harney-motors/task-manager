@@ -1,17 +1,57 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
+  useCreateSavedFilter,
+  useDeleteSavedFilter,
   useDeleteTask,
   useDepartments,
   usePeople,
+  useSavedFilters,
   useTasks,
   useUpdateTask,
 } from '../lib/queries'
 import { isOverdue } from '../lib/dates'
 import { statusPill } from '../lib/colors'
 import { useToast } from '../components/Toast'
+import Skeleton from '../components/Skeleton'
 
 const COLS =
   'grid grid-cols-[24px_28px_minmax(0,2.2fr)_140px_120px_120px_100px_110px] gap-2 px-4 items-center'
+
+const STATUS_ORDER = { Open: 0, 'In progress': 1, Ongoing: 2, Done: 3 }
+const PRIORITY_ORDER = { High: 0, Medium: 1, Low: 2 }
+
+function compareTasks(a, b, field, dir) {
+  let aVal, bVal
+  switch (field) {
+    case 'title':
+      aVal = (a.title || '').toLowerCase()
+      bVal = (b.title || '').toLowerCase()
+      break
+    case 'pic':
+      // Empty PICs sort to the bottom regardless of direction
+      aVal = a.pic?.name?.toLowerCase() ?? '￿'
+      bVal = b.pic?.name?.toLowerCase() ?? '￿'
+      break
+    case 'due_date':
+      // Null dates sort to the bottom
+      aVal = a.due_date ?? '￿'
+      bVal = b.due_date ?? '￿'
+      break
+    case 'status':
+      aVal = STATUS_ORDER[a.status] ?? 99
+      bVal = STATUS_ORDER[b.status] ?? 99
+      break
+    case 'priority':
+      aVal = PRIORITY_ORDER[a.priority] ?? 99
+      bVal = PRIORITY_ORDER[b.priority] ?? 99
+      break
+    default:
+      return 0
+  }
+  if (aVal < bVal) return dir === 'asc' ? -1 : 1
+  if (aVal > bVal) return dir === 'asc' ? 1 : -1
+  return 0
+}
 
 export default function GridView({ onOpenTask, aiFilter }) {
   const { data: people = [] } = usePeople()
@@ -26,6 +66,17 @@ export default function GridView({ onOpenTask, aiFilter }) {
   const [filterDept, setFilterDept] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
   const [selectedIds, setSelectedIds] = useState(() => new Set())
+  const [sortField, setSortField] = useState('due_date')
+  const [sortDir, setSortDir] = useState('asc')
+
+  function handleHeaderSort(field) {
+    if (sortField === field) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortDir('asc')
+    }
+  }
 
   // External (AI) filter signal — when it changes, sync local filter state.
   useEffect(() => {
@@ -48,16 +99,21 @@ export default function GridView({ onOpenTask, aiFilter }) {
     [tasks, filterPic, filterDept, filterStatus],
   )
 
+  const sorted = useMemo(
+    () => [...filtered].sort((a, b) => compareTasks(a, b, sortField, sortDir)),
+    [filtered, sortField, sortDir],
+  )
+
   const groups = useMemo(() => {
     if (!groupByPic) return null
     const byPic = new Map()
-    filtered.forEach((t) => {
+    sorted.forEach((t) => {
       const key = t.pic_id ?? '__unassigned__'
       if (!byPic.has(key)) byPic.set(key, { picId: t.pic_id, tasks: [] })
       byPic.get(key).tasks.push(t)
     })
     return Array.from(byPic.values())
-  }, [filtered, groupByPic])
+  }, [sorted, groupByPic])
 
   const hasFilters =
     filterPic !== 'all' || filterDept !== 'all' || filterStatus !== 'all'
@@ -149,8 +205,23 @@ export default function GridView({ onOpenTask, aiFilter }) {
     clearSelection()
   }
 
+  const currentSpec = { picId: filterPic, deptId: filterDept, status: filterStatus }
+  const hasNonDefaultFilter =
+    filterPic !== 'all' || filterDept !== 'all' || filterStatus !== 'all'
+
+  function applySpec(spec) {
+    setFilterPic(spec.picId ?? 'all')
+    setFilterDept(spec.deptId ?? 'all')
+    setFilterStatus(spec.status ?? 'all')
+  }
+
   return (
     <div className="bg-surface border border-border rounded-xl overflow-hidden">
+      <SavedFiltersBar
+        currentSpec={currentSpec}
+        canSave={hasNonDefaultFilter}
+        onApply={applySpec}
+      />
       <div className="p-3 border-b border-border flex items-center gap-2 flex-wrap">
         <FilterSelect value={filterPic} onChange={setFilterPic}>
           <option value="all">All PICs</option>
@@ -230,9 +301,14 @@ export default function GridView({ onOpenTask, aiFilter }) {
             indeterminate={visibleSelectedCount > 0 && !allVisibleSelected}
             onToggleAll={toggleAllVisible}
             anySelectable={filtered.length > 0}
+            sortField={sortField}
+            sortDir={sortDir}
+            onSort={handleHeaderSort}
           />
           {isLoading ? (
-            <div className="py-10 text-center text-xs text-text-3">Loading…</div>
+            <div className="px-4 py-3">
+              <Skeleton rows={5} height={32} />
+            </div>
           ) : filtered.length === 0 ? (
             <div className="py-10 text-center text-xs text-text-3">
               {tasks.length === 0
@@ -266,7 +342,7 @@ export default function GridView({ onOpenTask, aiFilter }) {
               )
             })
           ) : (
-            filtered.map((t) => (
+            sorted.map((t) => (
               <GridRow
                 key={t.id}
                 task={t}
@@ -285,7 +361,15 @@ export default function GridView({ onOpenTask, aiFilter }) {
   )
 }
 
-function GridHeader({ allVisibleSelected, indeterminate, onToggleAll, anySelectable }) {
+function GridHeader({
+  allVisibleSelected,
+  indeterminate,
+  onToggleAll,
+  anySelectable,
+  sortField,
+  sortDir,
+  onSort,
+}) {
   return (
     <div
       className={`${COLS} py-2 border-b border-border-strong bg-surface text-[10px] uppercase tracking-wider text-text-2 font-medium`}
@@ -304,13 +388,32 @@ function GridHeader({ allVisibleSelected, indeterminate, onToggleAll, anySelecta
         />
       </div>
       <div></div>
-      <div>Task</div>
-      <div>PIC</div>
+      <SortHeader label="Task" field="title" sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <SortHeader label="PIC" field="pic" sortField={sortField} sortDir={sortDir} onSort={onSort} />
       <div>Department</div>
-      <div>Due</div>
+      <SortHeader label="Due" field="due_date" sortField={sortField} sortDir={sortDir} onSort={onSort} />
       <div>Tags</div>
-      <div>Status</div>
+      <SortHeader label="Status" field="status" sortField={sortField} sortDir={sortDir} onSort={onSort} />
     </div>
+  )
+}
+
+function SortHeader({ label, field, sortField, sortDir, onSort }) {
+  const active = sortField === field
+  return (
+    <button
+      onClick={() => onSort(field)}
+      className={`text-left inline-flex items-center gap-1 hover:text-text uppercase tracking-wider text-[10px] font-medium ${
+        active ? 'text-text' : 'text-text-2'
+      }`}
+    >
+      {label}
+      {active && (
+        <i
+          className={`ti ti-chevron-${sortDir === 'asc' ? 'up' : 'down'} text-xs`}
+        />
+      )}
+    </button>
   )
 }
 
@@ -532,5 +635,119 @@ function FilterSelect({ value, onChange, children }) {
     >
       {children}
     </select>
+  )
+}
+
+function SavedFiltersBar({ currentSpec, canSave, onApply }) {
+  const { data: filters = [] } = useSavedFilters()
+  const create = useCreateSavedFilter()
+  const remove = useDeleteSavedFilter()
+  const [naming, setNaming] = useState(false)
+  const [name, setName] = useState('')
+
+  function isCurrent(spec) {
+    return (
+      (spec.picId ?? 'all') === (currentSpec.picId ?? 'all') &&
+      (spec.deptId ?? 'all') === (currentSpec.deptId ?? 'all') &&
+      (spec.status ?? 'all') === (currentSpec.status ?? 'all')
+    )
+  }
+
+  async function handleSave(e) {
+    e.preventDefault()
+    const trimmed = name.trim()
+    if (!trimmed) return
+    try {
+      await create.mutateAsync({ name: trimmed, spec: currentSpec })
+      setName('')
+      setNaming(false)
+    } catch {
+      // toast handled by hook
+    }
+  }
+
+  // Hide the bar when there's nothing to show.
+  if (filters.length === 0 && !canSave) return null
+
+  return (
+    <div className="px-3 py-2 border-b border-border bg-surface-2/40 flex items-center gap-1.5 flex-wrap text-xs">
+      {filters.length > 0 && (
+        <>
+          <span className="text-[10px] uppercase tracking-wider text-text-3 mr-1">
+            Saved
+          </span>
+          {filters.map((f) => {
+            const active = isCurrent(f.spec)
+            return (
+              <span
+                key={f.id}
+                className={`inline-flex items-center rounded-md border text-xs ${
+                  active
+                    ? 'border-info text-info bg-info-bg'
+                    : 'border-border text-text-2'
+                }`}
+              >
+                <button
+                  onClick={() => onApply(f.spec)}
+                  className="px-2 py-0.5 hover:text-text"
+                  title="Apply"
+                >
+                  {f.name}
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm(`Delete saved filter "${f.name}"?`)) {
+                      remove.mutate(f.id)
+                    }
+                  }}
+                  className="px-1.5 py-0.5 text-text-3 hover:text-danger-text border-l border-current/20"
+                  title="Delete"
+                  aria-label={`Delete saved filter ${f.name}`}
+                >
+                  <i className="ti ti-x text-[10px]" />
+                </button>
+              </span>
+            )
+          })}
+        </>
+      )}
+      {canSave && !naming && (
+        <button
+          onClick={() => setNaming(true)}
+          className="text-text-3 hover:text-text text-xs px-2 py-0.5 underline"
+        >
+          + Save current
+        </button>
+      )}
+      {naming && (
+        <form onSubmit={handleSave} className="inline-flex items-center gap-1">
+          <input
+            type="text"
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => {
+              if (!name.trim()) setNaming(false)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setNaming(false)
+                setName('')
+              }
+            }}
+            placeholder="filter name"
+            maxLength={50}
+            className="text-xs px-2 py-0.5 border border-border rounded bg-surface w-32 outline-none focus:border-info"
+          />
+          <button
+            type="submit"
+            disabled={!name.trim() || create.isPending}
+            className="text-xs px-2 py-0.5 rounded bg-info text-white disabled:opacity-50"
+          >
+            Save
+          </button>
+        </form>
+      )}
+    </div>
   )
 }
