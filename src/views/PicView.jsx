@@ -33,6 +33,11 @@ import TaskFilterBar from '../components/TaskFilterBar'
 import TaskRow from '../components/TaskRow'
 import ShareModal from '../components/ShareModal'
 
+// Render order for status groups within a PIC's task list. Open
+// first (active work), then In progress, then perpetual Ongoing,
+// then Done at the bottom for context.
+const STATUS_ORDER = ['Open', 'In progress', 'Ongoing', 'Done']
+
 // Sentinel value used as `selectedPicId` to surface the unassigned bucket
 // (tasks with pic_id === null). Distinct from any UUID so it can't collide.
 const UNASSIGNED = '__unassigned__'
@@ -353,12 +358,14 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
         />
       )}
 
-      {/* Task list */}
-      <div className="px-4">
+      {/* Task list — grouped by status. Empty groups hidden. */}
+      <div>
         {isLoading ? (
-          <div className="py-10 text-center text-xs text-text-3">Loading…</div>
+          <div className="py-10 px-4 text-center text-xs text-text-3">
+            Loading…
+          </div>
         ) : picTasks.length === 0 ? (
-          <div className="py-10 text-center text-xs text-text-3">
+          <div className="py-10 px-4 text-center text-xs text-text-3">
             {isUnassigned
               ? 'Every task has an owner.'
               : selectedPic
@@ -366,16 +373,24 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
                 : 'No PIC selected'}
           </div>
         ) : (
-          picTasks.map((t) => (
-            <DraggableSelectableRow
-              key={t.id}
-              task={t}
-              selected={selectedIds.has(t.id)}
-              anySelected={selectedIds.size > 0}
-              onToggleSelect={() => toggleSelection(t.id)}
-              onClick={() => onOpenTask(t.id)}
-            />
-          ))
+          STATUS_ORDER.map((s) => {
+            const group = picTasks.filter((t) => t.status === s)
+            if (group.length === 0) return null
+            return (
+              <StatusGroup key={s} status={s} count={group.length}>
+                {group.map((t) => (
+                  <DraggableSelectableRow
+                    key={t.id}
+                    task={t}
+                    selected={selectedIds.has(t.id)}
+                    anySelected={selectedIds.size > 0}
+                    onToggleSelect={() => toggleSelection(t.id)}
+                    onClick={() => onOpenTask(t.id)}
+                  />
+                ))}
+              </StatusGroup>
+            )
+          })
         )}
       </div>
 
@@ -408,6 +423,36 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
       ) : null}
     </DragOverlay>
     </DndContext>
+  )
+}
+
+// ============================================================
+// Status group section — collapsible header + child rows
+// ============================================================
+//
+// Click the header to collapse / expand. State is per-mount (resets
+// each time you switch PICs), which feels right: a fresh chip should
+// open with everything visible. localStorage persistence could come
+// later if a power user asks for it.
+function StatusGroup({ status, count, children }) {
+  const [open, setOpen] = useState(true)
+  return (
+    <div className="border-b border-border last:border-b-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-2 px-4 py-2 text-left bg-surface-2/40 hover:bg-surface-2 border-b border-border"
+      >
+        <i
+          className={`ti ${open ? 'ti-chevron-down' : 'ti-chevron-right'} text-xs text-text-3`}
+        />
+        <span className="text-[11px] uppercase tracking-wider text-text-2 font-medium">
+          {status}
+        </span>
+        <span className="text-[11px] text-text-3">· {count}</span>
+      </button>
+      {open && <div className="px-4">{children}</div>}
+    </div>
   )
 }
 
