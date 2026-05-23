@@ -2,7 +2,7 @@ import { supabase } from '../lib/supabase'
 
 const TASK_SELECT = `
   id, task_number, title, notes, status, priority,
-  start_date, due_date, raised_date, tags, source,
+  start_date, due_date, raised_date, tags, source, subtasks,
   workspace_id, pic_id, department_id, created_by, created_at, updated_at,
   pic:people!tasks_pic_id_fkey(id, name, initials, color, is_active),
   task_watchers(person:people(id, name, initials, color, is_active)),

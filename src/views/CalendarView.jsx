@@ -24,6 +24,7 @@ import {
   usePeople,
   useTasks,
   useUpdateTask,
+  useWorkspaceBlockerMap,
 } from '../lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../auth/AuthProvider'
@@ -57,6 +58,7 @@ export default function CalendarView({ onOpenTask }) {
   const { data: tasks = [] } = useTasks()
   const { data: people = [] } = usePeople()
   const { data: departments = [] } = useDepartments()
+  const { data: blockerMap = new Map() } = useWorkspaceBlockerMap()
   const updateTask = useUpdateTask()
   const showToast = useToast()
   const queryClient = useQueryClient()
@@ -372,6 +374,7 @@ export default function CalendarView({ onOpenTask }) {
                   anchor={anchor}
                   range={range}
                   tasks={tasksByDay.get(toIso(d)) ?? []}
+                  blockerMap={blockerMap}
                   onOpenTask={onOpenTask}
                   onSelectDay={handleDayCellClick}
                   selectMode={selectMode}
@@ -485,6 +488,7 @@ function DayCell({
   anchor,
   range,
   tasks,
+  blockerMap,
   onOpenTask,
   onSelectDay,
   selectMode,
@@ -523,6 +527,7 @@ function DayCell({
         <DayTaskChip
           key={t.id}
           task={t}
+          blocked={(blockerMap?.get(t.id) ?? 0) > 0}
           onClick={() => {
             if (selectMode) onToggleSelect?.(t.id)
             else onOpenTask(t.id)
@@ -538,7 +543,7 @@ function DayCell({
   )
 }
 
-function DayTaskChip({ task, onClick, selectMode, isSelected }) {
+function DayTaskChip({ task, onClick, selectMode, isSelected, blocked }) {
   // In select mode we suppress dnd so taps select instead of dragging.
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: task.id,
@@ -556,12 +561,20 @@ function DayTaskChip({ task, onClick, selectMode, isSelected }) {
       className={`text-[10px] px-1.5 py-0.5 rounded mb-0.5 font-medium truncate select-none ${picPill(task.pic?.color)} ${
         isDragging ? 'opacity-30' : ''
       } ${
+        blocked ? 'opacity-50' : ''
+      } ${
         selectMode
           ? `cursor-pointer ${isSelected ? 'ring-2 ring-info ring-offset-1 ring-offset-surface' : 'opacity-90 hover:opacity-100'}`
           : 'cursor-grab active:cursor-grabbing'
       }`}
       style={{ touchAction: selectMode ? 'auto' : 'none' }}
-      title={selectMode ? 'Tap to toggle selection' : task.title}
+      title={
+        selectMode
+          ? 'Tap to toggle selection'
+          : blocked
+            ? `${task.title} — blocked by open task(s)`
+            : task.title
+      }
     >
       {selectMode && isSelected && <i className="ti ti-check mr-1" />}
       {task.title}

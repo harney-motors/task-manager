@@ -13,6 +13,12 @@ import {
   fetchSavedCommands,
 } from '../api/savedCommands'
 import {
+  addDependency,
+  fetchTaskDependencies,
+  fetchWorkspaceBlockerMap,
+  removeDependency,
+} from '../api/dependencies'
+import {
   createSavedFilter,
   deleteSavedFilter,
   fetchSavedFilters,
@@ -61,6 +67,67 @@ export const queryKeys = {
   savedFilters:  (workspaceId) => ['savedFilters', workspaceId],
   nudges:        (workspaceId) => ['nudges', workspaceId],
   savedCommands: (workspaceId) => ['savedCommands', workspaceId],
+  taskDeps:      (taskId)      => ['taskDeps', taskId],
+  workspaceBlockers: (workspaceId) => ['workspaceBlockers', workspaceId],
+}
+
+// ---------- Dependencies ----------
+
+export function useTaskDependencies(taskId) {
+  return useQuery({
+    queryKey: queryKeys.taskDeps(taskId),
+    queryFn: () => fetchTaskDependencies(taskId),
+    enabled: !!taskId && !String(taskId).startsWith('temp-'),
+  })
+}
+
+export function useWorkspaceBlockerMap() {
+  const { workspace } = useAuth()
+  return useQuery({
+    queryKey: queryKeys.workspaceBlockers(workspace?.id),
+    queryFn: () => fetchWorkspaceBlockerMap(workspace.id),
+    enabled: !!workspace,
+    // Refresh whenever tasks change (cheap — single table scan).
+    staleTime: 30 * 1000,
+  })
+}
+
+export function useAddDependency() {
+  const { workspace } = useAuth()
+  const qc = useQueryClient()
+  const showToast = useToast()
+  return useMutation({
+    mutationFn: ({ blockerId, blockedId }) =>
+      addDependency(blockerId, blockedId),
+    onError: (err) =>
+      showToast(errMsg(err, 'Could not add dependency'), { type: 'error' }),
+    onSettled: (_d, _e, { blockerId, blockedId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.taskDeps(blockerId) })
+      qc.invalidateQueries({ queryKey: queryKeys.taskDeps(blockedId) })
+      qc.invalidateQueries({
+        queryKey: queryKeys.workspaceBlockers(workspace?.id),
+      })
+    },
+  })
+}
+
+export function useRemoveDependency() {
+  const { workspace } = useAuth()
+  const qc = useQueryClient()
+  const showToast = useToast()
+  return useMutation({
+    mutationFn: ({ blockerId, blockedId }) =>
+      removeDependency(blockerId, blockedId),
+    onError: (err) =>
+      showToast(errMsg(err, 'Could not remove dependency'), { type: 'error' }),
+    onSettled: (_d, _e, { blockerId, blockedId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.taskDeps(blockerId) })
+      qc.invalidateQueries({ queryKey: queryKeys.taskDeps(blockedId) })
+      qc.invalidateQueries({
+        queryKey: queryKeys.workspaceBlockers(workspace?.id),
+      })
+    },
+  })
 }
 
 // ---------- Saved AI commands (automations) ----------

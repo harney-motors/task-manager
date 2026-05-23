@@ -19,8 +19,11 @@ import { recordRecentTask } from '../lib/recentTasks'
 import { useAuth } from '../auth/AuthProvider'
 import JournalPanel from './JournalPanel'
 import TaskActivityPanel from './TaskActivityPanel'
+import SubtasksField from './SubtasksField'
+import DependenciesField from './DependenciesField'
+import { useTaskDependencies } from '../lib/queries'
 
-export default function TaskModal({ task, onClose }) {
+export default function TaskModal({ task, onClose, onOpenTask }) {
   const { workspace } = useAuth()
   const { data: people = [] } = usePeople()
   const { data: departments = [] } = useDepartments()
@@ -245,6 +248,7 @@ export default function TaskModal({ task, onClose }) {
             nextMondayIso={nextMondayIso}
             plus7Iso={plus7Iso}
             handleDelete={handleDelete}
+            onOpenRelated={onOpenTask}
           />
         ) : (
           <div className="border-b border-border">
@@ -285,7 +289,25 @@ function DetailsTab({
   nextMondayIso,
   plus7Iso,
   handleDelete,
+  onOpenRelated,
 }) {
+  const { data: deps = { blockedBy: [] } } = useTaskDependencies(task.id)
+  const openBlockers = (deps.blockedBy ?? []).filter(
+    (b) => b.status !== 'Done',
+  )
+
+  function handleStatusChange(next) {
+    if (next === 'Done' && openBlockers.length > 0) {
+      const ok = confirm(
+        `This task has ${openBlockers.length} open blocker${openBlockers.length === 1 ? '' : 's'}:\n\n` +
+          openBlockers.map((b) => `• ${b.title}`).join('\n') +
+          '\n\nMark Done anyway?',
+      )
+      if (!ok) return
+    }
+    updateField('status', next)
+  }
+
   return (
     <>
       {/* Inactive PIC banner — surfaces the orphaned ownership so the
@@ -414,7 +436,7 @@ function DetailsTab({
         <FieldRow label="Status" icon="ti-circle-check">
           <select
             value={task.status}
-            onChange={(e) => updateField('status', e.target.value)}
+            onChange={(e) => handleStatusChange(e.target.value)}
             disabled={isTemp}
             className="text-sm bg-surface border border-border rounded px-2 py-1 hover:bg-surface-2 cursor-pointer disabled:opacity-60"
           >
@@ -423,6 +445,29 @@ function DetailsTab({
             <option value="Ongoing">Ongoing</option>
             <option value="Done">Done</option>
           </select>
+          {openBlockers.length > 0 && (
+            <span className="text-[11px] text-warning-text inline-flex items-center gap-1">
+              <i className="ti ti-link text-xs" />
+              {openBlockers.length} open blocker
+              {openBlockers.length === 1 ? '' : 's'}
+            </span>
+          )}
+        </FieldRow>
+
+        <FieldRow label="Subtasks" icon="ti-list-check">
+          <SubtasksField
+            subtasks={task.subtasks ?? []}
+            onChange={(next) => updateField('subtasks', next)}
+            disabled={isTemp}
+          />
+        </FieldRow>
+
+        <FieldRow label="Dependencies" icon="ti-link">
+          <DependenciesField
+            taskId={task.id}
+            disabled={isTemp}
+            onOpenRelated={onOpenRelated}
+          />
         </FieldRow>
 
         <FieldRow label="Watchers" icon="ti-users">

@@ -511,7 +511,11 @@ export default function Home() {
           </>
         )}
 
-        <TaskModal task={openTask} onClose={() => setOpenTaskId(null)} />
+        <TaskModal
+          task={openTask}
+          onClose={() => setOpenTaskId(null)}
+          onOpenTask={(id) => setOpenTaskId(id)}
+        />
         <SearchPalette
           open={showSearch}
           onClose={() => setShowSearch(false)}
