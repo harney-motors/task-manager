@@ -382,6 +382,7 @@ export default function GridView({ onOpenTask, aiFilter }) {
                       people={people}
                       departments={departments}
                       isSelected={selectedIds.has(t.id)}
+                      anySelected={selectedIds.size > 0}
                       onToggleSelect={() => toggleSelection(t.id)}
                       onOpen={() => onOpenTask(t.id)}
                       onUpdate={update}
@@ -398,6 +399,7 @@ export default function GridView({ onOpenTask, aiFilter }) {
                 people={people}
                 departments={departments}
                 isSelected={selectedIds.has(t.id)}
+                anySelected={selectedIds.size > 0}
                 onToggleSelect={() => toggleSelection(t.id)}
                 onOpen={() => onOpenTask(t.id)}
                 onUpdate={update}
@@ -471,6 +473,7 @@ function GridRow({
   people,
   departments,
   isSelected,
+  anySelected,
   onToggleSelect,
   onOpen,
   onUpdate,
@@ -485,7 +488,7 @@ function GridRow({
   return (
     <div
       onClick={onOpen}
-      className={`border-b border-border last:border-b-0 cursor-pointer transition-colors ${
+      className={`group border-b border-border last:border-b-0 cursor-pointer transition-colors ${
         isSelected ? 'bg-info-bg/60' : 'hover:bg-surface-2'
       }`}
     >
@@ -496,8 +499,12 @@ function GridRow({
           onChange={onToggleSelect}
           onClick={stop}
           disabled={isTemp}
-          className="cursor-pointer"
           aria-label="Select row"
+          className={`cursor-pointer transition-opacity ${
+            isSelected || anySelected
+              ? 'opacity-100'
+              : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
+          }`}
         />
 
         <button
@@ -508,9 +515,12 @@ function GridRow({
           disabled={isTemp}
           className="text-text-3 hover:text-text disabled:opacity-50 flex items-center"
           aria-label={done ? 'Mark as open' : 'Mark as done'}
+          title={done ? 'Mark as open' : 'Mark as done'}
         >
+          {/* Circle for "mark done" — distinct from the selection
+              checkbox so the two squares don't read the same. */}
           <i
-            className={`ti ${done ? 'ti-square-check-filled text-success' : 'ti-square'} text-base`}
+            className={`ti ${done ? 'ti-circle-check-filled text-success' : 'ti-circle'} text-base`}
           />
         </button>
 
