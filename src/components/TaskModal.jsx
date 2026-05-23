@@ -18,6 +18,7 @@ import {
 import { recordRecentTask } from '../lib/recentTasks'
 import { useAuth } from '../auth/AuthProvider'
 import JournalPanel from './JournalPanel'
+import TaskActivityPanel from './TaskActivityPanel'
 
 export default function TaskModal({ task, onClose }) {
   const { workspace } = useAuth()
@@ -50,11 +51,11 @@ export default function TaskModal({ task, onClose }) {
     recordRecentTask(workspace.id, task)
   }, [task?.id, workspace?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Keyboard nav: Esc closes; Cmd/Ctrl+Enter closes; 'n' jumps to journal.
+  // Keyboard nav: Esc closes; Cmd/Ctrl+Enter closes; 'n' jumps to
+  // comments; 'a' jumps to activity (read-only).
   useEffect(() => {
     if (!task) return
     function handler(e) {
-      // Don't hijack typing inside inputs/textareas/selects.
       const tag = e.target?.tagName
       const inField =
         tag === 'INPUT' ||
@@ -74,8 +75,11 @@ export default function TaskModal({ task, onClose }) {
       if (!inField && e.key === 'n') {
         e.preventDefault()
         setTab('journal')
-        // Focus the journal input on the next paint (after tab swap).
         setTimeout(() => journalInputRef.current?.focus(), 50)
+      }
+      if (!inField && e.key === 'a') {
+        e.preventDefault()
+        setTab('activity')
       }
     }
     window.addEventListener('keydown', handler)
@@ -200,16 +204,27 @@ export default function TaskModal({ task, onClose }) {
             <TabButton
               active={tab === 'journal'}
               onClick={() => setTab('journal')}
-              icon="ti-notebook"
+              icon="ti-message-2"
               badge={journalEntries.length}
             >
-              Journal
+              Comments
+            </TabButton>
+            <TabButton
+              active={tab === 'activity'}
+              onClick={() => setTab('activity')}
+              icon="ti-history"
+            >
+              Activity
             </TabButton>
           </div>
         )}
 
         {/* Body */}
-        {tab === 'details' || isTemp ? (
+        {tab === 'activity' && !isTemp ? (
+          <div className="border-b border-border">
+            <TaskActivityPanel taskId={task.id} />
+          </div>
+        ) : tab === 'details' || isTemp ? (
           <DetailsTab
             task={task}
             title={title}
@@ -519,7 +534,9 @@ function DetailsTab({
           Delete
         </button>
         <div className="text-[11px] text-text-3">
-          Press <kbd className="px-1 border border-border rounded">⌘↵</kbd> to close · <kbd className="px-1 border border-border rounded">n</kbd> for notes
+          <kbd className="px-1 border border-border rounded">⌘↵</kbd> close ·{' '}
+          <kbd className="px-1 border border-border rounded">n</kbd> comments ·{' '}
+          <kbd className="px-1 border border-border rounded">a</kbd> activity
         </div>
       </div>
     </>

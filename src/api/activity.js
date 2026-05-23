@@ -27,3 +27,16 @@ export async function fetchRecentActivity(workspaceId, limit = 20) {
   if (error) throw error
   return data ?? []
 }
+
+// Per-task activity. Same shape as fetchRecentActivity but scoped
+// to one task — used by the Activity tab inside TaskModal.
+export async function fetchTaskActivity(taskId, limit = 50) {
+  const { data, error } = await supabase
+    .from('activity_log')
+    .select('id, action, payload, actor_id, task_id, created_at')
+    .eq('task_id', taskId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return data ?? []
+}

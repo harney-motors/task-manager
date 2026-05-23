@@ -658,9 +658,27 @@ export function useCreateJournalEntry(taskId) {
   }
 
   return useMutation({
-    mutationFn: (body) =>
-      createJournalEntry({ taskId, body, authorId: user.id }),
-    onMutate: async (body) => {
+    // Accepts either a plain string (body) or { body, parentId, mentions }
+    // so callers can post replies + mentions without breaking the old
+    // string-only signature.
+    mutationFn: (input) => {
+      const args =
+        typeof input === 'string'
+          ? { body: input, parentId: null, mentions: [] }
+          : { body: input.body, parentId: input.parentId ?? null, mentions: input.mentions ?? [] }
+      return createJournalEntry({
+        taskId,
+        body: args.body,
+        authorId: user.id,
+        parentId: args.parentId,
+        mentions: args.mentions,
+      })
+    },
+    onMutate: async (input) => {
+      const args =
+        typeof input === 'string'
+          ? { body: input, parentId: null, mentions: [] }
+          : { body: input.body, parentId: input.parentId ?? null, mentions: input.mentions ?? [] }
       await qc.cancelQueries({ queryKey: key })
       const previous = qc.getQueryData(key)
       const optimistic = {
@@ -668,31 +686,74 @@ export function useCreateJournalEntry(taskId) {
         task_id: taskId,
         author_id: user.id,
         author_name: currentAuthorName(),
-        body,
+        body: args.body,
         entry_type: 'note',
         status_value: null,
+        parent_id: args.parentId,
+        mentions: args.mentions,
         created_at: new Date().toISOString(),
       }
       qc.setQueryData(key, (old) => [optimistic, ...(old ?? [])])
       return { previous }
     },
-    onSuccess: (_entry, body) => {
-      // Ping PIC + watchers (minus the actor) about the new note.
+    onSuccess: (_entry, input) => {
+      const args =
+        typeof input === 'string'
+          ? { body: input, mentions: [] }
+          : { body: input.body, mentions: input.mentions ?? [] }
+      // Existing fanout: ping PIC + watchers (minus the actor) about
+      // the new comment.
       notifyTaskEvent({
         taskId,
         kind: 'journal_added',
-        extra: { snippet: String(body).slice(0, 120) },
+        extra: { snippet: String(args.body).slice(0, 120) },
       })
+      // If the comment @mentions specific people, also fire a
+      // direct-mention push. Server-side mapping for 'pic_changed'
+      // already targets a specific user (the new PIC); we reuse that
+      // path conceptually by piggy-backing on journal_added's recipient
+      // resolution AND adding extra recipients via the matcher trick:
+      // the cheap approach for v1 is to rely on journal_added's
+      // existing watcher/PIC fan-out, which already covers mentions
+      // when those people are watchers. A dedicated mention-only
+      // channel can come later if needed.
+      // (No-op for v1 beyond the existing journal_added.)
+      void args
     },
-    onError: (_err, _body, ctx) => {
+    onError: (_err, _input, ctx) => {
       if (ctx?.previous) qc.setQueryData(key, ctx.previous)
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: key })
-      // Refresh task list so the note-count badge updates.
       if (workspace?.id) {
         qc.invalidateQueries({ queryKey: queryKeys.tasks(workspace.id) })
       }
     },
   })
+}
+
+// Realtime subscription helper for journal entries on a task. Returns
+// a cleanup function; the caller wires it to a useEffect on the open
+// task id. New rows just invalidate the query so the regular fetch
+// re-runs and hydrates author_name etc.
+export function subscribeJournalRealtime(taskId, qc) {
+  if (!taskId || String(taskId).startsWith('temp-')) return () => {}
+  const channel = supabase
+    .channel(`journal:${taskId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'journal_entries',
+        filter: `task_id=eq.${taskId}`,
+      },
+      () => {
+        qc.invalidateQueries({ queryKey: queryKeys.journal(taskId) })
+      },
+    )
+    .subscribe()
+  return () => {
+    supabase.removeChannel(channel)
+  }
 }
