@@ -19,7 +19,9 @@ import { bulkDeleteWithUndo } from '../lib/deferredBulkDelete'
 import {
   applyTaskFilters,
   readFiltersFromParams,
+  readGroupingFromParams,
 } from '../lib/applyTaskFilters'
+import { applyTaskGrouping } from '../lib/applyTaskGrouping'
 import { useToast } from '../components/Toast'
 import BulkActionBar from '../components/BulkActionBar'
 import TaskFilterBar from '../components/TaskFilterBar'
@@ -74,25 +76,17 @@ export default function GridView({ onOpenTask, aiFilter, onFiltersChange }) {
   const queryClient = useQueryClient()
   const { workspace } = useAuth()
 
-  // Filters now live in URL params (shared with PIC + Calendar
-  // views). Local groupByPic / sort / selection stays in component
-  // state since those don't make sense across views.
+  // Filters + group + sort all live in URL params now (shared with
+  // PIC + Calendar views). Default group=status to match user's
+  // stated preference.
   const [searchParams] = useSearchParams()
   const filters = readFiltersFromParams(searchParams)
-  const [groupByPic, setGroupByPic] = useState(false)
+  const { group, sort } = readGroupingFromParams(searchParams, {
+    defaultGroup: 'status',
+    defaultSort: 'due',
+  })
   const [selectedIds, setSelectedIds] = useState(() => new Set())
-  const [sortField, setSortField] = useState('due_date')
-  const [sortDir, setSortDir] = useState('asc')
   const [shareOpen, setShareOpen] = useState(false)
-
-  function handleHeaderSort(field) {
-    if (sortField === field) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
-    } else {
-      setSortField(field)
-      setSortDir('asc')
-    }
-  }
 
   // Clear selection when the URL filters change so a selected row
   // that's no longer visible doesn't haunt the bulk bar.
@@ -112,21 +106,11 @@ export default function GridView({ onOpenTask, aiFilter, onFiltersChange }) {
     [tasks, filters],
   )
 
-  const sorted = useMemo(
-    () => [...filtered].sort((a, b) => compareTasks(a, b, sortField, sortDir)),
-    [filtered, sortField, sortDir],
+  const taskGroups = useMemo(
+    () =>
+      applyTaskGrouping(filtered, { group, sort, people, departments }),
+    [filtered, group, sort, people, departments],
   )
-
-  const groups = useMemo(() => {
-    if (!groupByPic) return null
-    const byPic = new Map()
-    sorted.forEach((t) => {
-      const key = t.pic_id ?? '__unassigned__'
-      if (!byPic.has(key)) byPic.set(key, { picId: t.pic_id, tasks: [] })
-      byPic.get(key).tasks.push(t)
-    })
-    return Array.from(byPic.values())
-  }, [sorted, groupByPic])
 
   function update(taskId, field, value) {
     updateTask.mutate({ id: taskId, [field]: value })
@@ -236,20 +220,7 @@ export default function GridView({ onOpenTask, aiFilter, onFiltersChange }) {
       {/* Saved-filters bar — temporarily disabled while the underlying
           schema only knows pic/dept/status (no priority/tag). Wire
           back once useSavedFilters spec includes the new fields. */}
-      <TaskFilterBar />
-      <div className="px-3 py-2 border-b border-border flex items-center justify-end">
-        <button
-          onClick={() => setGroupByPic((g) => !g)}
-          className={`text-xs px-2 py-1 rounded border inline-flex items-center gap-1.5 ${
-            groupByPic
-              ? 'border-info text-info'
-              : 'border-border text-text-2 hover:text-text'
-          }`}
-        >
-          <i className="ti ti-users text-sm" />
-          Group by PIC
-        </button>
-      </div>
+      <TaskFilterBar defaultGroup="status" defaultSort="due" />
 
       {selectedIds.size > 0 && (
         <BulkActionBar
@@ -293,9 +264,6 @@ export default function GridView({ onOpenTask, aiFilter, onFiltersChange }) {
             indeterminate={visibleSelectedCount > 0 && !allVisibleSelected}
             onToggleAll={toggleAllVisible}
             anySelectable={filtered.length > 0}
-            sortField={sortField}
-            sortDir={sortDir}
-            onSort={handleHeaderSort}
           />
           {isLoading ? (
             <div className="px-4 py-3">
@@ -307,15 +275,12 @@ export default function GridView({ onOpenTask, aiFilter, onFiltersChange }) {
                 ? 'No tasks yet.'
                 : 'No tasks match these filters.'}
             </div>
-          ) : groupByPic && groups ? (
-            groups.map((g) => {
-              const pic = people.find((p) => p.id === g.picId)
-              return (
-                <div key={g.picId ?? 'unassigned'}>
+          ) : (
+            taskGroups.map((g) =>
+              g.label ? (
+                <div key={g.key}>
                   <div className="px-4 py-2 bg-surface-2 border-b border-border flex items-center gap-2 text-xs">
-                    <span className="font-medium text-text">
-                      {pic?.name ?? 'Unassigned'}
-                    </span>
+                    <span className="font-medium text-text">{g.label}</span>
                     <span className="text-text-3">· {g.tasks.length}</span>
                   </div>
                   {g.tasks.map((t) => (
@@ -332,22 +297,24 @@ export default function GridView({ onOpenTask, aiFilter, onFiltersChange }) {
                     />
                   ))}
                 </div>
-              )
-            })
-          ) : (
-            sorted.map((t) => (
-              <GridRow
-                key={t.id}
-                task={t}
-                people={people}
-                departments={departments}
-                isSelected={selectedIds.has(t.id)}
-                anySelected={selectedIds.size > 0}
-                onToggleSelect={() => toggleSelection(t.id)}
-                onOpen={() => onOpenTask(t.id)}
-                onUpdate={update}
-              />
-            ))
+              ) : (
+                <div key={g.key}>
+                  {g.tasks.map((t) => (
+                    <GridRow
+                      key={t.id}
+                      task={t}
+                      people={people}
+                      departments={departments}
+                      isSelected={selectedIds.has(t.id)}
+                      anySelected={selectedIds.size > 0}
+                      onToggleSelect={() => toggleSelection(t.id)}
+                      onOpen={() => onOpenTask(t.id)}
+                      onUpdate={update}
+                    />
+                  ))}
+                </div>
+              ),
+            )
           )}
         </div>
       </div>
@@ -360,9 +327,6 @@ function GridHeader({
   indeterminate,
   onToggleAll,
   anySelectable,
-  sortField,
-  sortDir,
-  onSort,
 }) {
   return (
     <div
@@ -382,32 +346,13 @@ function GridHeader({
         />
       </div>
       <div></div>
-      <SortHeader label="Task" field="title" sortField={sortField} sortDir={sortDir} onSort={onSort} />
-      <SortHeader label="PIC" field="pic" sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <div>Task</div>
+      <div>PIC</div>
       <div>Department</div>
-      <SortHeader label="Due" field="due_date" sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <div>Due</div>
       <div>Tags</div>
-      <SortHeader label="Status" field="status" sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <div>Status</div>
     </div>
-  )
-}
-
-function SortHeader({ label, field, sortField, sortDir, onSort }) {
-  const active = sortField === field
-  return (
-    <button
-      onClick={() => onSort(field)}
-      className={`text-left inline-flex items-center gap-1 hover:text-text uppercase tracking-wider text-[10px] font-medium ${
-        active ? 'text-text' : 'text-text-2'
-      }`}
-    >
-      {label}
-      {active && (
-        <i
-          className={`ti ti-chevron-${sortDir === 'asc' ? 'up' : 'down'} text-xs`}
-        />
-      )}
-    </button>
   )
 }
 

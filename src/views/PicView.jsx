@@ -25,18 +25,15 @@ import { bulkDeleteWithUndo } from '../lib/deferredBulkDelete'
 import {
   applyTaskFilters,
   readFiltersFromParams,
+  readGroupingFromParams,
 } from '../lib/applyTaskFilters'
+import { applyTaskGrouping } from '../lib/applyTaskGrouping'
 import { useSearchParams } from 'react-router-dom'
 import { useToast } from '../components/Toast'
 import BulkActionBar from '../components/BulkActionBar'
 import TaskFilterBar from '../components/TaskFilterBar'
 import TaskRow from '../components/TaskRow'
 import ShareModal from '../components/ShareModal'
-
-// Render order for status groups within a PIC's task list. Open
-// first (active work), then In progress, then perpetual Ongoing,
-// then Done at the bottom for context.
-const STATUS_ORDER = ['Open', 'In progress', 'Ongoing', 'Done']
 
 // Sentinel value used as `selectedPicId` to surface the unassigned bucket
 // (tasks with pic_id === null). Distinct from any UUID so it can't collide.
@@ -152,18 +149,24 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
 
   const selectedPic =
     !isUnassigned && people.find((p) => p.id === effectivePicId)
-  // URL-driven secondary filters (dept / status / priority / tag).
-  // The PIC filter is implicit from the chip selector above so we
-  // hide it in the bar.
+  // URL-driven secondary filters + group/sort. Default group=status
+  // because that's the most useful within-PIC slice.
   const [searchParams] = useSearchParams()
   const sideFilters = readFiltersFromParams(searchParams)
+  const { group, sort } = readGroupingFromParams(searchParams, {
+    defaultGroup: 'status',
+    defaultSort: 'due',
+  })
   const picTasks = useMemo(() => {
     const base = isUnassigned
       ? tasks.filter((t) => !t.pic_id)
       : tasks.filter((t) => t.pic_id === effectivePicId)
-    // Pass an empty picId so the bar's pic filter doesn't double-apply.
     return applyTaskFilters(base, { ...sideFilters, picId: 'all' })
   }, [tasks, effectivePicId, isUnassigned, sideFilters])
+  const taskGroups = useMemo(
+    () => applyTaskGrouping(picTasks, { group, sort, people, departments }),
+    [picTasks, group, sort, people, departments],
+  )
   const activeCount = picTasks.filter((t) => t.status !== 'Done').length
   const overdueCount = picTasks.filter(
     (t) => t.status !== 'Done' && isOverdue(t.due_date),
@@ -305,8 +308,13 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
         </div>
       )}
 
-      {/* Secondary filters (PIC implied by chip selector → hidden). */}
-      <TaskFilterBar hide={['picId']} />
+      {/* Secondary filters + group/sort. PIC filter hidden (implicit
+          from the chip strip above). */}
+      <TaskFilterBar
+        hide={['picId']}
+        defaultGroup="status"
+        defaultSort="due"
+      />
 
       {/* Quick-add scoped to the current PIC. Hidden until a PIC chip
           (or Unassigned) is actively selected. */}
@@ -358,7 +366,7 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
         />
       )}
 
-      {/* Task list — grouped by status. Empty groups hidden. */}
+      {/* Task list — driven by URL group/sort via applyTaskGrouping. */}
       <div>
         {isLoading ? (
           <div className="py-10 px-4 text-center text-xs text-text-3">
@@ -373,24 +381,24 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
                 : 'No PIC selected'}
           </div>
         ) : (
-          STATUS_ORDER.map((s) => {
-            const group = picTasks.filter((t) => t.status === s)
-            if (group.length === 0) return null
-            return (
-              <StatusGroup key={s} status={s} count={group.length}>
-                {group.map((t) => (
-                  <DraggableSelectableRow
-                    key={t.id}
-                    task={t}
-                    selected={selectedIds.has(t.id)}
-                    anySelected={selectedIds.size > 0}
-                    onToggleSelect={() => toggleSelection(t.id)}
-                    onClick={() => onOpenTask(t.id)}
-                  />
-                ))}
-              </StatusGroup>
-            )
-          })
+          taskGroups.map((g) => (
+            <TaskGroupSection
+              key={g.key}
+              label={g.label}
+              count={g.tasks.length}
+            >
+              {g.tasks.map((t) => (
+                <DraggableSelectableRow
+                  key={t.id}
+                  task={t}
+                  selected={selectedIds.has(t.id)}
+                  anySelected={selectedIds.size > 0}
+                  onToggleSelect={() => toggleSelection(t.id)}
+                  onClick={() => onOpenTask(t.id)}
+                />
+              ))}
+            </TaskGroupSection>
+          ))
         )}
       </div>
 
@@ -427,15 +435,20 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
 }
 
 // ============================================================
-// Status group section — collapsible header + child rows
+// Generic group section — collapsible header + child rows
 // ============================================================
 //
-// Click the header to collapse / expand. State is per-mount (resets
-// each time you switch PICs), which feels right: a fresh chip should
-// open with everything visible. localStorage persistence could come
-// later if a power user asks for it.
-function StatusGroup({ status, count, children }) {
+// When `label` is null/empty we render no header (used when
+// applyTaskGrouping returns a single "all" group, i.e. group=none).
+// State is per-mount (resets when you switch PICs), which feels
+// right: a fresh chip selection should open with everything visible.
+export function TaskGroupSection({ label, count, children }) {
   const [open, setOpen] = useState(true)
+  if (!label) {
+    // Single ungrouped group — just render the rows in a padded
+    // wrapper, no header.
+    return <div className="px-4">{children}</div>
+  }
   return (
     <div className="border-b border-border last:border-b-0">
       <button
@@ -447,7 +460,7 @@ function StatusGroup({ status, count, children }) {
           className={`ti ${open ? 'ti-chevron-down' : 'ti-chevron-right'} text-xs text-text-3`}
         />
         <span className="text-[11px] uppercase tracking-wider text-text-2 font-medium">
-          {status}
+          {label}
         </span>
         <span className="text-[11px] text-text-3">· {count}</span>
       </button>

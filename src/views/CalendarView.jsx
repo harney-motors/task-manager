@@ -241,7 +241,8 @@ export default function CalendarView({ onOpenTask }) {
 
   return (
     <div className="bg-surface border border-border rounded-xl overflow-hidden">
-      <TaskFilterBar />
+      {/* Calendar is laid out by date — group/sort don't apply. */}
+      <TaskFilterBar hide={['group', 'sort']} />
       <div className="p-3 border-b border-border flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-1">
           <button

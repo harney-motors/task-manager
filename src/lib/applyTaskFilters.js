@@ -89,6 +89,19 @@ export function readFiltersFromParams(searchParams) {
   }
 }
 
+// Group + sort are URL-backed too. Defaults come from the view
+// because each view has different ideas of "useful" (PIC + Grid
+// default to status grouping; Calendar suppresses both).
+export function readGroupingFromParams(
+  searchParams,
+  { defaultGroup = 'none', defaultSort = 'due' } = {},
+) {
+  return {
+    group: searchParams.get('group') || defaultGroup,
+    sort: searchParams.get('sort') || defaultSort,
+  }
+}
+
 // Apply a partial update to the URL params (preserves other keys).
 // Pass null / 'all' to clear a single filter.
 export function writeFiltersToParams(setSearchParams, patch) {
@@ -101,6 +114,8 @@ export function writeFiltersToParams(setSearchParams, patch) {
         priority: 'priority',
         tag: 'tag',
         due: 'due',
+        group: 'group',
+        sort: 'sort',
       }
       for (const [k, urlKey] of Object.entries(map)) {
         if (k in patch) {

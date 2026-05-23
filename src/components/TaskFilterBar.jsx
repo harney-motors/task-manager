@@ -4,24 +4,34 @@ import { useDepartments, usePeople, useTasks } from '../lib/queries'
 import {
   isAnyFilterActive,
   readFiltersFromParams,
+  readGroupingFromParams,
   writeFiltersToParams,
 } from '../lib/applyTaskFilters'
 
 // Shared filter bar for Grid / PIC / Calendar.
 //
 // `hide` — array of field names to omit (e.g. ['picId'] in PicView,
-// where the PIC is already implied by the chip selector).
+// where the PIC is already implied by the chip selector; ['group',
+// 'sort'] in Calendar which is date-laid-out).
 //
-// State lives in URL search params so filters are bookmarkable +
-// survive view switches. Tag options are derived from the live task
-// set so we don't show stale tags.
-export default function TaskFilterBar({ hide = [] }) {
+// `defaultGroup` / `defaultSort` — fallbacks when the URL doesn't
+// specify; lets each view set a sensible default (PIC + Grid default
+// to status grouping).
+export default function TaskFilterBar({
+  hide = [],
+  defaultGroup = 'none',
+  defaultSort = 'due',
+}) {
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: people = [] } = usePeople()
   const { data: departments = [] } = useDepartments()
   const { data: tasks = [] } = useTasks()
 
   const filters = readFiltersFromParams(searchParams)
+  const { group, sort } = readGroupingFromParams(searchParams, {
+    defaultGroup,
+    defaultSort,
+  })
   const tagOptions = useMemo(() => {
     const s = new Set()
     for (const t of tasks) for (const tag of t.tags ?? []) s.add(tag)
@@ -47,6 +57,8 @@ export default function TaskFilterBar({ hide = [] }) {
   const showPriority = !hide.includes('priority')
   const showTag = !hide.includes('tag')
   const showDue = !hide.includes('due')
+  const showGroup = !hide.includes('group')
+  const showSort = !hide.includes('sort')
   const anyActive = isAnyFilterActive(filters)
 
   return (
@@ -133,6 +145,45 @@ export default function TaskFilterBar({ hide = [] }) {
         >
           Clear
         </button>
+      )}
+
+      {/* Push group/sort to the right so they read as "shape of view"
+          rather than filters. */}
+      {(showGroup || showSort) && <div className="flex-1" />}
+
+      {showGroup && (
+        <label className="text-[11px] text-text-3 inline-flex items-center gap-1">
+          Group
+          <FilterSelect
+            value={group}
+            onChange={(v) => update({ group: v === defaultGroup ? null : v })}
+          >
+            <option value="none">None</option>
+            <option value="status">Status</option>
+            <option value="pic">PIC</option>
+            <option value="dept">Department</option>
+            <option value="priority">Priority</option>
+            <option value="due">Due bucket</option>
+            <option value="tag">Tag</option>
+          </FilterSelect>
+        </label>
+      )}
+      {showSort && (
+        <label className="text-[11px] text-text-3 inline-flex items-center gap-1">
+          Sort
+          <FilterSelect
+            value={sort}
+            onChange={(v) => update({ sort: v === defaultSort ? null : v })}
+          >
+            <option value="due">Due</option>
+            <option value="priority">Priority</option>
+            <option value="status">Status</option>
+            <option value="pic">PIC name</option>
+            <option value="title">Title</option>
+            <option value="created">Newest</option>
+            <option value="updated">Recently updated</option>
+          </FilterSelect>
+        </label>
       )}
     </div>
   )
