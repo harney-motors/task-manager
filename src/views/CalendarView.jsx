@@ -19,9 +19,20 @@ import {
   startOfMonth,
   startOfWeek,
 } from 'date-fns'
-import { useTasks, useUpdateTask } from '../lib/queries'
+import {
+  useDeleteTask,
+  useDepartments,
+  usePeople,
+  useTasks,
+  useUpdateTask,
+} from '../lib/queries'
 import { isOverdue } from '../lib/dates'
 import { picPill } from '../lib/colors'
+import { addWatcher } from '../api/watchers'
+import { exportTasksToCsv } from '../lib/exportCsv'
+import { useToast } from '../components/Toast'
+import BulkActionBar from '../components/BulkActionBar'
+import ShareModal from '../components/ShareModal'
 import TaskRow from '../components/TaskRow'
 
 const RANGES = [
@@ -42,10 +53,108 @@ function toIso(date) {
 
 export default function CalendarView({ onOpenTask }) {
   const { data: tasks = [] } = useTasks()
+  const { data: people = [] } = usePeople()
+  const { data: departments = [] } = useDepartments()
   const updateTask = useUpdateTask()
+  const deleteTask = useDeleteTask()
+  const showToast = useToast()
   const [range, setRange] = useState('4w')
   const [anchor, setAnchor] = useState(() => new Date())
   const [activeId, setActiveId] = useState(null)
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState(() => new Set())
+  const [shareOpen, setShareOpen] = useState(false)
+
+  function toggleSelection(id) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  function clearSelection() {
+    setSelectedIds(new Set())
+  }
+  function exitSelectMode() {
+    setSelectMode(false)
+    clearSelection()
+  }
+
+  async function bulkUpdate(fields, label) {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    const results = await Promise.allSettled(
+      ids.map(
+        (id) =>
+          new Promise((resolve, reject) =>
+            updateTask.mutate(
+              { id, ...fields },
+              { onSuccess: resolve, onError: reject },
+            ),
+          ),
+      ),
+    )
+    const ok = results.filter((r) => r.status === 'fulfilled').length
+    const failed = results.length - ok
+    showToast(
+      failed === 0
+        ? `${label} on ${ok} task${ok === 1 ? '' : 's'}`
+        : `${label}: ${ok} ok, ${failed} failed`,
+      { type: failed === 0 ? 'success' : 'error' },
+    )
+    clearSelection()
+  }
+
+  async function bulkAddWatcher(picId) {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0 || !picId) return
+    const results = await Promise.allSettled(
+      ids.map((tid) => addWatcher(tid, picId)),
+    )
+    const ok = results.filter((r) => r.status === 'fulfilled').length
+    const failed = results.length - ok
+    showToast(
+      failed === 0
+        ? `Watcher added to ${ok}.`
+        : `Added to ${ok}, ${failed} failed`,
+      { type: failed === 0 ? 'success' : 'error' },
+    )
+    clearSelection()
+  }
+
+  async function bulkDelete() {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    if (
+      !confirm(
+        `Delete ${ids.length} task${ids.length === 1 ? '' : 's'}? This cannot be undone.`,
+      )
+    )
+      return
+    const results = await Promise.allSettled(
+      ids.map(
+        (id) =>
+          new Promise((resolve, reject) =>
+            deleteTask.mutate(id, { onSuccess: resolve, onError: reject }),
+          ),
+      ),
+    )
+    const ok = results.filter((r) => r.status === 'fulfilled').length
+    const failed = results.length - ok
+    showToast(
+      failed === 0
+        ? `Deleted ${ok} task${ok === 1 ? '' : 's'}`
+        : `Deleted ${ok}, failed ${failed}`,
+      { type: failed === 0 ? 'success' : 'error' },
+    )
+    clearSelection()
+  }
+
+  const sharedTasks = useMemo(
+    () => tasks.filter((t) => selectedIds.has(t.id)),
+    [tasks, selectedIds],
+  )
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -152,22 +261,76 @@ export default function CalendarView({ onOpenTask }) {
             Today
           </button>
         </div>
-        <div className="inline-flex items-center gap-0.5 p-0.5 bg-surface-2 rounded-md">
-          {RANGES.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => setRange(r.id)}
-              className={`text-xs px-2.5 py-1 rounded ${
-                range === r.id
-                  ? 'bg-surface text-text font-medium shadow-sm'
-                  : 'text-text-2 hover:text-text'
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => {
+              if (selectMode) exitSelectMode()
+              else setSelectMode(true)
+            }}
+            className={`text-xs px-2.5 py-1 rounded border inline-flex items-center gap-1.5 ${
+              selectMode
+                ? 'border-info text-info bg-info-bg'
+                : 'border-border text-text-2 hover:text-text'
+            }`}
+            title={selectMode ? 'Exit select mode' : 'Enable select mode (click chips to multi-select)'}
+          >
+            <i className={`ti ${selectMode ? 'ti-square-check' : 'ti-square'} text-sm`} />
+            {selectMode ? 'Done selecting' : 'Select'}
+          </button>
+          <div className="inline-flex items-center gap-0.5 p-0.5 bg-surface-2 rounded-md">
+            {RANGES.map((r) => (
+              <button
+                key={r.id}
+                onClick={() => setRange(r.id)}
+                className={`text-xs px-2.5 py-1 rounded ${
+                  range === r.id
+                    ? 'bg-surface text-text font-medium shadow-sm'
+                    : 'text-text-2 hover:text-text'
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
+      {selectMode && selectedIds.size > 0 && (
+        <BulkActionBar
+          count={selectedIds.size}
+          onClear={clearSelection}
+          onSetStatus={(v) => bulkUpdate({ status: v }, `Status → "${v}"`)}
+          onSetPriority={(v) => bulkUpdate({ priority: v }, `Priority → "${v}"`)}
+          onSetPic={(v) =>
+            bulkUpdate({ pic_id: v || null }, 'PIC reassigned')
+          }
+          onAddWatcher={bulkAddWatcher}
+          onSetDept={(v) =>
+            bulkUpdate({ department_id: v || null }, 'Department updated')
+          }
+          onSetDue={(v) =>
+            bulkUpdate({ due_date: v || null }, v ? `Due → ${v}` : 'Due cleared')
+          }
+          onShareSelected={() => setShareOpen(true)}
+          onExportCsv={() => {
+            exportTasksToCsv(sharedTasks, {
+              filename: `tickd-calendar-${new Date().toISOString().slice(0, 10)}.csv`,
+              departments,
+            })
+            showToast(`Exported ${sharedTasks.length} task${sharedTasks.length === 1 ? '' : 's'}.`)
+          }}
+          onDelete={bulkDelete}
+          people={people}
+          departments={departments}
+        />
+      )}
+      {shareOpen && sharedTasks.length > 0 && (
+        <ShareModal
+          tasks={sharedTasks}
+          selectionTitle={`Calendar selection (${sharedTasks.length})`}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
 
       {range === 'day' ? (
         <DayDetailView
@@ -191,6 +354,9 @@ export default function CalendarView({ onOpenTask }) {
                 tasks={tasksByDay.get(toIso(d)) ?? []}
                 onOpenTask={onOpenTask}
                 onSelectDay={handleDayCellClick}
+                selectMode={selectMode}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelection}
               />
             ))}
           </div>
@@ -221,6 +387,9 @@ export default function CalendarView({ onOpenTask }) {
                   tasks={tasksByDay.get(toIso(d)) ?? []}
                   onOpenTask={onOpenTask}
                   onSelectDay={handleDayCellClick}
+                  selectMode={selectMode}
+                  selectedIds={selectedIds}
+                  onToggleSelect={toggleSelection}
                 />
               ))}
             </div>
@@ -331,6 +500,9 @@ function DayCell({
   tasks,
   onOpenTask,
   onSelectDay,
+  selectMode,
+  selectedIds,
+  onToggleSelect,
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: 'day-' + toIso(day) })
   const isToday = isTodayDF(day)
@@ -361,7 +533,16 @@ function DayCell({
         {format(day, 'd')}
       </div>
       {visibleTasks.map((t) => (
-        <DayTaskChip key={t.id} task={t} onClick={() => onOpenTask(t.id)} />
+        <DayTaskChip
+          key={t.id}
+          task={t}
+          onClick={() => {
+            if (selectMode) onToggleSelect?.(t.id)
+            else onOpenTask(t.id)
+          }}
+          selectMode={selectMode}
+          isSelected={selectedIds?.has(t.id) ?? false}
+        />
       ))}
       {overflow > 0 && (
         <div className="text-[9px] text-text-3 mt-0.5">+{overflow} more</div>
@@ -370,28 +551,38 @@ function DayCell({
   )
 }
 
-function DayTaskChip({ task, onClick }) {
+function DayTaskChip({ task, onClick, selectMode, isSelected }) {
+  // In select mode we suppress dnd so taps select instead of dragging.
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: task.id,
+    disabled: selectMode,
   })
   return (
     <div
       ref={setNodeRef}
-      {...listeners}
-      {...attributes}
+      {...(selectMode ? {} : listeners)}
+      {...(selectMode ? {} : attributes)}
       onClick={(e) => {
         e.stopPropagation()
         onClick()
       }}
-      className={`text-[10px] px-1.5 py-0.5 rounded mb-0.5 font-medium truncate cursor-grab active:cursor-grabbing select-none ${picPill(task.pic?.color)} ${isDragging ? 'opacity-30' : ''}`}
-      style={{ touchAction: 'none' }}
+      className={`text-[10px] px-1.5 py-0.5 rounded mb-0.5 font-medium truncate select-none ${picPill(task.pic?.color)} ${
+        isDragging ? 'opacity-30' : ''
+      } ${
+        selectMode
+          ? `cursor-pointer ${isSelected ? 'ring-2 ring-info ring-offset-1 ring-offset-surface' : 'opacity-90 hover:opacity-100'}`
+          : 'cursor-grab active:cursor-grabbing'
+      }`}
+      style={{ touchAction: selectMode ? 'auto' : 'none' }}
+      title={selectMode ? 'Tap to toggle selection' : task.title}
     >
+      {selectMode && isSelected && <i className="ti ti-check mr-1" />}
       {task.title}
     </div>
   )
 }
 
-function DayList({ day, tasks, onOpenTask, onSelectDay }) {
+function DayList({ day, tasks, onOpenTask, onSelectDay, selectMode, selectedIds, onToggleSelect }) {
   const isToday = isTodayDF(day)
   return (
     <div className="border-b border-border last:border-b-0 p-3">
@@ -407,15 +598,26 @@ function DayList({ day, tasks, onOpenTask, onSelectDay }) {
         <div className="text-[11px] text-text-3 pl-1">Nothing scheduled</div>
       ) : (
         <div className="space-y-1">
-          {tasks.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => onOpenTask(t.id)}
-              className={`block w-full text-left text-xs px-2 py-1.5 rounded ${picPill(t.pic?.color)} truncate`}
-            >
-              {t.title}
-            </button>
-          ))}
+          {tasks.map((t) => {
+            const isSel = selectedIds?.has(t.id) ?? false
+            return (
+              <button
+                key={t.id}
+                onClick={() => {
+                  if (selectMode) onToggleSelect?.(t.id)
+                  else onOpenTask(t.id)
+                }}
+                className={`block w-full text-left text-xs px-2 py-1.5 rounded ${picPill(t.pic?.color)} truncate ${
+                  selectMode && isSel
+                    ? 'ring-2 ring-info ring-inset'
+                    : ''
+                }`}
+              >
+                {selectMode && isSel && <i className="ti ti-check mr-1" />}
+                {t.title}
+              </button>
+            )
+          })}
         </div>
       )}
     </div>

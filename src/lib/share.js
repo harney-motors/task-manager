@@ -1,5 +1,54 @@
 import { addDays, isOverdue, parseDate, startOfToday, formatRelative } from './dates'
 
+// Build a WhatsApp-formatted message for a free-form selection of
+// tasks (possibly spanning multiple PICs). Used by the "Share
+// selected" bulk action.
+export function formatSelectionMessage(tasks, { title } = {}) {
+  const today = startOfToday()
+  const nextWeek = addDays(today, 7)
+  const twoWeeks = addDays(today, 14)
+
+  const active = tasks.filter((t) => t.status !== 'Done')
+
+  const overdue = active.filter((t) => isOverdue(t.due_date))
+  const thisWeek = active.filter((t) => {
+    if (!t.due_date || isOverdue(t.due_date)) return false
+    return parseDate(t.due_date) <= nextWeek
+  })
+  const nextWeekTasks = active.filter((t) => {
+    if (!t.due_date) return false
+    const d = parseDate(t.due_date)
+    return d > nextWeek && d <= twoWeeks
+  })
+  const unscheduled = active.filter((t) => !t.due_date)
+
+  const heading = `*${title ?? 'Selected tasks'}* — ${formatHeaderDate()}`
+  const lines = [heading, '']
+  pushSelectionSection(lines, '🔴', 'Overdue', overdue)
+  pushSelectionSection(lines, '📅', 'This week', thisWeek)
+  pushSelectionSection(lines, '📆', 'Next week', nextWeekTasks)
+  pushSelectionSection(lines, '📝', 'Unscheduled', unscheduled)
+
+  if (active.length === 0) {
+    lines.push('_No active tasks in this selection._')
+  } else {
+    lines.push(`_Total: ${active.length}_`)
+  }
+
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
+function pushSelectionSection(lines, emoji, label, items) {
+  if (items.length === 0) return
+  lines.push(`${emoji} *${label}* (${items.length})`)
+  items.forEach((t) => {
+    const pic = t.pic?.name ? `_${t.pic.name.split(' ')[0]}_ ` : ''
+    const dateLabel = t.due_date ? ` _(${formatRelative(t.due_date)})_` : ''
+    lines.push(`• ${pic}${t.title}${dateLabel}`)
+  })
+  lines.push('')
+}
+
 // Build a WhatsApp-formatted message for a PIC's open tasks.
 // WhatsApp text markdown: *bold*  _italic_  ~strike~  ```mono```
 // The message is grouped into sections: Overdue / This week / Next week / Unscheduled

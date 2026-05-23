@@ -1,12 +1,19 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../auth/AuthProvider'
-import { formatWhatsAppMessage } from '../lib/share'
+import { formatSelectionMessage, formatWhatsAppMessage } from '../lib/share'
 import { logActivity } from '../api/activity'
 
-export default function ShareModal({ pic, tasks, onClose }) {
+// Two modes:
+//   PIC share:       <ShareModal pic={pic} tasks={...} />
+//   Selection share: <ShareModal tasks={...} selectionTitle="My picks" />
+// Selection mode renders the multi-PIC formatter and a generic header.
+export default function ShareModal({ pic, tasks, selectionTitle, onClose }) {
   const { workspace, user } = useAuth()
   const [copied, setCopied] = useState(false)
-  const message = formatWhatsAppMessage(pic, tasks)
+  const isSelection = !pic
+  const message = isSelection
+    ? formatSelectionMessage(tasks, { title: selectionTitle ?? 'Selected tasks' })
+    : formatWhatsAppMessage(pic, tasks)
 
   useEffect(() => {
     function handler(e) {
@@ -25,11 +32,17 @@ export default function ShareModal({ pic, tasks, onClose }) {
         taskId: null,
         actorId: user?.id,
         action: 'share.copied',
-        payload: {
-          pic_id: pic.id,
-          pic_name: pic.name,
-          task_count: tasks.filter((t) => t.status !== 'Done').length,
-        },
+        payload: isSelection
+          ? {
+              kind: 'selection',
+              title: selectionTitle ?? null,
+              task_count: tasks.filter((t) => t.status !== 'Done').length,
+            }
+          : {
+              pic_id: pic.id,
+              pic_name: pic.name,
+              task_count: tasks.filter((t) => t.status !== 'Done').length,
+            },
       })
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
@@ -55,9 +68,19 @@ export default function ShareModal({ pic, tasks, onClose }) {
         </div>
 
         <div className="px-4 py-3 text-xs text-text-2">
-          Copy this and paste it into your WhatsApp chat with{' '}
-          <span className="font-medium text-text">{pic.name.split(' ')[0]}</span>
-          .
+          {isSelection ? (
+            <>
+              Copy this and paste it into any WhatsApp chat. Selection
+              spans <span className="font-medium text-text">{tasks.length}</span>{' '}
+              task{tasks.length === 1 ? '' : 's'}.
+            </>
+          ) : (
+            <>
+              Copy this and paste it into your WhatsApp chat with{' '}
+              <span className="font-medium text-text">{pic.name.split(' ')[0]}</span>
+              .
+            </>
+          )}
         </div>
 
         {/* WhatsApp-themed preview */}

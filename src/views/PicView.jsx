@@ -1,7 +1,17 @@
 import { useMemo, useState } from 'react'
-import { usePeople, useTasks } from '../lib/queries'
+import {
+  useDeleteTask,
+  useDepartments,
+  usePeople,
+  useTasks,
+  useUpdateTask,
+} from '../lib/queries'
 import { isOverdue } from '../lib/dates'
 import { picDot, picPill } from '../lib/colors'
+import { addWatcher } from '../api/watchers'
+import { exportTasksToCsv } from '../lib/exportCsv'
+import { useToast } from '../components/Toast'
+import BulkActionBar from '../components/BulkActionBar'
 import TaskRow from '../components/TaskRow'
 import ShareModal from '../components/ShareModal'
 
@@ -15,7 +25,13 @@ const UNASSIGNED = '__unassigned__'
 // defaults to the first PIC with tasks.
 export default function PicView({ onOpenTask, selectedPicId: controlledId, onSelectPic }) {
   const { data: people = [] } = usePeople()
+  const { data: departments = [] } = useDepartments()
   const { data: tasks = [], isLoading } = useTasks()
+  const updateTask = useUpdateTask()
+  const deleteTask = useDeleteTask()
+  const showToast = useToast()
+  const [selectedIds, setSelectedIds] = useState(() => new Set())
+  const [selectionShareOpen, setSelectionShareOpen] = useState(false)
 
   const unassignedCount = useMemo(
     () => tasks.filter((t) => !t.pic_id && t.status !== 'Done').length,
@@ -34,6 +50,89 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
   const setSelectedPicId = onSelectPic ?? setInternalPicId
 
   const [shareOpen, setShareOpen] = useState(false)
+
+  // Selection helpers
+  function toggleSelection(id) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  function clearSelection() {
+    setSelectedIds(new Set())
+  }
+
+  async function bulkUpdate(fields, label) {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    const results = await Promise.allSettled(
+      ids.map(
+        (id) =>
+          new Promise((resolve, reject) =>
+            updateTask.mutate(
+              { id, ...fields },
+              { onSuccess: resolve, onError: reject },
+            ),
+          ),
+      ),
+    )
+    const ok = results.filter((r) => r.status === 'fulfilled').length
+    const failed = results.length - ok
+    showToast(
+      failed === 0
+        ? `${label} on ${ok} task${ok === 1 ? '' : 's'}`
+        : `${label}: ${ok} ok, ${failed} failed`,
+      { type: failed === 0 ? 'success' : 'error' },
+    )
+    clearSelection()
+  }
+
+  async function bulkAddWatcher(picId) {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0 || !picId) return
+    const results = await Promise.allSettled(
+      ids.map((tid) => addWatcher(tid, picId)),
+    )
+    const ok = results.filter((r) => r.status === 'fulfilled').length
+    const failed = results.length - ok
+    showToast(
+      failed === 0
+        ? `Watcher added to ${ok}.`
+        : `Added to ${ok}, ${failed} failed`,
+      { type: failed === 0 ? 'success' : 'error' },
+    )
+    clearSelection()
+  }
+
+  async function bulkDelete() {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    if (
+      !confirm(
+        `Delete ${ids.length} task${ids.length === 1 ? '' : 's'}? This cannot be undone.`,
+      )
+    )
+      return
+    const results = await Promise.allSettled(
+      ids.map(
+        (id) =>
+          new Promise((resolve, reject) =>
+            deleteTask.mutate(id, { onSuccess: resolve, onError: reject }),
+          ),
+      ),
+    )
+    const ok = results.filter((r) => r.status === 'fulfilled').length
+    const failed = results.length - ok
+    showToast(
+      failed === 0
+        ? `Deleted ${ok} task${ok === 1 ? '' : 's'}`
+        : `Deleted ${ok}, failed ${failed}`,
+      { type: failed === 0 ? 'success' : 'error' },
+    )
+    clearSelection()
+  }
 
   const isUnassigned = selectedPicId === UNASSIGNED
   const effectivePicId = isUnassigned
@@ -155,6 +254,37 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
         </div>
       )}
 
+      {selectedIds.size > 0 && (
+        <BulkActionBar
+          count={selectedIds.size}
+          onClear={clearSelection}
+          onSetStatus={(v) => bulkUpdate({ status: v }, `Status → "${v}"`)}
+          onSetPriority={(v) => bulkUpdate({ priority: v }, `Priority → "${v}"`)}
+          onSetPic={(v) =>
+            bulkUpdate({ pic_id: v || null }, 'PIC reassigned')
+          }
+          onAddWatcher={bulkAddWatcher}
+          onSetDept={(v) =>
+            bulkUpdate({ department_id: v || null }, 'Department updated')
+          }
+          onSetDue={(v) =>
+            bulkUpdate({ due_date: v || null }, v ? `Due → ${v}` : 'Due cleared')
+          }
+          onShareSelected={() => setSelectionShareOpen(true)}
+          onExportCsv={() => {
+            const selected = picTasks.filter((t) => selectedIds.has(t.id))
+            exportTasksToCsv(selected, {
+              filename: `tickd-pic-${new Date().toISOString().slice(0, 10)}.csv`,
+              departments,
+            })
+            showToast(`Exported ${selected.length} task${selected.length === 1 ? '' : 's'}.`)
+          }}
+          onDelete={bulkDelete}
+          people={people}
+          departments={departments}
+        />
+      )}
+
       {/* Task list */}
       <div className="px-4">
         {isLoading ? (
@@ -169,7 +299,14 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
           </div>
         ) : (
           picTasks.map((t) => (
-            <TaskRow key={t.id} task={t} onClick={() => onOpenTask(t.id)} />
+            <SelectableTaskRow
+              key={t.id}
+              task={t}
+              selected={selectedIds.has(t.id)}
+              anySelected={selectedIds.size > 0}
+              onToggleSelect={() => toggleSelection(t.id)}
+              onClick={() => onOpenTask(t.id)}
+            />
           ))
         )}
       </div>
@@ -181,6 +318,48 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
           onClose={() => setShareOpen(false)}
         />
       )}
+      {selectionShareOpen && (
+        <ShareModal
+          tasks={picTasks.filter((t) => selectedIds.has(t.id))}
+          selectionTitle={
+            selectedPic
+              ? `${selectedPic.name.split(' ')[0]} — selection (${selectedIds.size})`
+              : `Selection (${selectedIds.size})`
+          }
+          onClose={() => setSelectionShareOpen(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+// Adds a hover-revealed checkbox before each TaskRow. Once anything's
+// selected the checkbox stays visible across the list so the user can
+// extend the selection without hunting.
+function SelectableTaskRow({ task, selected, anySelected, onToggleSelect, onClick }) {
+  const isTemp = String(task.id).startsWith('temp-')
+  return (
+    <div
+      className={`group flex items-center gap-2 -mx-4 px-4 transition-colors ${
+        selected ? 'bg-info-bg/60' : ''
+      }`}
+    >
+      <input
+        type="checkbox"
+        checked={selected}
+        onChange={onToggleSelect}
+        onClick={(e) => e.stopPropagation()}
+        disabled={isTemp}
+        aria-label="Select task"
+        className={`flex-shrink-0 cursor-pointer transition-opacity ${
+          selected || anySelected
+            ? 'opacity-100'
+            : 'opacity-0 group-hover:opacity-100'
+        }`}
+      />
+      <div className="flex-1 min-w-0">
+        <TaskRow task={task} onClick={onClick} />
+      </div>
     </div>
   )
 }

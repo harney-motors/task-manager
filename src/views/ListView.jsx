@@ -8,6 +8,10 @@ import {
 } from '../lib/queries'
 import { parseDate, startOfToday, addDays } from '../lib/dates'
 import { useToast } from '../components/Toast'
+import { addWatcher } from '../api/watchers'
+import { exportTasksToCsv } from '../lib/exportCsv'
+import BulkActionBar from '../components/BulkActionBar'
+import ShareModal from '../components/ShareModal'
 import TaskRow from '../components/TaskRow'
 
 export default function ListView({ onOpenTask }) {
@@ -19,6 +23,7 @@ export default function ListView({ onOpenTask }) {
   const showToast = useToast()
 
   const [selectedIds, setSelectedIds] = useState(() => new Set())
+  const [shareOpen, setShareOpen] = useState(false)
 
   const today = startOfToday()
   const sevenOut = addDays(today, 7)
@@ -97,6 +102,43 @@ export default function ListView({ onOpenTask }) {
     clearSelection()
   }
 
+  async function bulkAddWatcher(picId) {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0 || !picId) return
+    const results = await Promise.allSettled(
+      ids.map((tid) => addWatcher(tid, picId)),
+    )
+    const ok = results.filter((r) => r.status === 'fulfilled').length
+    const failed = results.length - ok
+    showToast(
+      failed === 0
+        ? `Watcher added to ${ok} task${ok === 1 ? '' : 's'}`
+        : `Added to ${ok}, ${failed} failed`,
+      { type: failed === 0 ? 'success' : 'error' },
+    )
+    clearSelection()
+  }
+
+  function bulkExportCsv() {
+    const ids = selectedIds
+    const selected = allVisible.filter((t) => ids.has(t.id))
+    exportTasksToCsv(selected, {
+      filename: `tickd-list-${new Date().toISOString().slice(0, 10)}.csv`,
+      departments,
+    })
+    showToast(`Exported ${selected.length} task${selected.length === 1 ? '' : 's'}.`)
+  }
+
+  function bulkShare() {
+    if (selectedIds.size === 0) return
+    setShareOpen(true)
+  }
+
+  const sharedTasks = useMemo(
+    () => allVisible.filter((t) => selectedIds.has(t.id)),
+    [allVisible, selectedIds],
+  )
+
   async function bulkDelete() {
     const ids = Array.from(selectedIds)
     if (ids.length === 0) return
@@ -134,9 +176,13 @@ export default function ListView({ onOpenTask }) {
           onSetStatus={(v) =>
             bulkUpdate({ status: v }, `Status set to "${v}"`)
           }
+          onSetPriority={(v) =>
+            bulkUpdate({ priority: v }, `Priority set to "${v}"`)
+          }
           onSetPic={(v) =>
             bulkUpdate({ pic_id: v || null }, 'PIC reassigned')
           }
+          onAddWatcher={bulkAddWatcher}
           onSetDept={(v) =>
             bulkUpdate({ department_id: v || null }, 'Department updated')
           }
@@ -146,9 +192,19 @@ export default function ListView({ onOpenTask }) {
               v ? `Due set to ${v}` : 'Due cleared',
             )
           }
+          onShareSelected={bulkShare}
+          onExportCsv={bulkExportCsv}
           onDelete={bulkDelete}
           people={people}
           departments={departments}
+          className="rounded-lg"
+        />
+      )}
+      {shareOpen && sharedTasks.length > 0 && (
+        <ShareModal
+          tasks={sharedTasks}
+          selectionTitle={`Selection (${sharedTasks.length})`}
+          onClose={() => setShareOpen(false)}
         />
       )}
       <div className="grid md:grid-cols-[1.5fr_1fr] gap-4">
@@ -307,95 +363,4 @@ function Skeleton() {
   )
 }
 
-// ============================================================
-// Bulk action bar — mirrors Grid's, but full-width above both panels.
-// ============================================================
-
-function BulkActionBar({
-  count,
-  onClear,
-  onSetStatus,
-  onSetPic,
-  onSetDept,
-  onSetDue,
-  onDelete,
-  people,
-  departments,
-}) {
-  return (
-    <div className="bg-info text-white px-4 py-2 rounded-lg flex items-center gap-2 flex-wrap text-xs">
-      <span className="font-medium">{count} selected</span>
-      <button
-        onClick={onClear}
-        className="underline opacity-90 hover:opacity-100"
-      >
-        Clear
-      </button>
-      <div className="flex-1" />
-
-      <BulkSelect onChange={onSetStatus} placeholder="Set status…">
-        <option value="Open">Open</option>
-        <option value="In progress">In progress</option>
-        <option value="Ongoing">Ongoing</option>
-        <option value="Done">Done</option>
-      </BulkSelect>
-
-      <BulkSelect onChange={onSetPic} placeholder="Set PIC…">
-        <option value="">— Unassign —</option>
-        {people.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.name}
-          </option>
-        ))}
-      </BulkSelect>
-
-      <BulkSelect onChange={onSetDept} placeholder="Set dept…">
-        <option value="">— Clear —</option>
-        {departments.map((d) => (
-          <option key={d.id} value={d.id}>
-            {d.name}
-          </option>
-        ))}
-      </BulkSelect>
-
-      <input
-        type="date"
-        onChange={(e) => {
-          if (e.target.value) {
-            onSetDue(e.target.value)
-            e.target.value = ''
-          }
-        }}
-        className="text-xs bg-white/15 hover:bg-white/25 rounded px-2 py-1 border border-white/30 text-white cursor-pointer"
-        title="Set due date"
-      />
-
-      <button
-        onClick={onDelete}
-        className="text-xs bg-danger-text/30 hover:bg-danger-text/50 rounded px-2 py-1 border border-white/30 font-medium"
-      >
-        Delete
-      </button>
-    </div>
-  )
-}
-
-function BulkSelect({ onChange, placeholder, children }) {
-  return (
-    <select
-      value=""
-      onChange={(e) => {
-        if (e.target.value !== '') {
-          onChange(e.target.value)
-          e.target.value = ''
-        }
-      }}
-      className="text-xs bg-white/15 hover:bg-white/25 rounded px-2 py-1 border border-white/30 text-white cursor-pointer max-w-[140px]"
-    >
-      <option value="" className="text-text">
-        {placeholder}
-      </option>
-      {children}
-    </select>
-  )
-}
+// (Bulk action bar moved to shared src/components/BulkActionBar.jsx.)
