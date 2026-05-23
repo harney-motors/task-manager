@@ -35,7 +35,7 @@ export default function WorkspaceSwitcher() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="text-xs px-2.5 py-1 rounded border border-border hover:bg-surface-2 inline-flex items-center gap-1.5 max-w-[200px]"
+        className="text-xs px-2.5 py-1 rounded border border-border hover:bg-surface-2 inline-flex items-center gap-1.5 min-w-0 max-w-[140px] sm:max-w-[200px]"
         title={workspace?.name}
       >
         <span className="truncate text-text-2 hover:text-text">

@@ -257,7 +257,9 @@ export default function Home() {
               className="flex items-center gap-2 sm:gap-3 min-w-0 hover:opacity-80 transition-opacity"
             >
               <TickdMark size={32} className="flex-shrink-0" />
-              <TickdWordmark className="text-lg" />
+              {/* Wordmark eats horizontal room next to the workspace
+                  switcher on phones; the icon alone covers branding. */}
+              <TickdWordmark className="text-lg hidden sm:inline" />
             </button>
             <WorkspaceSwitcher />
           </div>
@@ -303,9 +305,11 @@ export default function Home() {
             >
               <i className="ti ti-settings text-base" />
             </button>
+            {/* Sign out lives in Settings → Profile too; hide on
+                phones so the topbar stops overflowing. */}
             <button
               onClick={signOut}
-              className="text-text-3 hover:text-text underline text-xs whitespace-nowrap"
+              className="hidden sm:inline text-text-3 hover:text-text underline text-xs whitespace-nowrap"
             >
               Sign out
             </button>
@@ -328,9 +332,13 @@ export default function Home() {
             <Greeting tasks={tasks} />
             <QuickEntry />
 
-            {/* In-page tabs only on tablet+; mobile uses BottomNav. */}
-            <div className="mt-4 mb-4 hidden sm:block">
-              <ViewTabs active={view} onChange={setView} />
+            {/* In-page tabs only on tablet+; mobile uses BottomNav.
+                Always keep top spacing so the gap between QuickEntry
+                and the view body stays consistent on both sizes. */}
+            <div className="mt-4 mb-4">
+              <div className="hidden sm:block">
+                <ViewTabs active={view} onChange={setView} />
+              </div>
             </div>
 
             {view === 'today'    && (
