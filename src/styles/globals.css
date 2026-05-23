@@ -15,20 +15,28 @@
     index.html (no-flash) and kept in sync by src/lib/useTheme.js.
 */
 @theme {
-  /* Fonts */
-  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+  /* Fonts — SF Pro / system first so iOS + macOS users get native
+     rendering. Inter is the cross-platform fallback for Android +
+     Windows + Linux where Inter is already loaded. */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text',
+    'SF Pro Display', 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Consolas, monospace;
 
-  /* Surfaces & text */
-  --color-bg: #FAFAF7;
+  /* Surfaces & text — iOS-style cool grey scale.
+       bg          = page underlay (systemGroupedBackground #F2F2F7)
+       surface     = cards (white)
+       surface-2   = subtle hover / inset inside cards
+       surface-3   = next-step elevation
+     Dark palette stays as tuned in Phase 9.1. */
+  --color-bg: #F2F2F7;
   --color-surface: #FFFFFF;
-  --color-surface-2: #F4F2EC;
-  --color-surface-3: #ECE9E1;
-  --color-border: #E5E2D9;
-  --color-border-strong: #D4D0C4;
-  --color-text: #1F1E1B;
-  --color-text-2: #5F5E5A;
-  --color-text-3: #8E8D87;
+  --color-surface-2: #F7F7F9; /* subtle hover on white */
+  --color-surface-3: #E5E5EA; /* iOS systemGray5 */
+  --color-border: #E5E5EA;
+  --color-border-strong: #C7C7CC; /* iOS separator */
+  --color-text: #1C1C1E;      /* iOS label */
+  --color-text-2: #3A3A3C;    /* iOS secondaryLabel */
+  --color-text-3: #8E8E93;    /* iOS tertiaryLabel */
 
   /* Semantic */
   --color-info: #185FA5;
@@ -180,6 +188,9 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Prevent iOS Safari from auto-bumping text size when the page is
+     rotated or zoomed — keeps our spacing predictable. */
+  -webkit-text-size-adjust: 100%;
   /* Respect iOS safe areas when launched as a standalone PWA */
   padding: env(safe-area-inset-top) env(safe-area-inset-right)
            env(safe-area-inset-bottom) env(safe-area-inset-left);
@@ -191,4 +202,15 @@ body {
    more app-like feel on mobile, while keeping selection on actual text. */
 button, label, [role="button"] {
   -webkit-tap-highlight-color: transparent;
+}
+
+/* iOS Safari zooms inputs whose computed font-size is below 16px when
+   they get focus — disruptive on phones. Bump the rendered size on
+   small screens only; tablet+ keeps the tighter design. */
+@media (max-width: 640px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }
