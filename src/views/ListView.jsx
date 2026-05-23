@@ -360,7 +360,8 @@ function SelectableTaskRow({
         className={`flex-shrink-0 cursor-pointer transition-opacity ${
           selected || anySelected
             ? 'opacity-100'
-            : 'opacity-0 group-hover:opacity-100'
+            : // Always visible on phone; hover-reveal on tablet+.
+              'opacity-60 sm:opacity-0 sm:group-hover:opacity-100'
         }`}
       />
       <div className="flex-1 min-w-0">

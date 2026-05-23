@@ -34,6 +34,7 @@ import BulkActionBar from '../components/BulkActionBar'
 import TaskFilterBar from '../components/TaskFilterBar'
 import TaskRow from '../components/TaskRow'
 import ShareModal from '../components/ShareModal'
+import TaskGroupSection from '../components/TaskGroupSection'
 
 // Sentinel value used as `selectedPicId` to surface the unassigned bucket
 // (tasks with pic_id === null). Distinct from any UUID so it can't collide.
@@ -446,32 +447,9 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
 // applyTaskGrouping returns a single "all" group, i.e. group=none).
 // State is per-mount (resets when you switch PICs), which feels
 // right: a fresh chip selection should open with everything visible.
-export function TaskGroupSection({ label, count, children }) {
-  const [open, setOpen] = useState(true)
-  if (!label) {
-    // Single ungrouped group — just render the rows in a padded
-    // wrapper, no header.
-    return <div className="px-3 sm:px-4">{children}</div>
-  }
-  return (
-    <div className="border-b border-border last:border-b-0">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 text-left bg-surface-2/40 hover:bg-surface-2 border-b border-border"
-      >
-        <i
-          className={`ti ${open ? 'ti-chevron-down' : 'ti-chevron-right'} text-xs text-text-3`}
-        />
-        <span className="text-[11px] uppercase tracking-wider text-text-2 font-medium">
-          {label}
-        </span>
-        <span className="text-[11px] text-text-3">· {count}</span>
-      </button>
-      {open && <div className="px-3 sm:px-4">{children}</div>}
-    </div>
-  )
-}
+// TaskGroupSection moved to src/components/TaskGroupSection.jsx so
+// GridView can reuse it. The shared version now defaults to collapsed
+// so long lists of groups don't dump every task on the page.
 
 // ============================================================
 // PIC-scoped quick add
@@ -579,7 +557,8 @@ function SelectableTaskRow({ task, selected, anySelected, onToggleSelect, onClic
         className={`flex-shrink-0 cursor-pointer transition-opacity ${
           selected || anySelected
             ? 'opacity-100'
-            : 'opacity-0 group-hover:opacity-100'
+            : // Always visible on phone (no hover state); hover-reveal on tablet+.
+              'opacity-60 sm:opacity-0 sm:group-hover:opacity-100'
         }`}
       />
       <div className="flex-1 min-w-0">

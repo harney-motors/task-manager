@@ -25,6 +25,7 @@ import { applyTaskGrouping } from '../lib/applyTaskGrouping'
 import { useToast } from '../components/Toast'
 import BulkActionBar from '../components/BulkActionBar'
 import TaskFilterBar from '../components/TaskFilterBar'
+import TaskGroupSection from '../components/TaskGroupSection'
 import ShareModal from '../components/ShareModal'
 import Skeleton from '../components/Skeleton'
 
@@ -281,45 +282,28 @@ export default function GridView({ onOpenTask, aiFilter, onFiltersChange }) {
                 : 'No tasks match these filters.'}
             </div>
           ) : (
-            taskGroups.map((g) =>
-              g.label ? (
-                <div key={g.key}>
-                  <div className="px-3 sm:px-4 py-1.5 sm:py-2 bg-surface-2 border-b border-border flex items-center gap-2 text-[11px] sm:text-xs">
-                    <span className="font-medium text-text">{g.label}</span>
-                    <span className="text-text-3">· {g.tasks.length}</span>
-                  </div>
-                  {g.tasks.map((t) => (
-                    <GridRow
-                      key={t.id}
-                      task={t}
-                      people={people}
-                      departments={departments}
-                      isSelected={selectedIds.has(t.id)}
-                      anySelected={selectedIds.size > 0}
-                      onToggleSelect={() => toggleSelection(t.id)}
-                      onOpen={() => onOpenTask(t.id)}
-                      onUpdate={update}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div key={g.key}>
-                  {g.tasks.map((t) => (
-                    <GridRow
-                      key={t.id}
-                      task={t}
-                      people={people}
-                      departments={departments}
-                      isSelected={selectedIds.has(t.id)}
-                      anySelected={selectedIds.size > 0}
-                      onToggleSelect={() => toggleSelection(t.id)}
-                      onOpen={() => onOpenTask(t.id)}
-                      onUpdate={update}
-                    />
-                  ))}
-                </div>
-              ),
-            )
+            taskGroups.map((g) => (
+              <TaskGroupSection
+                key={g.key}
+                label={g.label}
+                count={g.tasks.length}
+                padded={false}
+              >
+                {g.tasks.map((t) => (
+                  <GridRow
+                    key={t.id}
+                    task={t}
+                    people={people}
+                    departments={departments}
+                    isSelected={selectedIds.has(t.id)}
+                    anySelected={selectedIds.size > 0}
+                    onToggleSelect={() => toggleSelection(t.id)}
+                    onOpen={() => onOpenTask(t.id)}
+                    onUpdate={update}
+                  />
+                ))}
+              </TaskGroupSection>
+            ))
           )}
         </div>
       </div>
