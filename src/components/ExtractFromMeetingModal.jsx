@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthProvider'
 import { useToast } from './Toast'
 import { extractTasksFromTranscript } from '../api/aiExtract'
 import { addWatcher } from '../api/watchers'
+import { useDictation } from '../lib/useDictation'
 import { picPill, statusPill } from '../lib/colors'
 
 const SAMPLE_PLACEHOLDER = `Paste meeting notes or transcript here. e.g.
@@ -29,6 +30,19 @@ export default function ExtractFromMeetingModal({ open, onClose }) {
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState(null)
 
+  // Voice dictation for live meeting notes. Each final chunk appends
+  // a newline so successive utterances land on separate lines —
+  // closer to how transcripts actually read.
+  const dict = useDictation({
+    onResult: (chunk) => {
+      const trimmed = chunk.trim()
+      if (!trimmed) return
+      setTranscript((prev) =>
+        prev ? `${prev.replace(/\s+$/, '')}\n${trimmed}` : trimmed,
+      )
+    },
+  })
+
   useEffect(() => {
     if (!open) {
       setTranscript('')
@@ -37,7 +51,9 @@ export default function ExtractFromMeetingModal({ open, onClose }) {
       setError(null)
       setExtracting(false)
       setCreating(false)
+      if (dict.listening) dict.stop()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   useEffect(() => {
@@ -195,13 +211,52 @@ export default function ExtractFromMeetingModal({ open, onClose }) {
               action items, infer PICs by first name, and pre-fill dates,
               priority, and status. You review before anything saves.
             </div>
-            <textarea
-              value={transcript}
-              onChange={(e) => setTranscript(e.target.value)}
-              placeholder={SAMPLE_PLACEHOLDER}
-              disabled={extracting}
-              className="flex-1 min-h-[260px] m-5 mt-3 mb-2 p-3 border border-border rounded-md text-sm bg-bg outline-none focus:border-info resize-none font-mono leading-relaxed"
-            />
+            <div className="relative flex-1 m-5 mt-3 mb-2 min-h-[260px] flex">
+              <textarea
+                value={
+                  dict.listening && dict.interim
+                    ? `${transcript}${transcript ? '\n' : ''}${dict.interim}`
+                    : transcript
+                }
+                onChange={(e) => {
+                  if (dict.listening) return // interim text owns the field
+                  setTranscript(e.target.value)
+                }}
+                placeholder={
+                  dict.listening
+                    ? 'Listening… speak your notes'
+                    : SAMPLE_PLACEHOLDER
+                }
+                disabled={extracting}
+                className="w-full p-3 pr-12 border border-border rounded-md text-sm bg-bg outline-none focus:border-info resize-none font-mono leading-relaxed"
+              />
+              {dict.supported && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    dict.listening ? dict.stop() : dict.start()
+                  }
+                  disabled={extracting}
+                  title={
+                    dict.listening
+                      ? 'Stop dictating'
+                      : 'Dictate notes (Web Speech API)'
+                  }
+                  className={`absolute top-2 right-2 p-2 rounded ${
+                    dict.listening
+                      ? 'bg-danger-bg text-danger-text animate-pulse'
+                      : 'text-text-3 hover:text-text hover:bg-surface-2 border border-border bg-surface'
+                  }`}
+                  aria-label={
+                    dict.listening ? 'Stop dictating' : 'Dictate notes'
+                  }
+                >
+                  <i
+                    className={`ti ${dict.listening ? 'ti-microphone-filled' : 'ti-microphone'} text-base`}
+                  />
+                </button>
+              )}
+            </div>
             {error && (
               <p className="px-5 pb-2 text-xs text-danger-text">{error}</p>
             )}

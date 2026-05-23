@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import { searchAll } from '../api/search'
 import { aiCommand } from '../api/aiCommand'
+import { useDictation } from '../lib/useDictation'
 import { picPill } from '../lib/colors'
 import { formatRelative } from '../lib/dates'
 
@@ -21,6 +22,15 @@ export default function SearchPalette({
   const [askingAi, setAskingAi] = useState(false)
   const [aiError, setAiError] = useState(null)
   const inputRef = useRef(null)
+
+  // Voice input — appends each finalised chunk to the query.
+  const dict = useDictation({
+    onResult: (chunk) => {
+      const trimmed = chunk.trim()
+      if (!trimmed) return
+      setQuery((prev) => (prev ? `${prev.trimEnd()} ${trimmed}` : trimmed))
+    },
+  })
 
   // Debounced search
   useEffect(() => {
@@ -52,7 +62,10 @@ export default function SearchPalette({
       setResults({ tasks: [], people: [], journal: [] })
       setAskingAi(false)
       setAiError(null)
+      // Stop any in-flight dictation when the palette closes
+      if (dict.listening) dict.stop()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   async function handleAskAi() {
@@ -134,14 +147,42 @@ export default function SearchPalette({
           <i className="ti ti-search text-text-3 text-base" />
           <input
             ref={inputRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search tasks, people, notes…"
+            value={
+              dict.listening && dict.interim
+                ? `${query}${query ? ' ' : ''}${dict.interim}`
+                : query
+            }
+            onChange={(e) => {
+              if (dict.listening) return // don't fight the interim text
+              setQuery(e.target.value)
+            }}
+            placeholder={
+              dict.listening
+                ? 'Listening… speak your query'
+                : 'Search tasks, people, notes…'
+            }
             className="flex-1 bg-transparent outline-none text-sm placeholder:text-text-3"
             autoComplete="off"
           />
           {isSearching && (
             <i className="ti ti-loader-2 animate-spin text-text-3 text-sm" />
+          )}
+          {dict.supported && (
+            <button
+              type="button"
+              onClick={() => (dict.listening ? dict.stop() : dict.start())}
+              title={dict.listening ? 'Stop listening' : 'Dictate query'}
+              className={`flex-shrink-0 p-1.5 rounded ${
+                dict.listening
+                  ? 'bg-danger-bg text-danger-text animate-pulse'
+                  : 'text-text-3 hover:text-text hover:bg-surface-2'
+              }`}
+              aria-label={dict.listening ? 'Stop listening' : 'Start dictation'}
+            >
+              <i
+                className={`ti ${dict.listening ? 'ti-microphone-filled' : 'ti-microphone'} text-base`}
+              />
+            </button>
           )}
           <kbd className="text-[10px] text-text-3 border border-border rounded px-1.5 py-0.5 hidden sm:inline">
             Esc
