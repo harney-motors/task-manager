@@ -340,8 +340,8 @@ function SelectableTaskRow({ task, selected, anySelected, onToggleSelect, onClic
   const isTemp = String(task.id).startsWith('temp-')
   return (
     <div
-      className={`group flex items-center gap-2 -mx-4 px-4 transition-colors ${
-        selected ? 'bg-info-bg/60' : ''
+      className={`group flex items-center gap-3 -mx-4 px-4 transition-colors cursor-pointer ${
+        selected ? 'bg-info-bg/60' : 'hover:bg-surface-2'
       }`}
     >
       <input
@@ -358,7 +358,7 @@ function SelectableTaskRow({ task, selected, anySelected, onToggleSelect, onClic
         }`}
       />
       <div className="flex-1 min-w-0">
-        <TaskRow task={task} onClick={onClick} />
+        <TaskRow task={task} onClick={onClick} inWrapper />
       </div>
     </div>
   )

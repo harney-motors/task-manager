@@ -272,10 +272,15 @@ function SelectableTaskRow({
   anySelected,
 }) {
   const isTemp = String(task.id).startsWith('temp-')
+  // We own the hover background + edge extension here (-mx-4 px-4) so
+  // the inner TaskRow can render in "no-margin" mode (inWrapper). That
+  // keeps the checkbox cleanly to the left of TaskRow's content
+  // without the rounded-corner clip we'd get from nested negative
+  // margins.
   return (
     <div
-      className={`group flex items-center gap-2 -mx-4 px-4 transition-colors ${
-        selected ? 'bg-info-bg/60' : ''
+      className={`group flex items-center gap-3 -mx-4 px-4 transition-colors cursor-pointer ${
+        selected ? 'bg-info-bg/60' : 'hover:bg-surface-2'
       }`}
     >
       <input
@@ -292,7 +297,7 @@ function SelectableTaskRow({
         }`}
       />
       <div className="flex-1 min-w-0">
-        <TaskRow task={task} onClick={onClick} />
+        <TaskRow task={task} onClick={onClick} inWrapper />
       </div>
     </div>
   )

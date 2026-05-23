@@ -2,7 +2,10 @@ import { useUpdateTask } from '../lib/queries'
 import { isOverdue, formatRelative } from '../lib/dates'
 import { picPill, statusPill } from '../lib/colors'
 
-export default function TaskRow({ task, onClick }) {
+// `inWrapper` — true when this row is rendered inside a SelectableTaskRow
+// (or anything that owns its own hover/edge layout). In that case we
+// drop the row's negative margin so it doesn't fight the wrapper.
+export default function TaskRow({ task, onClick, inWrapper = false }) {
   const updateTask = useUpdateTask()
   const overdue = isOverdue(task.due_date) && task.status !== 'Done'
   const done = task.status === 'Done'
@@ -19,15 +22,23 @@ export default function TaskRow({ task, onClick }) {
   return (
     <div
       onClick={onClick}
-      className="flex items-center gap-3 py-3 border-b border-border last:border-b-0 cursor-pointer hover:bg-surface-2 -mx-4 px-4 transition-colors"
+      className={`flex items-center gap-3 py-3 border-b border-border last:border-b-0 cursor-pointer transition-colors ${
+        inWrapper
+          ? 'min-w-0' // wrapper owns padding + hover background
+          : 'hover:bg-surface-2 -mx-4 px-4'
+      }`}
     >
       <button
         onClick={toggleDone}
         className="flex-shrink-0 text-text-3 hover:text-text"
         aria-label={done ? 'Mark as open' : 'Mark as done'}
+        title={done ? 'Mark as open' : 'Mark as done'}
       >
+        {/* Circle icon, not a square — keeps "mark done" visually
+            distinct from the multi-select checkbox in views that
+            surface bulk selection. */}
         <i
-          className={`ti ${done ? 'ti-square-check-filled text-success' : 'ti-square'} text-lg`}
+          className={`ti ${done ? 'ti-circle-check-filled text-success' : 'ti-circle'} text-lg`}
         />
       </button>
 
