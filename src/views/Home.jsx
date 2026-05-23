@@ -180,7 +180,30 @@ export default function Home() {
           <ViewTabs active={view} onChange={setView} />
         </div>
 
-        {view === 'today'    && <TodayView    onOpenTask={setOpenTaskId} />}
+        {view === 'today'    && (
+          <TodayView
+            onOpenTask={setOpenTaskId}
+            onSwitchView={(target, hint) => {
+              if (target === 'pic') {
+                setView('pic')
+                if (hint?.picId) setPicViewSelectedId(hint.picId)
+              } else if (target === 'grid') {
+                // Apply a status hint to Grid via the existing aiFilter
+                // signal (same channel Cmd+K uses). bumping a counter on
+                // `key` ensures the effect re-fires even for identical hints.
+                setGridFilterSignal({
+                  status: hint?.status ?? 'all',
+                  picId: hint?.picId ?? 'all',
+                  deptId: hint?.deptId ?? 'all',
+                  key: Date.now(),
+                })
+                setView('grid')
+              } else {
+                setView(target)
+              }
+            }}
+          />
+        )}
         {view === 'list'     && <ListView     onOpenTask={setOpenTaskId} />}
         {view === 'grid'     && (
           <GridView onOpenTask={setOpenTaskId} aiFilter={gridFilterSignal} />
