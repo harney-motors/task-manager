@@ -21,8 +21,14 @@ import { picDot, picPill } from '../lib/colors'
 import { addWatcher } from '../api/watchers'
 import { exportTasksToCsv } from '../lib/exportCsv'
 import { bulkDeleteWithUndo } from '../lib/deferredBulkDelete'
+import {
+  applyTaskFilters,
+  readFiltersFromParams,
+} from '../lib/applyTaskFilters'
+import { useSearchParams } from 'react-router-dom'
 import { useToast } from '../components/Toast'
 import BulkActionBar from '../components/BulkActionBar'
+import TaskFilterBar from '../components/TaskFilterBar'
 import TaskRow from '../components/TaskRow'
 import ShareModal from '../components/ShareModal'
 
@@ -139,13 +145,18 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
 
   const selectedPic =
     !isUnassigned && people.find((p) => p.id === effectivePicId)
-  const picTasks = useMemo(
-    () =>
-      isUnassigned
-        ? tasks.filter((t) => !t.pic_id)
-        : tasks.filter((t) => t.pic_id === effectivePicId),
-    [tasks, effectivePicId, isUnassigned],
-  )
+  // URL-driven secondary filters (dept / status / priority / tag).
+  // The PIC filter is implicit from the chip selector above so we
+  // hide it in the bar.
+  const [searchParams] = useSearchParams()
+  const sideFilters = readFiltersFromParams(searchParams)
+  const picTasks = useMemo(() => {
+    const base = isUnassigned
+      ? tasks.filter((t) => !t.pic_id)
+      : tasks.filter((t) => t.pic_id === effectivePicId)
+    // Pass an empty picId so the bar's pic filter doesn't double-apply.
+    return applyTaskFilters(base, { ...sideFilters, picId: 'all' })
+  }, [tasks, effectivePicId, isUnassigned, sideFilters])
   const activeCount = picTasks.filter((t) => t.status !== 'Done').length
   const overdueCount = picTasks.filter(
     (t) => t.status !== 'Done' && isOverdue(t.due_date),
@@ -286,6 +297,9 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
           </div>
         </div>
       )}
+
+      {/* Secondary filters (PIC implied by chip selector → hidden). */}
+      <TaskFilterBar hide={['picId']} />
 
       {selectedIds.size > 0 && (
         <BulkActionBar

@@ -10,13 +10,19 @@ import {
   useTasks,
   useUpdateTask,
 } from '../lib/queries'
+import { useSearchParams } from 'react-router-dom'
 import { isOverdue } from '../lib/dates'
 import { statusPill } from '../lib/colors'
 import { addWatcher } from '../api/watchers'
 import { exportTasksToCsv } from '../lib/exportCsv'
 import { bulkDeleteWithUndo } from '../lib/deferredBulkDelete'
+import {
+  applyTaskFilters,
+  readFiltersFromParams,
+} from '../lib/applyTaskFilters'
 import { useToast } from '../components/Toast'
 import BulkActionBar from '../components/BulkActionBar'
+import TaskFilterBar from '../components/TaskFilterBar'
 import ShareModal from '../components/ShareModal'
 import Skeleton from '../components/Skeleton'
 
@@ -68,10 +74,12 @@ export default function GridView({ onOpenTask, aiFilter, onFiltersChange }) {
   const queryClient = useQueryClient()
   const { workspace } = useAuth()
 
+  // Filters now live in URL params (shared with PIC + Calendar
+  // views). Local groupByPic / sort / selection stays in component
+  // state since those don't make sense across views.
+  const [searchParams] = useSearchParams()
+  const filters = readFiltersFromParams(searchParams)
   const [groupByPic, setGroupByPic] = useState(false)
-  const [filterPic, setFilterPic] = useState('all')
-  const [filterDept, setFilterDept] = useState('all')
-  const [filterStatus, setFilterStatus] = useState('all')
   const [selectedIds, setSelectedIds] = useState(() => new Set())
   const [sortField, setSortField] = useState('due_date')
   const [sortDir, setSortDir] = useState('asc')
@@ -86,52 +94,22 @@ export default function GridView({ onOpenTask, aiFilter, onFiltersChange }) {
     }
   }
 
-  // External (AI / URL) filter signal — when it changes, sync local
-  // filter state. We keep filters as local state so dropdowns are
-  // snappy, then mirror outwards via onFiltersChange when the user
-  // changes them so the URL stays in sync (bookmarkable).
+  // Clear selection when the URL filters change so a selected row
+  // that's no longer visible doesn't haunt the bulk bar.
   useEffect(() => {
-    if (!aiFilter) {
-      // External signal cleared — also clear local filters so the URL
-      // is the source of truth (refresh → no filter → grid is clean).
-      setFilterPic('all')
-      setFilterDept('all')
-      setFilterStatus('all')
-      setSelectedIds(new Set())
-      return
-    }
-    setFilterPic(aiFilter.picId ?? 'all')
-    setFilterDept(aiFilter.deptId ?? 'all')
-    setFilterStatus(aiFilter.status ?? 'all')
     setSelectedIds(new Set())
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aiFilter?.key])
-
-  // Mirror local filter changes outwards so the URL updates. Skip the
-  // first paint to avoid clobbering an external signal.
-  const firstRunRef = useRef(true)
-  useEffect(() => {
-    if (firstRunRef.current) {
-      firstRunRef.current = false
-      return
-    }
-    onFiltersChange?.({
-      picId: filterPic,
-      deptId: filterDept,
-      status: filterStatus,
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterPic, filterDept, filterStatus])
+  }, [
+    filters.picId,
+    filters.deptId,
+    filters.status,
+    filters.priority,
+    filters.tag,
+  ])
 
   const filtered = useMemo(
-    () =>
-      tasks.filter((t) => {
-        if (filterPic !== 'all' && t.pic_id !== filterPic) return false
-        if (filterDept !== 'all' && t.department_id !== filterDept) return false
-        if (filterStatus !== 'all' && t.status !== filterStatus) return false
-        return true
-      }),
-    [tasks, filterPic, filterDept, filterStatus],
+    () => applyTaskFilters(tasks, filters),
+    [tasks, filters],
   )
 
   const sorted = useMemo(
@@ -149,9 +127,6 @@ export default function GridView({ onOpenTask, aiFilter, onFiltersChange }) {
     })
     return Array.from(byPic.values())
   }, [sorted, groupByPic])
-
-  const hasFilters =
-    filterPic !== 'all' || filterDept !== 'all' || filterStatus !== 'all'
 
   function update(taskId, field, value) {
     updateTask.mutate({ id: taskId, [field]: value })
@@ -256,60 +231,13 @@ export default function GridView({ onOpenTask, aiFilter, onFiltersChange }) {
     clearSelection()
   }
 
-  const currentSpec = { picId: filterPic, deptId: filterDept, status: filterStatus }
-  const hasNonDefaultFilter =
-    filterPic !== 'all' || filterDept !== 'all' || filterStatus !== 'all'
-
-  function applySpec(spec) {
-    setFilterPic(spec.picId ?? 'all')
-    setFilterDept(spec.deptId ?? 'all')
-    setFilterStatus(spec.status ?? 'all')
-  }
-
   return (
     <div className="bg-surface border border-border rounded-xl overflow-hidden">
-      <SavedFiltersBar
-        currentSpec={currentSpec}
-        canSave={hasNonDefaultFilter}
-        onApply={applySpec}
-      />
-      <div className="p-3 border-b border-border flex items-center gap-2 flex-wrap">
-        <FilterSelect value={filterPic} onChange={setFilterPic}>
-          <option value="all">All PICs</option>
-          {people.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </FilterSelect>
-        <FilterSelect value={filterDept} onChange={setFilterDept}>
-          <option value="all">All departments</option>
-          {departments.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
-            </option>
-          ))}
-        </FilterSelect>
-        <FilterSelect value={filterStatus} onChange={setFilterStatus}>
-          <option value="all">All statuses</option>
-          <option value="Open">Open</option>
-          <option value="In progress">In progress</option>
-          <option value="Ongoing">Ongoing</option>
-          <option value="Done">Done</option>
-        </FilterSelect>
-        {hasFilters && (
-          <button
-            onClick={() => {
-              setFilterPic('all')
-              setFilterDept('all')
-              setFilterStatus('all')
-            }}
-            className="text-xs text-text-3 hover:text-text px-2 py-1 underline"
-          >
-            Clear
-          </button>
-        )}
-        <div className="flex-1" />
+      {/* Saved-filters bar — temporarily disabled while the underlying
+          schema only knows pic/dept/status (no priority/tag). Wire
+          back once useSavedFilters spec includes the new fields. */}
+      <TaskFilterBar />
+      <div className="px-3 py-2 border-b border-border flex items-center justify-end">
         <button
           onClick={() => setGroupByPic((g) => !g)}
           className={`text-xs px-2 py-1 rounded border inline-flex items-center gap-1.5 ${

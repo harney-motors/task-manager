@@ -33,8 +33,14 @@ import { picPill } from '../lib/colors'
 import { addWatcher } from '../api/watchers'
 import { exportTasksToCsv } from '../lib/exportCsv'
 import { bulkDeleteWithUndo } from '../lib/deferredBulkDelete'
+import {
+  applyTaskFilters,
+  readFiltersFromParams,
+} from '../lib/applyTaskFilters'
+import { useSearchParams } from 'react-router-dom'
 import { useToast } from '../components/Toast'
 import BulkActionBar from '../components/BulkActionBar'
+import TaskFilterBar from '../components/TaskFilterBar'
 import ShareModal from '../components/ShareModal'
 import TaskRow from '../components/TaskRow'
 
@@ -55,7 +61,16 @@ function toIso(date) {
 }
 
 export default function CalendarView({ onOpenTask }) {
-  const { data: tasks = [] } = useTasks()
+  const { data: allTasks = [] } = useTasks()
+  // URL-driven filters apply to the entire calendar (chips, day view,
+  // bulk select). Memoised so heavy month views don't recompute on
+  // unrelated re-renders.
+  const [searchParams] = useSearchParams()
+  const filters = readFiltersFromParams(searchParams)
+  const tasks = useMemo(
+    () => applyTaskFilters(allTasks, filters),
+    [allTasks, filters],
+  )
   const { data: people = [] } = usePeople()
   const { data: departments = [] } = useDepartments()
   const { data: blockerMap = new Map() } = useWorkspaceBlockerMap()
@@ -226,6 +241,7 @@ export default function CalendarView({ onOpenTask }) {
 
   return (
     <div className="bg-surface border border-border rounded-xl overflow-hidden">
+      <TaskFilterBar />
       <div className="p-3 border-b border-border flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-1">
           <button
