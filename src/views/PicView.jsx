@@ -217,8 +217,9 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
       onDragCancel={() => setDraggingTaskId(null)}
     >
     <div className="bg-surface border border-border rounded-xl overflow-hidden">
-      {/* Chip selector */}
-      <div className="p-4 border-b border-border flex flex-wrap gap-1.5">
+      {/* Chip selector — tighter padding on phone so the strip claims less
+          vertical space when there are 10+ people. */}
+      <div className="px-3 py-2 sm:p-4 border-b border-border flex flex-wrap gap-1 sm:gap-1.5">
         {people.map((p) => {
           const count = tasks.filter(
             (t) => t.pic_id === p.id && t.status !== 'Done',
@@ -252,20 +253,20 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
         </DroppablePicChip>
       </div>
 
-      {/* Header */}
+      {/* Header — compact on phone: smaller avatar, share button collapses
+          to an icon-only pill so the row reads in one line. */}
       {selectedPic && (
-        <div className="px-4 py-3 bg-surface-2 border-b border-border flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-3">
+        <div className="px-3 py-2 sm:px-4 sm:py-3 bg-surface-2 border-b border-border flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <div
-              className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium ${picPill(selectedPic.color)}`}
+              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-[11px] sm:text-sm font-medium flex-shrink-0 ${picPill(selectedPic.color)}`}
             >
               {selectedPic.initials}
             </div>
-            <div>
-              <div className="text-sm font-medium">{selectedPic.name}</div>
-              <div className="text-xs text-text-2">
-                {selectedPic.title}
-                {' · '}
+            <div className="min-w-0">
+              <div className="text-sm font-medium truncate">{selectedPic.name}</div>
+              <div className="text-[11px] sm:text-xs text-text-2 truncate">
+                <span className="hidden sm:inline">{selectedPic.title} · </span>
                 {activeCount} active
                 {overdueCount > 0 && (
                   <span className="text-danger-text font-medium">
@@ -279,23 +280,26 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
           <button
             onClick={() => setShareOpen(true)}
             disabled={activeCount === 0}
-            className="text-xs font-medium bg-success text-white px-3 py-1.5 rounded inline-flex items-center gap-1.5 disabled:opacity-50 hover:opacity-90"
+            className="text-[11px] sm:text-xs font-medium bg-success text-white px-2 py-1 sm:px-3 sm:py-1.5 rounded inline-flex items-center gap-1 sm:gap-1.5 disabled:opacity-50 hover:opacity-90 flex-shrink-0"
+            aria-label="Share to WhatsApp"
+            title="Share to WhatsApp"
           >
             <i className="ti ti-brand-whatsapp text-sm" />
-            Share to WhatsApp
+            <span className="hidden sm:inline">Share to WhatsApp</span>
+            <span className="sm:hidden">Share</span>
           </button>
         </div>
       )}
 
       {isUnassigned && (
-        <div className="px-4 py-3 bg-surface-2 border-b border-border flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-surface border border-dashed border-border-strong flex items-center justify-center text-text-3">
-            <i className="ti ti-user-question text-base" />
+        <div className="px-3 py-2 sm:px-4 sm:py-3 bg-surface-2 border-b border-border flex items-center gap-2.5 sm:gap-3">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-surface border border-dashed border-border-strong flex items-center justify-center text-text-3 flex-shrink-0">
+            <i className="ti ti-user-question text-sm sm:text-base" />
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="text-sm font-medium">Unassigned</div>
-            <div className="text-xs text-text-2">
-              Tasks without a PIC ·{' '}
+            <div className="text-[11px] sm:text-xs text-text-2 truncate">
+              <span className="hidden sm:inline">Tasks without a PIC · </span>
               {activeCount} active
               {overdueCount > 0 && (
                 <span className="text-danger-text font-medium">
@@ -447,14 +451,14 @@ export function TaskGroupSection({ label, count, children }) {
   if (!label) {
     // Single ungrouped group — just render the rows in a padded
     // wrapper, no header.
-    return <div className="px-4">{children}</div>
+    return <div className="px-3 sm:px-4">{children}</div>
   }
   return (
     <div className="border-b border-border last:border-b-0">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-2 px-4 py-2 text-left bg-surface-2/40 hover:bg-surface-2 border-b border-border"
+        className="w-full flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 text-left bg-surface-2/40 hover:bg-surface-2 border-b border-border"
       >
         <i
           className={`ti ${open ? 'ti-chevron-down' : 'ti-chevron-right'} text-xs text-text-3`}
@@ -464,7 +468,7 @@ export function TaskGroupSection({ label, count, children }) {
         </span>
         <span className="text-[11px] text-text-3">· {count}</span>
       </button>
-      {open && <div className="px-4">{children}</div>}
+      {open && <div className="px-3 sm:px-4">{children}</div>}
     </div>
   )
 }
@@ -541,7 +545,7 @@ function DroppablePicChip({ dropId, onClick, isSelected, children }) {
     <button
       ref={setNodeRef}
       onClick={onClick}
-      className={`px-2.5 py-1 rounded-md text-xs inline-flex items-center gap-1.5 border transition-colors ${
+      className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[11px] sm:text-xs inline-flex items-center gap-1 sm:gap-1.5 border transition-colors ${
         isOver
           ? 'border-info bg-info-bg/60 text-info-text border-dashed'
           : isSelected
@@ -561,7 +565,7 @@ function SelectableTaskRow({ task, selected, anySelected, onToggleSelect, onClic
   const isTemp = String(task.id).startsWith('temp-')
   return (
     <div
-      className={`group flex items-center gap-3 -mx-4 px-4 transition-colors cursor-pointer ${
+      className={`group flex items-center gap-2.5 sm:gap-3 -mx-3 sm:-mx-4 px-3 sm:px-4 transition-colors cursor-pointer ${
         selected ? 'bg-info-bg/60' : 'hover:bg-surface-2'
       }`}
     >

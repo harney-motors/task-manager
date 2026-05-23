@@ -1,5 +1,11 @@
 import { useUpdateTask } from '../lib/queries'
-import { addDays, isOverdue, formatRelative, startOfToday } from '../lib/dates'
+import {
+  addDays,
+  formatRelative,
+  formatShortDate,
+  isOverdue,
+  startOfToday,
+} from '../lib/dates'
 import { picPill, statusPill } from '../lib/colors'
 
 // `inWrapper` — true when this row is rendered inside a SelectableTaskRow
@@ -28,7 +34,7 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
   return (
     <div
       onClick={onClick}
-      className={`group flex items-center gap-3 py-3 border-b border-border last:border-b-0 cursor-pointer transition-colors ${
+      className={`group flex items-center gap-2.5 sm:gap-3 py-2 sm:py-3 border-b border-border last:border-b-0 cursor-pointer transition-colors ${
         inWrapper
           ? 'min-w-0' // wrapper owns padding + hover background
           : 'hover:bg-surface-2 -mx-4 px-4'
@@ -73,7 +79,15 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
           )}
           {task.due_date && (
             <span className={overdue ? 'text-danger-text font-medium' : ''}>
-              {formatRelative(task.due_date)}
+              {/* Long form on tablet+ ("3 days ago"), compact form on phone
+                  ("Mon 12") — keeps mobile rows scannable without the noise
+                  of "112 days ago"-style strings. */}
+              <span className="hidden sm:inline">
+                {formatRelative(task.due_date)}
+              </span>
+              <span className="sm:hidden">
+                {formatShortDate(task.due_date)}
+              </span>
             </span>
           )}
           {(task.watchers?.length ?? 0) > 0 && (

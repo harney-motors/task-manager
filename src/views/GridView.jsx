@@ -29,7 +29,7 @@ import ShareModal from '../components/ShareModal'
 import Skeleton from '../components/Skeleton'
 
 const COLS =
-  'grid grid-cols-[24px_28px_minmax(0,2.2fr)_140px_120px_120px_100px_110px] gap-2 px-4 items-center'
+  'grid grid-cols-[24px_28px_minmax(0,2.2fr)_140px_120px_120px_100px_110px] gap-2 px-3 sm:px-4 items-center'
 
 const STATUS_ORDER = { Open: 0, 'In progress': 1, Ongoing: 2, Done: 3 }
 const PRIORITY_ORDER = { High: 0, Medium: 1, Low: 2 }
@@ -279,7 +279,7 @@ export default function GridView({ onOpenTask, aiFilter, onFiltersChange }) {
             taskGroups.map((g) =>
               g.label ? (
                 <div key={g.key}>
-                  <div className="px-4 py-2 bg-surface-2 border-b border-border flex items-center gap-2 text-xs">
+                  <div className="px-3 sm:px-4 py-1.5 sm:py-2 bg-surface-2 border-b border-border flex items-center gap-2 text-[11px] sm:text-xs">
                     <span className="font-medium text-text">{g.label}</span>
                     <span className="text-text-3">· {g.tasks.length}</span>
                   </div>

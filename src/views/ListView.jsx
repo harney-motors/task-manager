@@ -344,7 +344,7 @@ function SelectableTaskRow({
   return (
     <div
       ref={rowRef}
-      className={`group flex items-center gap-3 -mx-4 px-4 transition-colors cursor-pointer ${
+      className={`group flex items-center gap-2.5 sm:gap-3 -mx-3 sm:-mx-4 px-3 sm:px-4 transition-colors cursor-pointer ${
         focused ? 'ring-2 ring-info ring-inset' : ''
       } ${
         selected ? 'bg-info-bg/60' : 'hover:bg-surface-2'
@@ -397,7 +397,7 @@ function Panel({
 
   return (
     <div className="bg-surface border border-border rounded-xl overflow-hidden">
-      <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+      <div className="px-3 py-2 sm:px-4 sm:py-3 border-b border-border flex items-center gap-2">
         {allTasks.length > 0 && (
           <input
             type="checkbox"
@@ -416,7 +416,7 @@ function Panel({
           <span className="text-[11px] text-text-3">· {count}</span>
         )}
       </div>
-      <div className="px-4">{children}</div>
+      <div className="px-3 sm:px-4">{children}</div>
     </div>
   )
 }
