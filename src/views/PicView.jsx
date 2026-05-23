@@ -11,6 +11,7 @@ import {
 } from '@dnd-kit/core'
 import { useAuth } from '../auth/AuthProvider'
 import {
+  useCreateTask,
   useDepartments,
   usePeople,
   useTasks,
@@ -45,6 +46,7 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
   const { data: departments = [] } = useDepartments()
   const { data: tasks = [], isLoading } = useTasks()
   const updateTask = useUpdateTask()
+  const createTask = useCreateTask()
   const queryClient = useQueryClient()
   const { workspace } = useAuth()
   const showToast = useToast()
@@ -301,6 +303,25 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
       {/* Secondary filters (PIC implied by chip selector → hidden). */}
       <TaskFilterBar hide={['picId']} />
 
+      {/* Quick-add scoped to the current PIC. Hidden until a PIC chip
+          (or Unassigned) is actively selected. */}
+      {(selectedPic || isUnassigned) && (
+        <PicQuickAdd
+          label={
+            selectedPic
+              ? `Add task for ${selectedPic.name.split(' ')[0]}`
+              : 'Add unassigned task'
+          }
+          onCreate={(title) =>
+            createTask.mutate({
+              title,
+              pic_id: selectedPic?.id ?? null,
+              source: 'PIC view',
+            })
+          }
+        />
+      )}
+
       {selectedIds.size > 0 && (
         <BulkActionBar
           count={selectedIds.size}
@@ -387,6 +408,47 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
       ) : null}
     </DragOverlay>
     </DndContext>
+  )
+}
+
+// ============================================================
+// PIC-scoped quick add
+// ============================================================
+//
+// Lighter than the top-level QuickEntry: no smart detection, no
+// voice — the PIC is whatever the parent says it is (the chip
+// selector). Just title in, task out.
+function PicQuickAdd({ label, onCreate }) {
+  const [value, setValue] = useState('')
+  function submit(e) {
+    e.preventDefault()
+    const title = value.trim()
+    if (!title) return
+    setValue('')
+    onCreate(title)
+  }
+  return (
+    <form
+      onSubmit={submit}
+      className="px-4 py-2 border-b border-border flex items-center gap-2 bg-surface-2/40"
+    >
+      <i className="ti ti-plus text-text-3 text-sm flex-shrink-0" />
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={`${label} — Enter to save`}
+        className="flex-1 bg-transparent outline-none text-sm placeholder:text-text-3 min-w-0"
+        autoComplete="off"
+      />
+      <button
+        type="submit"
+        disabled={!value.trim()}
+        className="text-[11px] px-2.5 py-1 rounded bg-info text-white font-medium disabled:opacity-50"
+      >
+        Add
+      </button>
+    </form>
   )
 }
 

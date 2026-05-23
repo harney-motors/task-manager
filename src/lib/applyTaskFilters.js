@@ -6,9 +6,33 @@
 // filter on this field". OR semantics within a field (e.g. status
 // 'all' means all statuses), AND semantics across fields.
 
+// Due-filter values: 'all' | 'overdue' | 'today' | 'next7' | 'next30' | 'none'
+// 'overdue' = strictly before today AND status != Done
+// 'none' = no due_date set
+// 'today' = due_date === today (regardless of status)
+// 'next7' = due in [today, today+7]
+// 'next30' = due in [today, today+30]
 export function applyTaskFilters(tasks, filters) {
   if (!filters) return tasks
-  const { picId, deptId, status, priority, tag } = filters
+  const { picId, deptId, status, priority, tag, due } = filters
+
+  // Precompute today/limits once per call so we don't allocate dates
+  // for every task.
+  let todayIso = null
+  let limit7Iso = null
+  let limit30Iso = null
+  if (due && due !== 'all') {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    todayIso = formatIso(today)
+    const plus7 = new Date(today)
+    plus7.setDate(plus7.getDate() + 7)
+    limit7Iso = formatIso(plus7)
+    const plus30 = new Date(today)
+    plus30.setDate(plus30.getDate() + 30)
+    limit30Iso = formatIso(plus30)
+  }
+
   return tasks.filter((t) => {
     if (picId && picId !== 'all' && t.pic_id !== picId) return false
     if (deptId && deptId !== 'all' && t.department_id !== deptId) return false
@@ -18,8 +42,37 @@ export function applyTaskFilters(tasks, filters) {
       const tags = t.tags ?? []
       if (!tags.includes(tag)) return false
     }
+    if (due && due !== 'all') {
+      const d = t.due_date // 'YYYY-MM-DD' string or null
+      switch (due) {
+        case 'overdue':
+          if (!d || d >= todayIso || t.status === 'Done') return false
+          break
+        case 'today':
+          if (d !== todayIso) return false
+          break
+        case 'next7':
+          if (!d || d < todayIso || d > limit7Iso) return false
+          break
+        case 'next30':
+          if (!d || d < todayIso || d > limit30Iso) return false
+          break
+        case 'none':
+          if (d) return false
+          break
+        default:
+          break
+      }
+    }
     return true
   })
+}
+
+function formatIso(d) {
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
 }
 
 // Read the standardised filter shape from a URLSearchParams instance.
@@ -32,6 +85,7 @@ export function readFiltersFromParams(searchParams) {
     status: searchParams.get('status') || 'all',
     priority: searchParams.get('priority') || 'all',
     tag: searchParams.get('tag') || 'all',
+    due: searchParams.get('due') || 'all',
   }
 }
 
@@ -46,6 +100,7 @@ export function writeFiltersToParams(setSearchParams, patch) {
         status: 'status',
         priority: 'priority',
         tag: 'tag',
+        due: 'due',
       }
       for (const [k, urlKey] of Object.entries(map)) {
         if (k in patch) {
@@ -67,6 +122,7 @@ export function isAnyFilterActive(filters) {
     (filters.deptId && filters.deptId !== 'all') ||
     (filters.status && filters.status !== 'all') ||
     (filters.priority && filters.priority !== 'all') ||
-    (filters.tag && filters.tag !== 'all')
+    (filters.tag && filters.tag !== 'all') ||
+    (filters.due && filters.due !== 'all')
   )
 }

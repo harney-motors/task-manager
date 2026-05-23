@@ -46,6 +46,7 @@ export default function TaskFilterBar({ hide = [] }) {
   const showStatus = !hide.includes('status')
   const showPriority = !hide.includes('priority')
   const showTag = !hide.includes('tag')
+  const showDue = !hide.includes('due')
   const anyActive = isAnyFilterActive(filters)
 
   return (
@@ -110,6 +111,19 @@ export default function TaskFilterBar({ hide = [] }) {
               {t}
             </option>
           ))}
+        </FilterSelect>
+      )}
+      {showDue && (
+        <FilterSelect
+          value={filters.due}
+          onChange={(v) => update({ due: v })}
+        >
+          <option value="all">Any due date</option>
+          <option value="overdue">Overdue</option>
+          <option value="today">Due today</option>
+          <option value="next7">Due next 7 days</option>
+          <option value="next30">Due next 30 days</option>
+          <option value="none">No due date</option>
         </FilterSelect>
       )}
       {anyActive && (
