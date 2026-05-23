@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '../auth/AuthProvider'
 import {
   useCreateSavedFilter,
   useDeleteSavedFilter,
-  useDeleteTask,
   useDepartments,
   usePeople,
   useSavedFilters,
@@ -13,6 +14,7 @@ import { isOverdue } from '../lib/dates'
 import { statusPill } from '../lib/colors'
 import { addWatcher } from '../api/watchers'
 import { exportTasksToCsv } from '../lib/exportCsv'
+import { bulkDeleteWithUndo } from '../lib/deferredBulkDelete'
 import { useToast } from '../components/Toast'
 import BulkActionBar from '../components/BulkActionBar'
 import ShareModal from '../components/ShareModal'
@@ -57,13 +59,14 @@ function compareTasks(a, b, field, dir) {
   return 0
 }
 
-export default function GridView({ onOpenTask, aiFilter }) {
+export default function GridView({ onOpenTask, aiFilter, onFiltersChange }) {
   const { data: people = [] } = usePeople()
   const { data: tasks = [], isLoading } = useTasks()
   const { data: departments = [] } = useDepartments()
   const updateTask = useUpdateTask()
-  const deleteTask = useDeleteTask()
   const showToast = useToast()
+  const queryClient = useQueryClient()
+  const { workspace } = useAuth()
 
   const [groupByPic, setGroupByPic] = useState(false)
   const [filterPic, setFilterPic] = useState('all')
@@ -83,15 +86,42 @@ export default function GridView({ onOpenTask, aiFilter }) {
     }
   }
 
-  // External (AI) filter signal — when it changes, sync local filter state.
+  // External (AI / URL) filter signal — when it changes, sync local
+  // filter state. We keep filters as local state so dropdowns are
+  // snappy, then mirror outwards via onFiltersChange when the user
+  // changes them so the URL stays in sync (bookmarkable).
   useEffect(() => {
-    if (!aiFilter) return
+    if (!aiFilter) {
+      // External signal cleared — also clear local filters so the URL
+      // is the source of truth (refresh → no filter → grid is clean).
+      setFilterPic('all')
+      setFilterDept('all')
+      setFilterStatus('all')
+      setSelectedIds(new Set())
+      return
+    }
     setFilterPic(aiFilter.picId ?? 'all')
     setFilterDept(aiFilter.deptId ?? 'all')
     setFilterStatus(aiFilter.status ?? 'all')
     setSelectedIds(new Set())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aiFilter?.key])
+
+  // Mirror local filter changes outwards so the URL updates. Skip the
+  // first paint to avoid clobbering an external signal.
+  const firstRunRef = useRef(true)
+  useEffect(() => {
+    if (firstRunRef.current) {
+      firstRunRef.current = false
+      return
+    }
+    onFiltersChange?.({
+      picId: filterPic,
+      deptId: filterDept,
+      status: filterStatus,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterPic, filterDept, filterStatus])
 
   const filtered = useMemo(
     () =>
@@ -214,30 +244,15 @@ export default function GridView({ onOpenTask, aiFilter }) {
     [filtered, selectedIds],
   )
 
-  async function bulkDelete() {
-    const ids = Array.from(selectedIds)
-    if (ids.length === 0) return
-    if (
-      !confirm(
-        `Delete ${ids.length} task${ids.length === 1 ? '' : 's'}? This cannot be undone.`,
-      )
-    )
-      return
-    const results = await Promise.allSettled(
-      ids.map(
-        (id) =>
-          new Promise((resolve, reject) =>
-            deleteTask.mutate(id, { onSuccess: resolve, onError: reject }),
-          ),
-      ),
-    )
-    const ok = results.filter((r) => r.status === 'fulfilled').length
-    const failed = results.length - ok
-    if (failed === 0) {
-      showToast(`Deleted ${ok} task${ok === 1 ? '' : 's'}`)
-    } else {
-      showToast(`Deleted ${ok}, failed ${failed}`, { type: 'error' })
-    }
+  function bulkDelete() {
+    const selectedTasks = filtered.filter((t) => selectedIds.has(t.id))
+    if (selectedTasks.length === 0) return
+    bulkDeleteWithUndo({
+      tasks: selectedTasks,
+      queryClient,
+      workspaceId: workspace?.id,
+      showToast,
+    })
     clearSelection()
   }
 

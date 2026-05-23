@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '../auth/AuthProvider'
 import {
-  useDeleteTask,
   useDepartments,
   usePeople,
   useTasks,
@@ -10,6 +11,7 @@ import { isOverdue } from '../lib/dates'
 import { picDot, picPill } from '../lib/colors'
 import { addWatcher } from '../api/watchers'
 import { exportTasksToCsv } from '../lib/exportCsv'
+import { bulkDeleteWithUndo } from '../lib/deferredBulkDelete'
 import { useToast } from '../components/Toast'
 import BulkActionBar from '../components/BulkActionBar'
 import TaskRow from '../components/TaskRow'
@@ -28,7 +30,8 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
   const { data: departments = [] } = useDepartments()
   const { data: tasks = [], isLoading } = useTasks()
   const updateTask = useUpdateTask()
-  const deleteTask = useDeleteTask()
+  const queryClient = useQueryClient()
+  const { workspace } = useAuth()
   const showToast = useToast()
   const [selectedIds, setSelectedIds] = useState(() => new Set())
   const [selectionShareOpen, setSelectionShareOpen] = useState(false)
@@ -106,31 +109,15 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
     clearSelection()
   }
 
-  async function bulkDelete() {
-    const ids = Array.from(selectedIds)
-    if (ids.length === 0) return
-    if (
-      !confirm(
-        `Delete ${ids.length} task${ids.length === 1 ? '' : 's'}? This cannot be undone.`,
-      )
-    )
-      return
-    const results = await Promise.allSettled(
-      ids.map(
-        (id) =>
-          new Promise((resolve, reject) =>
-            deleteTask.mutate(id, { onSuccess: resolve, onError: reject }),
-          ),
-      ),
-    )
-    const ok = results.filter((r) => r.status === 'fulfilled').length
-    const failed = results.length - ok
-    showToast(
-      failed === 0
-        ? `Deleted ${ok} task${ok === 1 ? '' : 's'}`
-        : `Deleted ${ok}, failed ${failed}`,
-      { type: failed === 0 ? 'success' : 'error' },
-    )
+  function bulkDelete() {
+    const selectedTasks = picTasks.filter((t) => selectedIds.has(t.id))
+    if (selectedTasks.length === 0) return
+    bulkDeleteWithUndo({
+      tasks: selectedTasks,
+      queryClient,
+      workspaceId: workspace?.id,
+      showToast,
+    })
     clearSelection()
   }
 

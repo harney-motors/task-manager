@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 import { useDepartments, usePeople, useTasks } from '../lib/queries'
 import { useToast } from '../components/Toast'
@@ -21,6 +22,7 @@ import ExtractFromMeetingModal from '../components/ExtractFromMeetingModal'
 import { onServiceWorkerMessage } from '../lib/registerSw'
 import ActivityFeed from '../components/ActivityFeed'
 import WorkspaceSwitcher from '../components/WorkspaceSwitcher'
+import NudgeBadge from '../components/NudgeBadge'
 import { TickdMark, TickdWordmark } from '../components/TickdMark'
 import { useIsSuperadmin } from '../lib/queries'
 
@@ -32,14 +34,89 @@ export default function Home() {
   const { data: isSuperadmin = false } = useIsSuperadmin()
   const showToast = useToast()
   const [openTaskId, setOpenTaskId] = useState(null)
-  const [view, setView] = useState('today')
   const [showSettings, setShowSettings] = useState(false)
   const [showSuperAdmin, setShowSuperAdmin] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
   const [showExtract, setShowExtract] = useState(false)
-  const [picViewSelectedId, setPicViewSelectedId] = useState(null)
-  const [gridFilterSignal, setGridFilterSignal] = useState(null)
   const [aiCommandPlan, setAiCommandPlan] = useState(null)
+
+  // ---- URL-backed navigation state ----
+  // view, selected PIC, and the Grid pre-filter (pic/dept/status) all
+  // live in the query string so links are bookmarkable, shareable,
+  // and survive refreshes. Browser back/forward also works.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const view = searchParams.get('view') || 'today'
+  const picViewSelectedId = searchParams.get('pic') || null
+  const gridFilterSignal = (() => {
+    const picF = searchParams.get('picFilter')
+    const deptF = searchParams.get('dept')
+    const statusF = searchParams.get('status')
+    // Only construct a signal when at least one filter is set, so we
+    // don't blow away GridView's local clear-state on every nav.
+    if (!picF && !deptF && !statusF) return null
+    return {
+      picId: picF || 'all',
+      deptId: deptF || 'all',
+      status: statusF || 'all',
+      key: `${picF}|${deptF}|${statusF}`,
+    }
+  })()
+
+  // Helpers — these accept partial updates and preserve the rest of
+  // the query string (notably ?task=<id> if a modal is open).
+  const setView = useCallback(
+    (next) => {
+      setSearchParams(
+        (prev) => {
+          if (next === 'today') prev.delete('view')
+          else prev.set('view', next)
+          return prev
+        },
+        { replace: false },
+      )
+    },
+    [setSearchParams],
+  )
+
+  const setPicViewSelectedId = useCallback(
+    (next) => {
+      setSearchParams(
+        (prev) => {
+          if (next) prev.set('pic', next)
+          else prev.delete('pic')
+          return prev
+        },
+        { replace: true },
+      )
+    },
+    [setSearchParams],
+  )
+
+  const setGridFilterSignal = useCallback(
+    (signal) => {
+      setSearchParams(
+        (prev) => {
+          if (!signal) {
+            prev.delete('picFilter')
+            prev.delete('dept')
+            prev.delete('status')
+            return prev
+          }
+          // 'all' is the default — represent as missing param.
+          const apply = (key, value) => {
+            if (!value || value === 'all') prev.delete(key)
+            else prev.set(key, value)
+          }
+          apply('picFilter', signal.picId)
+          apply('dept', signal.deptId)
+          apply('status', signal.status)
+          return prev
+        },
+        { replace: false },
+      )
+    },
+    [setSearchParams],
+  )
 
   // Service-worker → app bridge. When the user clicks a push
   // notification on a WARM app (Tickd already open in a tab), the SW
@@ -57,15 +134,17 @@ export default function Home() {
   // when there was no open tab to focus), open that task and strip
   // the param so a reload doesn't keep re-opening it.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const id = params.get('task')
+    const id = searchParams.get('task')
     if (!id) return
     setOpenTaskId(id)
-    params.delete('task')
-    const cleanQuery = params.toString()
-    const cleanUrl =
-      window.location.pathname + (cleanQuery ? `?${cleanQuery}` : '')
-    window.history.replaceState({}, '', cleanUrl)
+    setSearchParams(
+      (prev) => {
+        prev.delete('task')
+        return prev
+      },
+      { replace: true },
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // "/" keybind focuses the quick entry input from anywhere on the home page
@@ -161,6 +240,7 @@ export default function Home() {
             <span className="text-text-2 hidden sm:inline truncate max-w-[180px]">
               {user.email}
             </span>
+            <NudgeBadge />
             {!isPicRole && (
               <button
                 onClick={() => setShowExtract(true)}
@@ -253,7 +333,18 @@ export default function Home() {
             )}
             {view === 'list'     && <ListView     onOpenTask={setOpenTaskId} />}
             {view === 'grid'     && (
-              <GridView onOpenTask={setOpenTaskId} aiFilter={gridFilterSignal} />
+              <GridView
+                onOpenTask={setOpenTaskId}
+                aiFilter={gridFilterSignal}
+                onFiltersChange={(next) => {
+                  // Strip default-all values; setGridFilterSignal handles the null case.
+                  const allDefault =
+                    next.picId === 'all' &&
+                    next.deptId === 'all' &&
+                    next.status === 'all'
+                  setGridFilterSignal(allDefault ? null : next)
+                }}
+              />
             )}
             {view === 'pic'      && (
               <PicView

@@ -3,6 +3,7 @@ import { useAuth } from '../auth/AuthProvider'
 import { searchAll } from '../api/search'
 import { aiCommand } from '../api/aiCommand'
 import { useDictation } from '../lib/useDictation'
+import { getRecentTasks } from '../lib/recentTasks'
 import { picPill } from '../lib/colors'
 import { formatRelative } from '../lib/dates'
 
@@ -21,6 +22,7 @@ export default function SearchPalette({
   const [isSearching, setIsSearching] = useState(false)
   const [askingAi, setAskingAi] = useState(false)
   const [aiError, setAiError] = useState(null)
+  const [recent, setRecent] = useState([])
   const inputRef = useRef(null)
 
   // Voice input — appends each finalised chunk to the query.
@@ -56,6 +58,9 @@ export default function SearchPalette({
   useEffect(() => {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 0)
+      // Refresh recent list on each open so a task opened a moment
+      // ago surfaces immediately.
+      if (workspace?.id) setRecent(getRecentTasks(workspace.id))
     } else {
       setQuery('')
       setSelectedIndex(0)
@@ -191,7 +196,41 @@ export default function SearchPalette({
 
         <div className="max-h-[60vh] overflow-y-auto">
           {!query.trim() ? (
-            <Empty msg="Type to search tasks, people, and journal notes." />
+            recent.length > 0 ? (
+              <div className="py-1">
+                <div className="px-4 py-1 text-[10px] uppercase tracking-wider text-text-3 font-medium">
+                  Recently opened
+                </div>
+                {recent.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => {
+                      onOpenTask(t.id)
+                      onClose()
+                    }}
+                    className="w-full text-left px-4 py-2 flex items-center gap-3 hover:bg-surface-2"
+                  >
+                    {t.pic_color ? (
+                      <span
+                        className={`flex-shrink-0 px-1.5 py-px rounded text-[10px] font-medium ${picPill(t.pic_color)}`}
+                      >
+                        {(t.pic_name?.split(' ')[0]) ?? '—'}
+                      </span>
+                    ) : (
+                      <span className="flex-shrink-0 text-[10px] text-text-3">—</span>
+                    )}
+                    <span className="text-sm truncate flex-1 min-w-0">
+                      {t.title}
+                    </span>
+                  </button>
+                ))}
+                <div className="px-4 py-2 text-[10px] text-text-3 border-t border-border mt-1">
+                  Type to search · ⌘↵ to ask Tickd AI
+                </div>
+              </div>
+            ) : (
+              <Empty msg="Type to search tasks, people, and journal notes." />
+            )
           ) : flat.length === 0 && !isSearching ? (
             <Empty msg={`No matches for "${query}"`} />
           ) : (

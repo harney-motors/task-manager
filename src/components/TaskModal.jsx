@@ -9,9 +9,12 @@ import {
 } from '../lib/queries'
 import { picPill, statusPill } from '../lib/colors'
 import { isOverdue, formatRelative } from '../lib/dates'
+import { recordRecentTask } from '../lib/recentTasks'
+import { useAuth } from '../auth/AuthProvider'
 import JournalPanel from './JournalPanel'
 
 export default function TaskModal({ task, onClose }) {
+  const { workspace } = useAuth()
   const { data: people = [] } = usePeople()
   const { data: departments = [] } = useDepartments()
   const updateTask = useUpdateTask()
@@ -27,6 +30,14 @@ export default function TaskModal({ task, onClose }) {
   useEffect(() => {
     setTitle(task?.title ?? '')
   }, [task?.id, task?.title])
+
+  // Record the open in the per-workspace recent-tasks list. Used by
+  // the Cmd+K empty state to surface "jump back to what I was on".
+  useEffect(() => {
+    if (!task?.id || !workspace?.id) return
+    if (String(task.id).startsWith('temp-')) return // skip optimistic rows
+    recordRecentTask(workspace.id, task)
+  }, [task?.id, workspace?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close on Esc
   useEffect(() => {

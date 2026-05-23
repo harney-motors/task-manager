@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useActiveNudges, useDismissNudge } from '../lib/queries'
 
 const SEVERITY_STYLE = {
@@ -15,20 +15,88 @@ const SEVERITY_ICON = {
   low:    'ti-info-circle',
 }
 
+// Severity sort order so the single-line summary surfaces the most
+// pressing nudge.
+const SEVERITY_RANK = { urgent: 0, high: 1, medium: 2, low: 3 }
+
 const MAX_VISIBLE = 3
+const STORAGE_KEY = 'tickd-nudges-expanded'
 
 export default function NudgesBanner({ onOpenTask }) {
   const { data: nudges = [], isLoading } = useActiveNudges()
   const dismiss = useDismissNudge()
-  const [expanded, setExpanded] = useState(false)
+
+  // Default to collapsed; remember per-session if user expanded.
+  // We store as string '1' / '0' rather than JSON for simplicity.
+  const [expanded, setExpanded] = useState(() => {
+    if (typeof localStorage === 'undefined') return false
+    return localStorage.getItem(STORAGE_KEY) === '1'
+  })
+  // Track whether the user explicitly expanded (vs. inheriting from
+  // a previous session). Doesn't change behaviour today; reserved for
+  // future "auto-collapse after dismissal" logic.
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, expanded ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }, [expanded])
 
   if (isLoading || nudges.length === 0) return null
 
-  const visible = expanded ? nudges : nudges.slice(0, MAX_VISIBLE)
-  const hidden = nudges.length - visible.length
+  // Most-pressing-first ordering: severity, then newest.
+  const sorted = [...nudges].sort((a, b) => {
+    const sa = SEVERITY_RANK[a.severity] ?? 99
+    const sb = SEVERITY_RANK[b.severity] ?? 99
+    if (sa !== sb) return sa - sb
+    return new Date(b.created_at) - new Date(a.created_at)
+  })
+
+  const top = sorted[0]
+  const topTone = SEVERITY_STYLE[top.severity] || SEVERITY_STYLE.medium
+  const topIcon = SEVERITY_ICON[top.severity] || SEVERITY_ICON.medium
+
+  // ----- Collapsed (default) -----
+  if (!expanded) {
+    return (
+      <div
+        id="nudges-banner"
+        className={`rounded-xl border ${topTone} mb-3 flex items-center gap-2 px-3 py-2`}
+      >
+        <i className="ti ti-sparkles text-info text-sm flex-shrink-0" />
+        <i className={`ti ${topIcon} text-sm flex-shrink-0`} />
+        <button
+          onClick={() => setExpanded(true)}
+          className="flex-1 min-w-0 text-left text-xs font-medium truncate hover:underline"
+          title="Expand all nudges"
+        >
+          {top.title}
+        </button>
+        <span className="text-[10px] text-text-3 flex-shrink-0">
+          {nudges.length > 1 && `+${nudges.length - 1}`}
+        </span>
+        <button
+          onClick={() => setExpanded(true)}
+          className="flex-shrink-0 text-text-3 hover:text-text p-0.5"
+          aria-label="Expand"
+          title="Expand"
+        >
+          <i className="ti ti-chevron-down text-xs" />
+        </button>
+      </div>
+    )
+  }
+
+  // ----- Expanded -----
+  const visible = sorted.slice(0, MAX_VISIBLE)
+  const hidden = sorted.length - visible.length
 
   return (
-    <div className="bg-surface border border-border rounded-xl p-3 mb-3">
+    <div
+      id="nudges-banner"
+      className="bg-surface border border-border rounded-xl p-3 mb-3"
+    >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <i className="ti ti-sparkles text-info text-sm" />
@@ -36,14 +104,14 @@ export default function NudgesBanner({ onOpenTask }) {
             Tickd AI noticed
           </span>
         </div>
-        {nudges.length > MAX_VISIBLE && (
-          <button
-            onClick={() => setExpanded((v) => !v)}
-            className="text-[11px] text-text-3 hover:text-text underline"
-          >
-            {expanded ? 'Show top 3' : `Show all ${nudges.length}`}
-          </button>
-        )}
+        <button
+          onClick={() => setExpanded(false)}
+          className="text-[11px] text-text-3 hover:text-text flex items-center gap-0.5"
+          title="Collapse"
+        >
+          Collapse
+          <i className="ti ti-chevron-up text-xs" />
+        </button>
       </div>
       <ul className="space-y-1.5">
         {visible.map((n) => (
@@ -56,9 +124,9 @@ export default function NudgesBanner({ onOpenTask }) {
           </li>
         ))}
       </ul>
-      {!expanded && hidden > 0 && (
+      {hidden > 0 && (
         <div className="text-[10px] text-text-3 mt-1.5 px-1">
-          +{hidden} more
+          +{hidden} more nudge{hidden === 1 ? '' : 's'} (will show when older ones dismissed)
         </div>
       )}
     </div>
