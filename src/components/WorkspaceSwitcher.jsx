@@ -28,20 +28,38 @@ export default function WorkspaceSwitcher() {
     }
   }, [open])
 
-  // Hide entirely when there's only one workspace — no switcher needed.
-  if (workspaces.length <= 1) return null
+  // Always render — even with one workspace — so the current context
+  // is unambiguously visible. With one workspace the chevron is hidden
+  // and the chip becomes non-interactive (click does nothing).
+  const single = workspaces.length <= 1
+  const initial = (workspace?.name ?? '?').charAt(0).toUpperCase()
 
   return (
     <div ref={ref} className="relative">
       <button
-        onClick={() => setOpen((o) => !o)}
-        className="text-xs px-2.5 py-1 rounded border border-border hover:bg-surface-2 inline-flex items-center gap-1.5 min-w-0 max-w-[140px] sm:max-w-[200px]"
+        onClick={() => (single ? null : setOpen((o) => !o))}
+        disabled={single}
+        className={`text-xs pl-1 pr-2.5 py-1 rounded-full border inline-flex items-center gap-1.5 min-w-0 max-w-[140px] sm:max-w-[200px] ${
+          single
+            ? 'border-border cursor-default'
+            : 'border-border hover:bg-surface-2'
+        }`}
         title={workspace?.name}
       >
-        <span className="truncate text-text-2 hover:text-text">
+        {/* Initial pill so the workspace identity is visible even when
+            the name truncates on narrow screens. */}
+        <span
+          className="flex-shrink-0 w-5 h-5 rounded-full bg-info text-white text-[10px] font-semibold flex items-center justify-center"
+          aria-hidden="true"
+        >
+          {initial}
+        </span>
+        <span className="truncate text-text-2">
           {workspace?.name ?? 'Pick a workspace'}
         </span>
-        <i className="ti ti-chevron-down text-xs text-text-3 flex-shrink-0" />
+        {!single && (
+          <i className="ti ti-chevron-down text-xs text-text-3 flex-shrink-0" />
+        )}
       </button>
 
       {open && (

@@ -32,6 +32,7 @@ const PicView = lazy(() => import('./PicView'))
 const CalendarView = lazy(() => import('./CalendarView'))
 const SettingsView = lazy(() => import('./SettingsView'))
 const SuperAdminView = lazy(() => import('./SuperAdminView'))
+const PulseView = lazy(() => import('./PulseView'))
 const ExtractFromMeetingModal = lazy(() =>
   import('../components/ExtractFromMeetingModal'),
 )
@@ -59,6 +60,7 @@ export default function Home() {
   const [showExtract, setShowExtract] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [showStandup, setShowStandup] = useState(false)
+  const [showPulse, setShowPulse] = useState(false)
   const [aiCommandPlan, setAiCommandPlan] = useState(null)
 
   // ---- URL-backed navigation state ----
@@ -307,6 +309,19 @@ export default function Home() {
       </Suspense>
     )
   }
+  if (showPulse) {
+    return (
+      <Suspense fallback={<ViewFallback />}>
+        <PulseView
+          onBack={() => setShowPulse(false)}
+          onOpenTask={(id) => {
+            setShowPulse(false)
+            setOpenTaskId(id)
+          }}
+        />
+      </Suspense>
+    )
+  }
 
   const openTask = tasks.find((t) => t.id === openTaskId)
   const isPicRole = workspace?.role === 'pic'
@@ -359,6 +374,16 @@ export default function Home() {
             >
               <i className="ti ti-clipboard-text text-base" />
             </button>
+            {!isPicRole && (
+              <button
+                onClick={() => setShowPulse(true)}
+                className="p-2 rounded hover:bg-surface-2 text-text-2 hover:text-text"
+                aria-label="Workspace pulse"
+                title="Workspace pulse"
+              >
+                <i className="ti ti-chart-bar text-base" />
+              </button>
+            )}
             <button
               onClick={() => setShowSearch(true)}
               className="px-2 py-1 rounded hover:bg-surface-2 text-text-2 hover:text-text inline-flex items-center gap-1.5 text-xs border border-border"

@@ -1,5 +1,14 @@
 import { useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
 import { useAuth } from '../auth/AuthProvider'
 import {
   useDepartments,
@@ -142,7 +151,50 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
     (t) => t.status !== 'Done' && isOverdue(t.due_date),
   ).length
 
+  // ---- Drag-to-reassign --------------------------------------------
+  // Drag any task row onto a PIC chip (or Unassigned) to reassign.
+  // distance:8 keeps clicks-vs-drags clearly separated; below that
+  // threshold the row click still opens the modal.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  )
+  const [draggingTaskId, setDraggingTaskId] = useState(null)
+  function handleDragEnd(e) {
+    setDraggingTaskId(null)
+    const overId = e.over?.id
+    if (!overId) return
+    // overId format: 'pic-<id>' or 'pic-unassigned'
+    const m = String(overId).match(/^pic-(.+)$/)
+    if (!m) return
+    const target = m[1] === 'unassigned' ? null : m[1]
+    const taskId = e.active.id
+    const t = tasks.find((x) => x.id === taskId)
+    if (!t || t.pic_id === target) return
+    updateTask.mutate(
+      { id: taskId, pic_id: target },
+      {
+        onSuccess: () => {
+          const name =
+            target == null
+              ? 'Unassigned'
+              : people.find((p) => p.id === target)?.name?.split(' ')[0] ??
+                'new PIC'
+          showToast(`Reassigned to ${name}`)
+        },
+      },
+    )
+  }
+  const draggingTask = draggingTaskId
+    ? tasks.find((t) => t.id === draggingTaskId)
+    : null
+
   return (
+    <DndContext
+      sensors={sensors}
+      onDragStart={(e) => setDraggingTaskId(e.active.id)}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => setDraggingTaskId(null)}
+    >
     <div className="bg-surface border border-border rounded-xl overflow-hidden">
       {/* Chip selector */}
       <div className="p-4 border-b border-border flex flex-wrap gap-1.5">
@@ -152,37 +204,31 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
           ).length
           const isSelected = p.id === effectivePicId && !isUnassigned
           return (
-            <button
+            <DroppablePicChip
               key={p.id}
+              dropId={`pic-${p.id}`}
               onClick={() => setSelectedPicId(p.id)}
-              className={`px-2.5 py-1 rounded-md text-xs inline-flex items-center gap-1.5 border transition-colors ${
-                isSelected
-                  ? 'bg-surface-2 border-border-strong text-text font-medium'
-                  : 'border-border text-text-2 hover:text-text hover:bg-surface-2'
-              }`}
+              isSelected={isSelected}
             >
               <span className={`w-2 h-2 rounded-full ${picDot(p.color)}`} />
               {p.name.split(' ')[0]}
               {count > 0 && <span className="text-text-3">{count}</span>}
-            </button>
+            </DroppablePicChip>
           )
         })}
         {/* Unassigned bucket — surfaced even when count is 0 so the user
             can verify nothing is missing an owner. */}
-        <button
+        <DroppablePicChip
+          dropId="pic-unassigned"
           onClick={() => setSelectedPicId(UNASSIGNED)}
-          className={`px-2.5 py-1 rounded-md text-xs inline-flex items-center gap-1.5 border transition-colors ${
-            isUnassigned
-              ? 'bg-surface-2 border-border-strong text-text font-medium'
-              : 'border-border text-text-2 hover:text-text hover:bg-surface-2'
-          }`}
+          isSelected={isUnassigned}
         >
           <span className="w-2 h-2 rounded-full bg-text-3/40 border border-text-3/60" />
           Unassigned
           {unassignedCount > 0 && (
             <span className="text-text-3">{unassignedCount}</span>
           )}
-        </button>
+        </DroppablePicChip>
       </div>
 
       {/* Header */}
@@ -286,7 +332,7 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
           </div>
         ) : (
           picTasks.map((t) => (
-            <SelectableTaskRow
+            <DraggableSelectableRow
               key={t.id}
               task={t}
               selected={selectedIds.has(t.id)}
@@ -317,6 +363,60 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
         />
       )}
     </div>
+    <DragOverlay>
+      {draggingTask ? (
+        <div
+          className={`text-xs px-2 py-1 rounded shadow-lg ${picPill(draggingTask.pic?.color)} max-w-[260px] truncate -rotate-1`}
+        >
+          {draggingTask.title}
+        </div>
+      ) : null}
+    </DragOverlay>
+    </DndContext>
+  )
+}
+
+// ============================================================
+// Drag/drop helpers
+// ============================================================
+
+// A draggable wrapper around SelectableTaskRow. The drag activation
+// constraint (distance: 8) keeps row click vs. drag clearly separated.
+function DraggableSelectableRow(props) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: props.task.id,
+  })
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      style={{ touchAction: 'auto' }}
+      className={isDragging ? 'opacity-30' : ''}
+    >
+      <SelectableTaskRow {...props} />
+    </div>
+  )
+}
+
+// A droppable PIC chip. Wraps a button + the useDroppable hook so
+// dropping a task onto it triggers the parent's handleDragEnd.
+function DroppablePicChip({ dropId, onClick, isSelected, children }) {
+  const { isOver, setNodeRef } = useDroppable({ id: dropId })
+  return (
+    <button
+      ref={setNodeRef}
+      onClick={onClick}
+      className={`px-2.5 py-1 rounded-md text-xs inline-flex items-center gap-1.5 border transition-colors ${
+        isOver
+          ? 'border-info bg-info-bg/60 text-info-text border-dashed'
+          : isSelected
+            ? 'bg-surface-2 border-border-strong text-text font-medium'
+            : 'border-border text-text-2 hover:text-text hover:bg-surface-2'
+      }`}
+    >
+      {children}
+    </button>
   )
 }
 

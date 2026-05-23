@@ -273,6 +273,18 @@ function DetailsTab({
 }) {
   return (
     <>
+      {/* Inactive PIC banner — surfaces the orphaned ownership so the
+          user notices it and can reassign in one click. */}
+      {task.pic?.is_active === false && (
+        <div className="mx-5 mt-3 mb-1 px-3 py-2 rounded-md border border-warning-bg bg-warning-bg/40 text-warning-text text-xs flex items-center gap-2">
+          <i className="ti ti-user-off text-sm" />
+          <span>
+            <span className="font-medium">{task.pic.name}</span> is inactive —
+            this task has no active owner.
+          </span>
+        </div>
+      )}
+
       {/* Title + source */}
       <div className="px-5 pt-4 pb-2">
         <textarea

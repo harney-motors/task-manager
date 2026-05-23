@@ -54,8 +54,18 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
         <div className="text-xs text-text-2 flex items-center gap-2 mt-0.5 flex-wrap">
           {task.pic ? (
             <span
-              className={`inline-flex items-center px-1.5 py-px rounded text-[11px] font-medium ${picPill(task.pic.color)}`}
+              className={`inline-flex items-center gap-1 px-1.5 py-px rounded text-[11px] font-medium ${picPill(task.pic.color)} ${
+                task.pic.is_active === false ? 'opacity-60' : ''
+              }`}
+              title={
+                task.pic.is_active === false
+                  ? `${task.pic.name} is inactive — consider reassigning`
+                  : task.pic.name
+              }
             >
+              {task.pic.is_active === false && (
+                <i className="ti ti-user-off text-[10px]" />
+              )}
               {task.pic.name}
             </span>
           ) : (
