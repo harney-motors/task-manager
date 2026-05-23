@@ -4,8 +4,16 @@ import { searchAll } from '../api/search'
 import { aiCommand } from '../api/aiCommand'
 import { useDictation } from '../lib/useDictation'
 import { getRecentTasks } from '../lib/recentTasks'
+import { useDeleteSavedCommand, useSavedCommands } from '../lib/queries'
 import { picPill } from '../lib/colors'
 import { formatRelative } from '../lib/dates'
+
+const AI_EXAMPLES = [
+  "Show me Errol's overdue tasks",
+  "What's due tomorrow",
+  "Mark all of Asbert's done",
+  'Move overdue parts tasks to next Monday',
+]
 
 export default function SearchPalette({
   open,
@@ -24,6 +32,8 @@ export default function SearchPalette({
   const [aiError, setAiError] = useState(null)
   const [recent, setRecent] = useState([])
   const inputRef = useRef(null)
+  const { data: savedCommands = [] } = useSavedCommands()
+  const deleteSaved = useDeleteSavedCommand()
 
   // Voice input — appends each finalised chunk to the query.
   const dict = useDictation({
@@ -196,41 +206,100 @@ export default function SearchPalette({
 
         <div className="max-h-[60vh] overflow-y-auto">
           {!query.trim() ? (
-            recent.length > 0 ? (
-              <div className="py-1">
-                <div className="px-4 py-1 text-[10px] uppercase tracking-wider text-text-3 font-medium">
-                  Recently opened
-                </div>
-                {recent.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => {
-                      onOpenTask(t.id)
-                      onClose()
-                    }}
-                    className="w-full text-left px-4 py-2 flex items-center gap-3 hover:bg-surface-2"
-                  >
-                    {t.pic_color ? (
-                      <span
-                        className={`flex-shrink-0 px-1.5 py-px rounded text-[10px] font-medium ${picPill(t.pic_color)}`}
+            <div className="py-1">
+              {savedCommands.length > 0 && (
+                <>
+                  <div className="px-4 py-1 text-[10px] uppercase tracking-wider text-text-3 font-medium">
+                    Saved automations
+                  </div>
+                  {savedCommands.map((cmd) => (
+                    <div
+                      key={cmd.id}
+                      className="w-full px-4 py-2 flex items-center gap-3 hover:bg-surface-2 group"
+                    >
+                      <i className="ti ti-sparkles text-info text-sm flex-shrink-0" />
+                      <button
+                        onClick={() => {
+                          onPreviewCommand?.(cmd.plan)
+                          onClose()
+                        }}
+                        className="flex-1 min-w-0 text-left"
                       >
-                        {(t.pic_name?.split(' ')[0]) ?? '—'}
+                        <div className="text-sm truncate">{cmd.name}</div>
+                        <div className="text-[10px] text-text-3 truncate">
+                          {cmd.plan?.summary || 'AI command'}
+                        </div>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (confirm(`Delete saved automation "${cmd.name}"?`)) {
+                            deleteSaved.mutate(cmd.id)
+                          }
+                        }}
+                        title="Delete"
+                        className="text-text-3 hover:text-danger-text opacity-0 group-hover:opacity-100 p-1"
+                        aria-label={`Delete ${cmd.name}`}
+                      >
+                        <i className="ti ti-x text-xs" />
+                      </button>
+                    </div>
+                  ))}
+                </>
+              )}
+              {recent.length > 0 && (
+                <>
+                  <div className="px-4 py-1 mt-1 text-[10px] uppercase tracking-wider text-text-3 font-medium">
+                    Recently opened
+                  </div>
+                  {recent.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => {
+                        onOpenTask(t.id)
+                        onClose()
+                      }}
+                      className="w-full text-left px-4 py-2 flex items-center gap-3 hover:bg-surface-2"
+                    >
+                      {t.pic_color ? (
+                        <span
+                          className={`flex-shrink-0 px-1.5 py-px rounded text-[10px] font-medium ${picPill(t.pic_color)}`}
+                        >
+                          {(t.pic_name?.split(' ')[0]) ?? '—'}
+                        </span>
+                      ) : (
+                        <span className="flex-shrink-0 text-[10px] text-text-3">—</span>
+                      )}
+                      <span className="text-sm truncate flex-1 min-w-0">
+                        {t.title}
                       </span>
-                    ) : (
-                      <span className="flex-shrink-0 text-[10px] text-text-3">—</span>
-                    )}
-                    <span className="text-sm truncate flex-1 min-w-0">
-                      {t.title}
-                    </span>
-                  </button>
-                ))}
+                    </button>
+                  ))}
+                </>
+              )}
+              {/* Always-on AI examples so capability is discoverable. */}
+              <div className="px-4 py-1 mt-1 text-[10px] uppercase tracking-wider text-text-3 font-medium">
+                Try Tickd AI
+              </div>
+              {AI_EXAMPLES.map((ex) => (
+                <button
+                  key={ex}
+                  onClick={() => setQuery(ex)}
+                  className="w-full text-left px-4 py-2 flex items-center gap-3 hover:bg-surface-2 text-text-2 hover:text-text"
+                >
+                  <i className="ti ti-sparkles text-info text-sm flex-shrink-0" />
+                  <span className="text-sm truncate flex-1 min-w-0">{ex}</span>
+                  <span className="text-[10px] text-text-3 flex-shrink-0">
+                    ⌘↵
+                  </span>
+                </button>
+              ))}
+              {savedCommands.length === 0 && recent.length === 0 && (
                 <div className="px-4 py-2 text-[10px] text-text-3 border-t border-border mt-1">
                   Type to search · ⌘↵ to ask Tickd AI
                 </div>
-              </div>
-            ) : (
-              <Empty msg="Type to search tasks, people, and journal notes." />
-            )
+              )}
+            </div>
           ) : flat.length === 0 && !isSearching ? (
             <Empty msg={`No matches for "${query}"`} />
           ) : (

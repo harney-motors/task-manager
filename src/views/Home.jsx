@@ -19,6 +19,7 @@ import WorkspaceSwitcher from '../components/WorkspaceSwitcher'
 import NudgeBadge from '../components/NudgeBadge'
 import BottomNav from '../components/BottomNav'
 import ShortcutsHelpModal from '../components/ShortcutsHelpModal'
+import StandupModal from '../components/StandupModal'
 import { TickdMark, TickdWordmark } from '../components/TickdMark'
 import { useIsSuperadmin } from '../lib/queries'
 
@@ -57,6 +58,7 @@ export default function Home() {
   const [showSearch, setShowSearch] = useState(false)
   const [showExtract, setShowExtract] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+  const [showStandup, setShowStandup] = useState(false)
   const [aiCommandPlan, setAiCommandPlan] = useState(null)
 
   // ---- URL-backed navigation state ----
@@ -350,6 +352,14 @@ export default function Home() {
               </button>
             )}
             <button
+              onClick={() => setShowStandup(true)}
+              className="p-2 rounded hover:bg-surface-2 text-text-2 hover:text-text"
+              aria-label="Generate today's standup"
+              title="Generate today's standup"
+            >
+              <i className="ti ti-clipboard-text text-base" />
+            </button>
+            <button
               onClick={() => setShowSearch(true)}
               className="px-2 py-1 rounded hover:bg-surface-2 text-text-2 hover:text-text inline-flex items-center gap-1.5 text-xs border border-border"
               aria-label="Search"
@@ -513,6 +523,7 @@ export default function Home() {
           open={showHelp}
           onClose={() => setShowHelp(false)}
         />
+        <StandupModal open={showStandup} onClose={() => setShowStandup(false)} />
       </div>
       {/* Mobile-only bottom nav. PIC-mode users see no tabs since
           PicHomeView is a single-page experience. */}

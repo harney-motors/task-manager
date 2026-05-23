@@ -8,6 +8,11 @@ import { fetchRecentActivity } from '../api/activity'
 import { notifyTaskEvent } from '../api/notify'
 import { fetchActiveNudges, dismissNudge } from '../api/nudges'
 import {
+  createSavedCommand,
+  deleteSavedCommand,
+  fetchSavedCommands,
+} from '../api/savedCommands'
+import {
   createSavedFilter,
   deleteSavedFilter,
   fetchSavedFilters,
@@ -55,6 +60,49 @@ export const queryKeys = {
   activity:      (workspaceId, limit) => ['activity', workspaceId, limit],
   savedFilters:  (workspaceId) => ['savedFilters', workspaceId],
   nudges:        (workspaceId) => ['nudges', workspaceId],
+  savedCommands: (workspaceId) => ['savedCommands', workspaceId],
+}
+
+// ---------- Saved AI commands (automations) ----------
+
+export function useSavedCommands() {
+  const { workspace } = useAuth()
+  return useQuery({
+    queryKey: queryKeys.savedCommands(workspace?.id),
+    queryFn: () => fetchSavedCommands(workspace?.id),
+    enabled: !!workspace,
+  })
+}
+
+export function useCreateSavedCommand() {
+  const { workspace } = useAuth()
+  const qc = useQueryClient()
+  const showToast = useToast()
+  return useMutation({
+    mutationFn: ({ name, plan, scopeWorkspace }) =>
+      createSavedCommand({
+        name,
+        plan,
+        workspaceId: scopeWorkspace ? workspace?.id : null,
+      }),
+    onError: (err) =>
+      showToast(errMsg(err, 'Could not save automation'), { type: 'error' }),
+    onSettled: () =>
+      qc.invalidateQueries({ queryKey: queryKeys.savedCommands(workspace?.id) }),
+  })
+}
+
+export function useDeleteSavedCommand() {
+  const { workspace } = useAuth()
+  const qc = useQueryClient()
+  const showToast = useToast()
+  return useMutation({
+    mutationFn: (id) => deleteSavedCommand(id),
+    onError: (err) =>
+      showToast(errMsg(err, 'Could not delete automation'), { type: 'error' }),
+    onSettled: () =>
+      qc.invalidateQueries({ queryKey: queryKeys.savedCommands(workspace?.id) }),
+  })
 }
 
 export function useActiveNudges() {
