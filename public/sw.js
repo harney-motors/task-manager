@@ -46,7 +46,17 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const targetUrl = event.notification.data?.url || '/'
+  const baseUrl = event.notification.data?.url || '/'
+  const taskId = event.notification.data?.taskId || null
+
+  // Encode the task id in the URL so a *cold-start* open reliably
+  // lands on the right task. The app reads ?task= on mount and
+  // opens the modal, then strips the param. For warm-app cases we
+  // also send a postMessage so we don't have to navigate the user's
+  // current tab.
+  const deepLinkUrl = taskId
+    ? `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}task=${encodeURIComponent(taskId)}`
+    : baseUrl
 
   event.waitUntil(
     (async () => {
@@ -59,17 +69,19 @@ self.addEventListener('notificationclick', (event) => {
         const url = new URL(client.url)
         if (url.origin === self.location.origin) {
           await client.focus()
-          // Pass the target so the app can open the relevant task.
+          // Existing tab: ask the app to open the modal in place,
+          // no navigation, so the user doesn't lose context.
           client.postMessage({
             type: 'tickd:open-notification',
-            url: targetUrl,
-            taskId: event.notification.data?.taskId ?? null,
+            url: baseUrl,
+            taskId,
           })
           return
         }
       }
-      // Otherwise open a new window.
-      await self.clients.openWindow(targetUrl)
+      // No open Tickd window — open a new one with the deep-link URL
+      // so the cold-start path picks up the task id from the query.
+      await self.clients.openWindow(deepLinkUrl)
     })(),
   )
 })

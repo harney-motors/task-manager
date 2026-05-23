@@ -42,8 +42,8 @@ export default function Home() {
   const [aiCommandPlan, setAiCommandPlan] = useState(null)
 
   // Service-worker → app bridge. When the user clicks a push
-  // notification, the SW posts a message back here. We open the
-  // task modal if a task id came through.
+  // notification on a WARM app (Tickd already open in a tab), the SW
+  // posts a message back here and we open the task modal in place.
   useEffect(() => {
     const off = onServiceWorkerMessage((msg) => {
       if (msg.type === 'tickd:open-notification' && msg.taskId) {
@@ -51,6 +51,21 @@ export default function Home() {
       }
     })
     return off
+  }, [])
+
+  // Cold-start deep link: if the URL has ?task=<id> (set by the SW
+  // when there was no open tab to focus), open that task and strip
+  // the param so a reload doesn't keep re-opening it.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const id = params.get('task')
+    if (!id) return
+    setOpenTaskId(id)
+    params.delete('task')
+    const cleanQuery = params.toString()
+    const cleanUrl =
+      window.location.pathname + (cleanQuery ? `?${cleanQuery}` : '')
+    window.history.replaceState({}, '', cleanUrl)
   }, [])
 
   // "/" keybind focuses the quick entry input from anywhere on the home page
