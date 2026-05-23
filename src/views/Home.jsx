@@ -18,6 +18,7 @@ import PicHomeView from './PicHomeView'
 import SearchPalette from '../components/SearchPalette'
 import CommandPreviewModal from '../components/CommandPreviewModal'
 import ExtractFromMeetingModal from '../components/ExtractFromMeetingModal'
+import { onServiceWorkerMessage } from '../lib/registerSw'
 import ActivityFeed from '../components/ActivityFeed'
 import WorkspaceSwitcher from '../components/WorkspaceSwitcher'
 import { TickdMark, TickdWordmark } from '../components/TickdMark'
@@ -39,6 +40,18 @@ export default function Home() {
   const [picViewSelectedId, setPicViewSelectedId] = useState(null)
   const [gridFilterSignal, setGridFilterSignal] = useState(null)
   const [aiCommandPlan, setAiCommandPlan] = useState(null)
+
+  // Service-worker → app bridge. When the user clicks a push
+  // notification, the SW posts a message back here. We open the
+  // task modal if a task id came through.
+  useEffect(() => {
+    const off = onServiceWorkerMessage((msg) => {
+      if (msg.type === 'tickd:open-notification' && msg.taskId) {
+        setOpenTaskId(msg.taskId)
+      }
+    })
+    return off
+  }, [])
 
   // "/" keybind focuses the quick entry input from anywhere on the home page
   // (unless already typing in a form field).

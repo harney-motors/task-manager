@@ -14,6 +14,7 @@ import { picDot } from '../lib/colors'
 import { useTheme } from '../lib/useTheme'
 import PersonModal from '../components/PersonModal'
 import DepartmentModal from '../components/DepartmentModal'
+import PushSettings from '../components/PushSettings'
 import Skeleton from '../components/Skeleton'
 import {
   calendarFeedUrl,
@@ -787,25 +788,28 @@ function formatRelativeTime(iso) {
 function ProfilePanel() {
   const { user, workspace, signOut } = useAuth()
   return (
-    <div className="bg-surface border border-border rounded-xl p-5 space-y-5">
-      <div>
-        <div className="text-xs text-text-2 mb-1">Signed in as</div>
-        <div className="text-sm font-medium">{user.email}</div>
+    <div className="space-y-4">
+      <div className="bg-surface border border-border rounded-xl p-5 space-y-5">
+        <div>
+          <div className="text-xs text-text-2 mb-1">Signed in as</div>
+          <div className="text-sm font-medium">{user.email}</div>
+        </div>
+        <div>
+          <div className="text-xs text-text-2 mb-1">Workspace</div>
+          <div className="text-sm font-medium">{workspace?.name ?? '—'}</div>
+        </div>
+        <ThemeSetting />
+        <div className="pt-3 border-t border-border">
+          <button
+            onClick={signOut}
+            className="text-xs px-3 py-1.5 rounded border border-border hover:bg-surface-2 text-text-2 hover:text-text inline-flex items-center gap-1.5"
+          >
+            <i className="ti ti-logout text-sm" />
+            Sign out
+          </button>
+        </div>
       </div>
-      <div>
-        <div className="text-xs text-text-2 mb-1">Workspace</div>
-        <div className="text-sm font-medium">{workspace?.name ?? '—'}</div>
-      </div>
-      <ThemeSetting />
-      <div className="pt-3 border-t border-border">
-        <button
-          onClick={signOut}
-          className="text-xs px-3 py-1.5 rounded border border-border hover:bg-surface-2 text-text-2 hover:text-text inline-flex items-center gap-1.5"
-        >
-          <i className="ti ti-logout text-sm" />
-          Sign out
-        </button>
-      </div>
+      <PushSettings />
     </div>
   )
 }

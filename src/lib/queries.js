@@ -5,6 +5,7 @@ import { createTask, fetchTasks, updateTask, deleteTask } from '../api/tasks'
 import { addWatcher, removeWatcher } from '../api/watchers'
 import { fetchJournalEntries, createJournalEntry } from '../api/journal'
 import { fetchRecentActivity } from '../api/activity'
+import { notifyTaskEvent } from '../api/notify'
 import {
   createSavedFilter,
   deleteSavedFilter,
@@ -141,6 +142,30 @@ export function useUpdateTask() {
         action: 'task.updated',
         payload: { changes },
       })
+      // Push fanout — fire-and-forget. Map field changes to event
+      // kinds; recipients are computed server-side from the task's
+      // current PIC + watchers (minus the actor).
+      if ('pic_id' in changes && changes.pic_id) {
+        notifyTaskEvent({
+          taskId: task.id,
+          kind: 'pic_changed',
+          extra: { new_pic_name: task.pic?.name ?? null },
+        })
+      }
+      if ('status' in changes) {
+        notifyTaskEvent({
+          taskId: task.id,
+          kind: 'status_changed',
+          extra: { new_status: changes.status },
+        })
+      }
+      if ('due_date' in changes) {
+        notifyTaskEvent({
+          taskId: task.id,
+          kind: 'due_changed',
+          extra: { new_due_date: changes.due_date },
+        })
+      }
     },
     onError: (err, _fields, ctx) => {
       if (ctx?.previous) qc.setQueryData(key, ctx.previous)
@@ -189,6 +214,9 @@ export function useAddWatcher() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ taskId, personId }) => addWatcher(taskId, personId),
+    onSuccess: (_data, { taskId }) => {
+      notifyTaskEvent({ taskId, kind: 'watcher_added' })
+    },
     onError: (err) => showToast(errMsg(err, 'Could not add watcher'), { type: 'error' }),
     onSettled: () =>
       qc.invalidateQueries({ queryKey: queryKeys.tasks(workspace?.id) }),
@@ -565,6 +593,14 @@ export function useCreateJournalEntry(taskId) {
       }
       qc.setQueryData(key, (old) => [optimistic, ...(old ?? [])])
       return { previous }
+    },
+    onSuccess: (_entry, body) => {
+      // Ping PIC + watchers (minus the actor) about the new note.
+      notifyTaskEvent({
+        taskId,
+        kind: 'journal_added',
+        extra: { snippet: String(body).slice(0, 120) },
+      })
     },
     onError: (_err, _body, ctx) => {
       if (ctx?.previous) qc.setQueryData(key, ctx.previous)
