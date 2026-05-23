@@ -24,14 +24,23 @@ import {
 } from '../api/calendarFeed'
 
 const TABS = [
-  { id: 'people',      label: 'People',      icon: 'ti-users' },
-  { id: 'departments', label: 'Departments', icon: 'ti-building' },
+  { id: 'people',      label: 'People',      icon: 'ti-users',    minRole: 'editor' },
+  { id: 'departments', label: 'Departments', icon: 'ti-building', minRole: 'editor' },
   { id: 'calendar',    label: 'Calendar',    icon: 'ti-calendar' },
   { id: 'profile',     label: 'My profile',  icon: 'ti-user' },
 ]
 
+// PICs (read-mostly users) shouldn't see workspace-admin tabs. We
+// gate by the active workspace's role — non-PIC roles see everything.
+function tabsForRole(role) {
+  if (role === 'pic') return TABS.filter((t) => !t.minRole)
+  return TABS
+}
+
 export default function SettingsView({ onBack }) {
-  const [tab, setTab] = useState('people')
+  const { workspace } = useAuth()
+  const tabs = tabsForRole(workspace?.role)
+  const [tab, setTab] = useState(tabs[0]?.id ?? 'profile')
 
   return (
     <div className="min-h-screen bg-bg text-text font-sans">
@@ -49,7 +58,7 @@ export default function SettingsView({ onBack }) {
 
         <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0 mb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div className="inline-flex items-center gap-1 p-1 bg-surface-2 rounded-lg">
-            {TABS.map((t) => (
+            {tabs.map((t) => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}

@@ -14,6 +14,7 @@ import PicView from './PicView'
 import CalendarView from './CalendarView'
 import SettingsView from './SettingsView'
 import SuperAdminView from './SuperAdminView'
+import PicHomeView from './PicHomeView'
 import SearchPalette from '../components/SearchPalette'
 import CommandPreviewModal from '../components/CommandPreviewModal'
 import ExtractFromMeetingModal from '../components/ExtractFromMeetingModal'
@@ -104,6 +105,7 @@ export default function Home() {
   }
 
   const openTask = tasks.find((t) => t.id === openTaskId)
+  const isPicRole = workspace?.role === 'pic'
 
   return (
     <div className="min-h-screen bg-bg text-text font-sans">
@@ -131,15 +133,17 @@ export default function Home() {
             <span className="text-text-2 hidden sm:inline truncate max-w-[180px]">
               {user.email}
             </span>
-            <button
-              onClick={() => setShowExtract(true)}
-              className="px-2 py-1 rounded hover:bg-surface-2 text-text-2 hover:text-text inline-flex items-center gap-1.5 text-xs border border-border"
-              aria-label="Import from meeting"
-              title="Import tasks from meeting notes"
-            >
-              <i className="ti ti-sparkles text-sm text-info" />
-              <span className="hidden sm:inline">Meeting</span>
-            </button>
+            {!isPicRole && (
+              <button
+                onClick={() => setShowExtract(true)}
+                className="px-2 py-1 rounded hover:bg-surface-2 text-text-2 hover:text-text inline-flex items-center gap-1.5 text-xs border border-border"
+                aria-label="Import from meeting"
+                title="Import tasks from meeting notes"
+              >
+                <i className="ti ti-sparkles text-sm text-info" />
+                <span className="hidden sm:inline">Meeting</span>
+              </button>
+            )}
             <button
               onClick={() => setShowSearch(true)}
               className="px-2 py-1 rounded hover:bg-surface-2 text-text-2 hover:text-text inline-flex items-center gap-1.5 text-xs border border-border"
@@ -175,55 +179,70 @@ export default function Home() {
           </div>
         </div>
 
-        <Greeting tasks={tasks} />
-        <QuickEntry />
+        {isPicRole ? (
+          <>
+            {/* PIC mode — simplified focused experience. Quick-entry stays
+                so PICs can log their own follow-ups; everything else is
+                hidden. */}
+            <Greeting tasks={tasks} />
+            <QuickEntry />
+            <div className="mt-4">
+              <PicHomeView onOpenTask={setOpenTaskId} />
+            </div>
+          </>
+        ) : (
+          <>
+            <Greeting tasks={tasks} />
+            <QuickEntry />
 
-        <div className="mt-4 mb-4">
-          <ViewTabs active={view} onChange={setView} />
-        </div>
+            <div className="mt-4 mb-4">
+              <ViewTabs active={view} onChange={setView} />
+            </div>
 
-        {view === 'today'    && (
-          <TodayView
-            onOpenTask={setOpenTaskId}
-            onSwitchView={(target, hint) => {
-              if (target === 'pic') {
-                setView('pic')
-                if (hint?.picId) setPicViewSelectedId(hint.picId)
-              } else if (target === 'grid') {
-                // Apply a status hint to Grid via the existing aiFilter
-                // signal (same channel Cmd+K uses). bumping a counter on
-                // `key` ensures the effect re-fires even for identical hints.
-                setGridFilterSignal({
-                  status: hint?.status ?? 'all',
-                  picId: hint?.picId ?? 'all',
-                  deptId: hint?.deptId ?? 'all',
-                  key: Date.now(),
-                })
-                setView('grid')
-              } else {
-                setView(target)
-              }
-            }}
-          />
-        )}
-        {view === 'list'     && <ListView     onOpenTask={setOpenTaskId} />}
-        {view === 'grid'     && (
-          <GridView onOpenTask={setOpenTaskId} aiFilter={gridFilterSignal} />
-        )}
-        {view === 'pic'      && (
-          <PicView
-            onOpenTask={setOpenTaskId}
-            selectedPicId={picViewSelectedId ?? undefined}
-            onSelectPic={setPicViewSelectedId}
-          />
-        )}
-        {view === 'calendar' && <CalendarView onOpenTask={setOpenTaskId} />}
+            {view === 'today'    && (
+              <TodayView
+                onOpenTask={setOpenTaskId}
+                onSwitchView={(target, hint) => {
+                  if (target === 'pic') {
+                    setView('pic')
+                    if (hint?.picId) setPicViewSelectedId(hint.picId)
+                  } else if (target === 'grid') {
+                    // Apply a status hint to Grid via the existing aiFilter
+                    // signal (same channel Cmd+K uses). bumping a counter on
+                    // `key` ensures the effect re-fires even for identical hints.
+                    setGridFilterSignal({
+                      status: hint?.status ?? 'all',
+                      picId: hint?.picId ?? 'all',
+                      deptId: hint?.deptId ?? 'all',
+                      key: Date.now(),
+                    })
+                    setView('grid')
+                  } else {
+                    setView(target)
+                  }
+                }}
+              />
+            )}
+            {view === 'list'     && <ListView     onOpenTask={setOpenTaskId} />}
+            {view === 'grid'     && (
+              <GridView onOpenTask={setOpenTaskId} aiFilter={gridFilterSignal} />
+            )}
+            {view === 'pic'      && (
+              <PicView
+                onOpenTask={setOpenTaskId}
+                selectedPicId={picViewSelectedId ?? undefined}
+                onSelectPic={setPicViewSelectedId}
+              />
+            )}
+            {view === 'calendar' && <CalendarView onOpenTask={setOpenTaskId} />}
 
-        {/* Activity feed sits below the view content so it isn't the first
-            thing you see on sign-in. */}
-        <div className="mt-6">
-          <ActivityFeed onOpenTask={setOpenTaskId} compactLimit={5} />
-        </div>
+            {/* Activity feed sits below the view content so it isn't the first
+                thing you see on sign-in. */}
+            <div className="mt-6">
+              <ActivityFeed onOpenTask={setOpenTaskId} compactLimit={5} />
+            </div>
+          </>
+        )}
 
         <TaskModal task={openTask} onClose={() => setOpenTaskId(null)} />
         <SearchPalette
