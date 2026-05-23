@@ -10,6 +10,7 @@ import {
 import { picDot, picPill, statusPill } from '../lib/colors'
 import TaskRow from '../components/TaskRow'
 import NudgesBanner from '../components/NudgesBanner'
+import EmptyWorkspaceGuide from '../components/EmptyWorkspaceGuide'
 
 // Three-zone informational dashboard. Designed to feel less like an
 // inbox and more like a control room: at-a-glance state, then drill-in
@@ -23,7 +24,7 @@ import NudgesBanner from '../components/NudgesBanner'
 //
 // `onSwitchView` lets cards drill into other views (e.g. clicking an
 // insight pre-filters the Grid).
-export default function TodayView({ onOpenTask, onSwitchView }) {
+export default function TodayView({ onOpenTask, onSwitchView, onOpenSettings }) {
   const { data: tasks = [], isLoading } = useTasks()
   const { data: people = [] } = usePeople()
 
@@ -151,6 +152,30 @@ export default function TodayView({ onOpenTask, onSwitchView }) {
     return (
       <div className="bg-surface border border-border rounded-xl p-12 text-center text-xs text-text-3">
         Loading…
+      </div>
+    )
+  }
+
+  // Fresh-workspace empty state: zero people OR zero tasks → render
+  // the setup guide instead of empty cards. Keeps the NudgesBanner
+  // (it can suggest "Add a person" via a future nudge kind), but
+  // hides the three-card grid which would just say "Nothing".
+  if (people.length === 0 || tasks.length === 0) {
+    return (
+      <div className="space-y-3">
+        <NudgesBanner onOpenTask={onOpenTask} />
+        <EmptyWorkspaceGuide
+          hasPeople={people.length > 0}
+          hasTasks={tasks.length > 0}
+          onOpenSettings={onOpenSettings}
+          onFocusQuickEntry={() => {
+            const el = document.getElementById('quick-entry-input')
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              el.focus()
+            }
+          }}
+        />
       </div>
     )
   }

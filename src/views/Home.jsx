@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { lazy, Suspense, useEffect, useState, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 import { useDepartments, usePeople, useTasks } from '../lib/queries'
@@ -10,21 +10,38 @@ import Greeting from '../components/Greeting'
 import ViewTabs from '../components/ViewTabs'
 import TodayView from './TodayView'
 import ListView from './ListView'
-import GridView from './GridView'
-import PicView from './PicView'
-import CalendarView from './CalendarView'
-import SettingsView from './SettingsView'
-import SuperAdminView from './SuperAdminView'
 import PicHomeView from './PicHomeView'
 import SearchPalette from '../components/SearchPalette'
 import CommandPreviewModal from '../components/CommandPreviewModal'
-import ExtractFromMeetingModal from '../components/ExtractFromMeetingModal'
 import { onServiceWorkerMessage } from '../lib/registerSw'
 import ActivityFeed from '../components/ActivityFeed'
 import WorkspaceSwitcher from '../components/WorkspaceSwitcher'
 import NudgeBadge from '../components/NudgeBadge'
+import BottomNav from '../components/BottomNav'
 import { TickdMark, TickdWordmark } from '../components/TickdMark'
 import { useIsSuperadmin } from '../lib/queries'
+
+// Lazy-load views and modals that aren't needed at first paint. Cuts
+// the initial bundle so signed-in cold-start feels snappier — the
+// most common landing (Today on the PWA) doesn't need Grid, PIC,
+// Calendar, Settings, SuperAdmin, or the meeting extractor.
+const GridView = lazy(() => import('./GridView'))
+const PicView = lazy(() => import('./PicView'))
+const CalendarView = lazy(() => import('./CalendarView'))
+const SettingsView = lazy(() => import('./SettingsView'))
+const SuperAdminView = lazy(() => import('./SuperAdminView'))
+const ExtractFromMeetingModal = lazy(() =>
+  import('../components/ExtractFromMeetingModal'),
+)
+
+// Tiny fallback for lazy views — keeps the perceived shift small.
+function ViewFallback() {
+  return (
+    <div className="bg-surface border border-border rounded-xl p-10 text-center text-xs text-text-3">
+      Loading…
+    </div>
+  )
+}
 
 export default function Home() {
   const { user, workspace, workspaceLoading, signOut } = useAuth()
@@ -205,17 +222,25 @@ export default function Home() {
   }
 
   if (showSettings) {
-    return <SettingsView onBack={() => setShowSettings(false)} />
+    return (
+      <Suspense fallback={<ViewFallback />}>
+        <SettingsView onBack={() => setShowSettings(false)} />
+      </Suspense>
+    )
   }
   if (showSuperAdmin && isSuperadmin) {
-    return <SuperAdminView onBack={() => setShowSuperAdmin(false)} />
+    return (
+      <Suspense fallback={<ViewFallback />}>
+        <SuperAdminView onBack={() => setShowSuperAdmin(false)} />
+      </Suspense>
+    )
   }
 
   const openTask = tasks.find((t) => t.id === openTaskId)
   const isPicRole = workspace?.role === 'pic'
 
   return (
-    <div className="min-h-screen bg-bg text-text font-sans">
+    <div className="min-h-screen bg-bg text-text font-sans pb-16 sm:pb-0">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
         <div className="flex items-center justify-between mb-5 sm:mb-6">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -310,6 +335,7 @@ export default function Home() {
             {view === 'today'    && (
               <TodayView
                 onOpenTask={setOpenTaskId}
+                onOpenSettings={() => setShowSettings(true)}
                 onSwitchView={(target, hint) => {
                   if (target === 'pic') {
                     setView('pic')
@@ -333,6 +359,7 @@ export default function Home() {
             )}
             {view === 'list'     && <ListView     onOpenTask={setOpenTaskId} />}
             {view === 'grid'     && (
+              <Suspense fallback={<ViewFallback />}>
               <GridView
                 onOpenTask={setOpenTaskId}
                 aiFilter={gridFilterSignal}
@@ -345,15 +372,22 @@ export default function Home() {
                   setGridFilterSignal(allDefault ? null : next)
                 }}
               />
+              </Suspense>
             )}
             {view === 'pic'      && (
-              <PicView
-                onOpenTask={setOpenTaskId}
-                selectedPicId={picViewSelectedId ?? undefined}
-                onSelectPic={setPicViewSelectedId}
-              />
+              <Suspense fallback={<ViewFallback />}>
+                <PicView
+                  onOpenTask={setOpenTaskId}
+                  selectedPicId={picViewSelectedId ?? undefined}
+                  onSelectPic={setPicViewSelectedId}
+                />
+              </Suspense>
             )}
-            {view === 'calendar' && <CalendarView onOpenTask={setOpenTaskId} />}
+            {view === 'calendar' && (
+              <Suspense fallback={<ViewFallback />}>
+                <CalendarView onOpenTask={setOpenTaskId} />
+              </Suspense>
+            )}
 
             {/* Activity feed sits below the view content so it isn't the first
                 thing you see on sign-in. */}
@@ -388,11 +422,18 @@ export default function Home() {
           plan={aiCommandPlan}
           onClose={() => setAiCommandPlan(null)}
         />
-        <ExtractFromMeetingModal
-          open={showExtract}
-          onClose={() => setShowExtract(false)}
-        />
+        {showExtract && (
+          <Suspense fallback={null}>
+            <ExtractFromMeetingModal
+              open={showExtract}
+              onClose={() => setShowExtract(false)}
+            />
+          </Suspense>
+        )}
       </div>
+      {/* Mobile-only bottom nav. PIC-mode users see no tabs since
+          PicHomeView is a single-page experience. */}
+      {!isPicRole && <BottomNav active={view} onChange={setView} />}
     </div>
   )
 }

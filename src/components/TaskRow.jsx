@@ -1,5 +1,5 @@
 import { useUpdateTask } from '../lib/queries'
-import { isOverdue, formatRelative } from '../lib/dates'
+import { addDays, isOverdue, formatRelative, startOfToday } from '../lib/dates'
 import { picPill, statusPill } from '../lib/colors'
 
 // `inWrapper` — true when this row is rendered inside a SelectableTaskRow
@@ -19,10 +19,16 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
     })
   }
 
+  function snoozeBy(days, e) {
+    e.stopPropagation()
+    const next = addDays(startOfToday(), days)
+    updateTask.mutate({ id: task.id, due_date: formatIso(next) })
+  }
+
   return (
     <div
       onClick={onClick}
-      className={`flex items-center gap-3 py-3 border-b border-border last:border-b-0 cursor-pointer transition-colors ${
+      className={`group flex items-center gap-3 py-3 border-b border-border last:border-b-0 cursor-pointer transition-colors ${
         inWrapper
           ? 'min-w-0' // wrapper owns padding + hover background
           : 'hover:bg-surface-2 -mx-4 px-4'
@@ -34,9 +40,6 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
         aria-label={done ? 'Mark as open' : 'Mark as done'}
         title={done ? 'Mark as open' : 'Mark as done'}
       >
-        {/* Circle icon, not a square — keeps "mark done" visually
-            distinct from the multi-select checkbox in views that
-            surface bulk selection. */}
         <i
           className={`ti ${done ? 'ti-circle-check-filled text-success' : 'ti-circle'} text-lg`}
         />
@@ -48,7 +51,7 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
         >
           {task.title}
         </div>
-        <div className="text-xs text-text-2 flex items-center gap-2 mt-0.5">
+        <div className="text-xs text-text-2 flex items-center gap-2 mt-0.5 flex-wrap">
           {task.pic ? (
             <span
               className={`inline-flex items-center px-1.5 py-px rounded text-[11px] font-medium ${picPill(task.pic.color)}`}
@@ -64,20 +67,46 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
             </span>
           )}
           {(task.watchers?.length ?? 0) > 0 && (
-            <span className="text-text-3 text-[10px]">
+            <span
+              className="text-text-3 text-[10px] hidden sm:inline-flex items-center gap-0.5"
+              title={
+                task.watchers
+                  .map((w) => w.name?.split(' ')[0])
+                  .filter(Boolean)
+                  .join(', ')
+              }
+            >
               +{task.watchers.length} watching
             </span>
           )}
           {(task.note_count ?? 0) > 0 && (
             <span
-              className="text-text-3 text-[10px] inline-flex items-center gap-0.5"
+              className="text-text-3 text-[10px] hidden sm:inline-flex items-center gap-0.5"
               title={`${task.note_count} journal ${task.note_count === 1 ? 'note' : 'notes'}`}
             >
               <i className="ti ti-notebook text-[11px]" />
               {task.note_count}
             </span>
           )}
+          {/* Compact mobile-only "+N" pill that collapses watcher + note counts. */}
+          <CompactExtras task={task} />
         </div>
+      </div>
+
+      {/* Inline hover actions: snooze +1d, +7d. Visible on hover/focus
+          on tablet+ to avoid clutter on small screens. Each stops
+          propagation so it doesn't open the modal. */}
+      <div className="hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex-shrink-0">
+        <HoverAction
+          icon="ti-clock-plus"
+          title="Snooze 1 day"
+          onClick={(e) => snoozeBy(1, e)}
+        />
+        <HoverAction
+          icon="ti-calendar-plus"
+          title="Snooze 7 days"
+          onClick={(e) => snoozeBy(7, e)}
+        />
       </div>
 
       <span
@@ -87,4 +116,44 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
       </span>
     </div>
   )
+}
+
+// Mobile-only count summary. Hides watcher and note counts behind one
+// compact "+N" pill so narrow phones don't wrap the row's metadata.
+function CompactExtras({ task }) {
+  const watcher = task.watchers?.length ?? 0
+  const notes = task.note_count ?? 0
+  const total = watcher + notes
+  if (total === 0) return null
+  const titleParts = []
+  if (watcher > 0) titleParts.push(`${watcher} watching`)
+  if (notes > 0) titleParts.push(`${notes} note${notes === 1 ? '' : 's'}`)
+  return (
+    <span
+      className="sm:hidden text-[10px] text-text-3 px-1 py-px rounded-full bg-surface-2"
+      title={titleParts.join(' · ')}
+    >
+      +{total}
+    </span>
+  )
+}
+
+function HoverAction({ icon, title, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      className="text-text-3 hover:text-text p-1 rounded hover:bg-surface-3"
+    >
+      <i className={`ti ${icon} text-sm`} />
+    </button>
+  )
+}
+
+function formatIso(d) {
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
 }
