@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, useCallback } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 import { useDepartments, usePeople, useTasks } from '../lib/queries'
@@ -18,6 +18,7 @@ import ActivityFeed from '../components/ActivityFeed'
 import WorkspaceSwitcher from '../components/WorkspaceSwitcher'
 import NudgeBadge from '../components/NudgeBadge'
 import BottomNav from '../components/BottomNav'
+import ShortcutsHelpModal from '../components/ShortcutsHelpModal'
 import { TickdMark, TickdWordmark } from '../components/TickdMark'
 import { useIsSuperadmin } from '../lib/queries'
 
@@ -55,6 +56,7 @@ export default function Home() {
   const [showSuperAdmin, setShowSuperAdmin] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
   const [showExtract, setShowExtract] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
   const [aiCommandPlan, setAiCommandPlan] = useState(null)
 
   // ---- URL-backed navigation state ----
@@ -164,28 +166,96 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // "/" keybind focuses the quick entry input from anywhere on the home page
-  // (unless already typing in a form field).
+  // Global keyboard shortcuts. Includes the `/` focus-quick-entry,
+  // Cmd+K open-search, `?` help modal, and a gmail-style `g <letter>`
+  // chord for view jumping. Skips when the user is typing in a field.
+  //
+  // chordRef tracks the in-flight `g` prefix so we can detect the
+  // next keystroke as the chord follow-up. 1.5s window before reset.
+  const chordRef = useRef({ prefix: null, timer: null })
+  function resetChord() {
+    if (chordRef.current.timer) clearTimeout(chordRef.current.timer)
+    chordRef.current.prefix = null
+    chordRef.current.timer = null
+  }
+  function armChord(prefix) {
+    resetChord()
+    chordRef.current.prefix = prefix
+    chordRef.current.timer = setTimeout(resetChord, 1500)
+  }
+  function goView(target) {
+    setShowSettings(false)
+    setShowSuperAdmin(false)
+    setShowSearch(false)
+    setShowExtract(false)
+    setShowHelp(false)
+    setOpenTaskId(null)
+    if (target === 'settings') setShowSettings(true)
+    else setView(target)
+  }
+
   useEffect(() => {
     function onKey(e) {
-      // Cmd+K (Mac) / Ctrl+K (Win) opens search from anywhere
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      // Cmd+K (Mac) / Ctrl+K (Win) always works — even inside fields,
+      // so you can pop search from the quick-entry input.
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         setShowSearch(true)
         return
       }
-      if (e.key !== '/') return
+
       const tag = e.target?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
-      if (e.target?.isContentEditable) return
-      const input = document.getElementById('quick-entry-input')
-      if (input) {
+      const inField =
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        e.target?.isContentEditable
+      if (inField) return
+
+      // Chord follow-up: previous key was `g`.
+      if (chordRef.current.prefix === 'g') {
+        const map = {
+          t: 'today',
+          l: 'list',
+          g: 'grid',
+          p: 'pic',
+          c: 'calendar',
+          s: 'settings',
+        }
+        const target = map[e.key]
+        if (target) {
+          e.preventDefault()
+          goView(target)
+        }
+        resetChord()
+        return
+      }
+
+      // ? opens the cheat sheet (Shift+/ on US layouts).
+      if (e.key === '?') {
         e.preventDefault()
-        input.focus()
+        setShowHelp(true)
+        return
+      }
+
+      // Focus quick entry from `/` or `c`.
+      if (e.key === '/' || e.key === 'c') {
+        const input = document.getElementById('quick-entry-input')
+        if (input) {
+          e.preventDefault()
+          input.focus()
+          return
+        }
+      }
+
+      // Start a g-chord.
+      if (e.key === 'g') {
+        armChord('g')
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   if (workspaceLoading && !workspace) {
@@ -439,6 +509,10 @@ export default function Home() {
             />
           </Suspense>
         )}
+        <ShortcutsHelpModal
+          open={showHelp}
+          onClose={() => setShowHelp(false)}
+        />
       </div>
       {/* Mobile-only bottom nav. PIC-mode users see no tabs since
           PicHomeView is a single-page experience. */}

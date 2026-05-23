@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../auth/AuthProvider'
 import {
@@ -27,6 +27,9 @@ export default function ListView({ onOpenTask }) {
 
   const [selectedIds, setSelectedIds] = useState(() => new Set())
   const [shareOpen, setShareOpen] = useState(false)
+  const [focusedId, setFocusedId] = useState(null)
+  // Refs so j/k can scroll the focused row into view.
+  const rowRefs = useRef(new Map())
 
   const today = startOfToday()
   const sevenOut = addDays(today, 7)
@@ -154,6 +157,68 @@ export default function ListView({ onOpenTask }) {
     clearSelection()
   }
 
+  // ---- Keyboard nav (j/k/e/x/Esc) -----------------------------
+  // Only active when the user is not typing in a field and no
+  // overlay (modal / search) is in the foreground. We detect
+  // overlay via a quick DOM query rather than threading props.
+  useEffect(() => {
+    function isInField(target) {
+      const tag = target?.tagName
+      return (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        target?.isContentEditable
+      )
+    }
+    function isOverlayOpen() {
+      // Any of our z-50 modals are open?
+      return !!document.querySelector('.fixed.inset-0.bg-black\\/40')
+    }
+    function move(delta) {
+      if (allVisible.length === 0) return
+      const idx = focusedId
+        ? allVisible.findIndex((t) => t.id === focusedId)
+        : -1
+      const next =
+        idx < 0
+          ? delta > 0
+            ? 0
+            : allVisible.length - 1
+          : (idx + delta + allVisible.length) % allVisible.length
+      const target = allVisible[next]
+      setFocusedId(target.id)
+      // scroll into view if possible
+      const el = rowRefs.current.get(target.id)
+      el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    }
+    function onKey(e) {
+      if (isInField(e.target) || isOverlayOpen()) return
+      if (e.key === 'j') {
+        e.preventDefault()
+        move(1)
+      } else if (e.key === 'k') {
+        e.preventDefault()
+        move(-1)
+      } else if ((e.key === 'e' || e.key === 'Enter') && focusedId) {
+        e.preventDefault()
+        onOpenTask(focusedId)
+      } else if (e.key === 'x' && focusedId) {
+        e.preventDefault()
+        toggle(focusedId)
+      } else if (e.key === 'Escape') {
+        if (focusedId || selectedIds.size > 0) {
+          e.preventDefault()
+          setFocusedId(null)
+          if (selectedIds.size > 0) clearSelection()
+        }
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusedId, allVisible.map((t) => t.id).join(','), selectedIds.size, onOpenTask])
+
   return (
     <div className="space-y-3">
       {selectedIds.size > 0 && (
@@ -215,6 +280,11 @@ export default function ListView({ onOpenTask }) {
                 onToggleSelect={() => toggle(t.id)}
                 onClick={() => onOpenTask(t.id)}
                 anySelected={selectedIds.size > 0}
+                focused={focusedId === t.id}
+                rowRef={(el) => {
+                  if (el) rowRefs.current.set(t.id, el)
+                  else rowRefs.current.delete(t.id)
+                }}
               />
             ))
           )}
@@ -239,6 +309,11 @@ export default function ListView({ onOpenTask }) {
                 onToggleSelect={() => toggle(t.id)}
                 onClick={() => onOpenTask(t.id)}
                 anySelected={selectedIds.size > 0}
+                focused={focusedId === t.id}
+                rowRef={(el) => {
+                  if (el) rowRefs.current.set(t.id, el)
+                  else rowRefs.current.delete(t.id)
+                }}
               />
             ))
           )}
@@ -257,6 +332,8 @@ function SelectableTaskRow({
   onToggleSelect,
   onClick,
   anySelected,
+  focused = false,
+  rowRef,
 }) {
   const isTemp = String(task.id).startsWith('temp-')
   // We own the hover background + edge extension here (-mx-4 px-4) so
@@ -266,7 +343,10 @@ function SelectableTaskRow({
   // margins.
   return (
     <div
+      ref={rowRef}
       className={`group flex items-center gap-3 -mx-4 px-4 transition-colors cursor-pointer ${
+        focused ? 'ring-2 ring-info ring-inset' : ''
+      } ${
         selected ? 'bg-info-bg/60' : 'hover:bg-surface-2'
       }`}
     >
