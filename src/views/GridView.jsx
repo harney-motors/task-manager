@@ -11,8 +11,8 @@ import {
   useUpdateTask,
 } from '../lib/queries'
 import { useSearchParams } from 'react-router-dom'
-import { isOverdue } from '../lib/dates'
-import { statusPill } from '../lib/colors'
+import { formatShortDate, isOverdue } from '../lib/dates'
+import { picPill, statusPill } from '../lib/colors'
 import { addWatcher } from '../api/watchers'
 import { exportTasksToCsv } from '../lib/exportCsv'
 import { bulkDeleteWithUndo } from '../lib/deferredBulkDelete'
@@ -28,8 +28,11 @@ import TaskFilterBar from '../components/TaskFilterBar'
 import ShareModal from '../components/ShareModal'
 import Skeleton from '../components/Skeleton'
 
+// Desktop-only grid template. On mobile the row falls back to a
+// stacked TaskRow-style layout (see <GridRow>) because an 8-column
+// table is unusable on a phone — column widths sum to ~700px+.
 const COLS =
-  'grid grid-cols-[24px_28px_minmax(0,2.2fr)_140px_120px_120px_100px_110px] gap-2 px-3 sm:px-4 items-center'
+  'hidden sm:grid grid-cols-[24px_28px_minmax(0,2.2fr)_140px_120px_120px_100px_110px] gap-2 px-3 sm:px-4 items-center'
 
 const STATUS_ORDER = { Open: 0, 'In progress': 1, Ongoing: 2, Done: 3 }
 const PRIORITY_ORDER = { High: 0, Medium: 1, Low: 2 }
@@ -257,8 +260,10 @@ export default function GridView({ onOpenTask, aiFilter, onFiltersChange }) {
         />
       )}
 
-      <div className="overflow-x-auto">
-        <div className="min-w-[800px]">
+      {/* sm+ — horizontal-scroll table with 8 columns.
+          phone — natural width; each <GridRow> stacks instead. */}
+      <div className="sm:overflow-x-auto">
+        <div className="sm:min-w-[800px]">
           <GridHeader
             allVisibleSelected={allVisibleSelected}
             indeterminate={visibleSelectedCount > 0 && !allVisibleSelected}
@@ -380,6 +385,67 @@ function GridRow({
         isSelected ? 'bg-info-bg/60' : 'hover:bg-surface-2'
       }`}
     >
+      {/* ===== MOBILE LAYOUT (phone only) =====
+          The 8-column inline-edit table is hostile on a phone: column
+          widths force horizontal scroll and the editable selects are
+          fat-finger nightmares. On mobile we collapse to a TaskRow-style
+          stack — tap-to-open routes you to the modal for editing. */}
+      <div className="sm:hidden flex items-start gap-2.5 px-3 py-2 text-xs">
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={onToggleSelect}
+          onClick={stop}
+          disabled={isTemp}
+          aria-label="Select row"
+          className={`mt-0.5 flex-shrink-0 cursor-pointer transition-opacity ${
+            isSelected || anySelected ? 'opacity-100' : 'opacity-60'
+          }`}
+        />
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onUpdate(task.id, 'status', done ? 'Open' : 'Done')
+          }}
+          disabled={isTemp}
+          className="flex-shrink-0 text-text-3 hover:text-text disabled:opacity-50 mt-0.5"
+          aria-label={done ? 'Mark as open' : 'Mark as done'}
+        >
+          <i
+            className={`ti ${done ? 'ti-circle-check-filled text-success' : 'ti-circle'} text-base`}
+          />
+        </button>
+        <div className="flex-1 min-w-0">
+          <div
+            className={`text-sm font-medium line-clamp-2 ${done ? 'line-through text-text-3' : ''}`}
+          >
+            {task.title}
+          </div>
+          <div className="text-[11px] text-text-2 flex items-center gap-1.5 mt-1 flex-wrap">
+            {task.pic ? (
+              <span
+                className={`px-1.5 py-px rounded text-[10px] font-medium ${picPill(task.pic.color)}`}
+              >
+                {task.pic.name.split(' ')[0]}
+              </span>
+            ) : (
+              <span className="text-text-3 text-[10px]">Unassigned</span>
+            )}
+            {task.due_date && (
+              <span className={overdue ? 'text-danger-text font-medium' : 'text-text-3'}>
+                {formatShortDate(task.due_date)}
+              </span>
+            )}
+          </div>
+        </div>
+        <span
+          className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${statusPill(displayStatus)}`}
+        >
+          {displayStatus}
+        </span>
+      </div>
+
+      {/* ===== DESKTOP LAYOUT (tablet+) ===== */}
       <div className={`${COLS} py-2 text-xs`}>
         <input
           type="checkbox"

@@ -217,9 +217,9 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
       onDragCancel={() => setDraggingTaskId(null)}
     >
     <div className="bg-surface border border-border rounded-xl overflow-hidden">
-      {/* Chip selector — tighter padding on phone so the strip claims less
-          vertical space when there are 10+ people. */}
-      <div className="px-3 py-2 sm:p-4 border-b border-border flex flex-wrap gap-1 sm:gap-1.5">
+      {/* Chip selector — horizontal-scroll on phone so 10+ people don't
+          eat 5 rows of vertical space. Wraps as normal on tablet+. */}
+      <div className="px-3 py-2 sm:p-4 border-b border-border flex sm:flex-wrap gap-1 sm:gap-1.5 overflow-x-auto sm:overflow-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {people.map((p) => {
           const count = tasks.filter(
             (t) => t.pic_id === p.id && t.status !== 'Done',
@@ -545,7 +545,7 @@ function DroppablePicChip({ dropId, onClick, isSelected, children }) {
     <button
       ref={setNodeRef}
       onClick={onClick}
-      className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[11px] sm:text-xs inline-flex items-center gap-1 sm:gap-1.5 border transition-colors ${
+      className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[11px] sm:text-xs inline-flex items-center gap-1 sm:gap-1.5 border transition-colors flex-shrink-0 whitespace-nowrap ${
         isOver
           ? 'border-info bg-info-bg/60 text-info-text border-dashed'
           : isSelected

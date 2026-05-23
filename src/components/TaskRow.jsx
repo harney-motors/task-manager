@@ -47,7 +47,7 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
         title={done ? 'Mark as open' : 'Mark as done'}
       >
         <i
-          className={`ti ${done ? 'ti-circle-check-filled text-success' : 'ti-circle'} text-lg`}
+          className={`ti ${done ? 'ti-circle-check-filled text-success' : 'ti-circle'} text-base sm:text-lg`}
         />
       </button>
 

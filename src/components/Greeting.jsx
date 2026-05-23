@@ -28,11 +28,11 @@ export default function Greeting({ tasks }) {
   if (inProgress > 0) parts.push(`${inProgress} in progress`)
 
   return (
-    <div className="mb-5">
-      <h1 className="text-2xl font-medium tracking-tight mb-1">
+    <div className="mb-3 sm:mb-5">
+      <h1 className="text-lg sm:text-2xl font-medium tracking-tight mb-0.5 sm:mb-1">
         {timeOfDay()}, {displayName(user)}
       </h1>
-      <p className="text-sm text-text-2">{parts.join(' · ')}</p>
+      <p className="text-xs sm:text-sm text-text-2">{parts.join(' · ')}</p>
     </div>
   )
 }
