@@ -145,6 +145,24 @@ export async function adminAddMember(workspaceId, userId, role) {
   if (error) throw error
 }
 
+// Link an existing person row to an existing auth user. Superadmin-
+// only — enforced server-side by the admin_link_person SECURITY
+// DEFINER function.
+export async function adminLinkPerson(personId, userId) {
+  const { error } = await supabase.rpc('admin_link_person', {
+    p_person_id: personId,
+    p_user_id: userId,
+  })
+  if (error) throw error
+}
+
+export async function adminUnlinkPerson(personId) {
+  const { error } = await supabase.rpc('admin_unlink_person', {
+    p_person_id: personId,
+  })
+  if (error) throw error
+}
+
 export async function adminRemoveMember(workspaceId, userId) {
   const { error } = await supabase.rpc('admin_remove_member', {
     p_workspace_id: workspaceId,

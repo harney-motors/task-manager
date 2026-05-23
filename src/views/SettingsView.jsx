@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import {
+  useAdminUnlinkPerson,
+  useAdminUsers,
   useDeactivatePerson,
   useDeleteDepartment,
   useDeletePerson,
   useDepartments,
+  useIsSuperadmin,
   usePeople,
   useReactivatePerson,
   useTasks,
@@ -14,6 +17,7 @@ import { picDot } from '../lib/colors'
 import { useTheme } from '../lib/useTheme'
 import PersonModal from '../components/PersonModal'
 import DepartmentModal from '../components/DepartmentModal'
+import LinkPersonModal from '../components/LinkPersonModal'
 import PushSettings from '../components/PushSettings'
 import Skeleton from '../components/Skeleton'
 import {
@@ -94,11 +98,24 @@ function PeoplePanel() {
   const [showInactive, setShowInactive] = useState(false)
   const { data: people = [], isLoading } = usePeople({ includeInactive: showInactive })
   const { data: tasks = [] } = useTasks()
+  const { data: isSuperadmin = false } = useIsSuperadmin()
+  // Pull users so we can show "Linked · <email>" labels. The query
+  // is RLS-gated (superadmin only via get_all_users RPC), so for
+  // non-superadmins this returns [] and the label falls back to a
+  // generic "Linked" pill — no crash, no leak.
+  const { data: adminUsers = [] } = useAdminUsers()
+  const usersById = useMemo(() => {
+    const m = new Map()
+    for (const u of adminUsers) m.set(u.id, u)
+    return m
+  }, [adminUsers])
   const deactivate = useDeactivatePerson()
   const reactivate = useReactivatePerson()
   const remove = useDeletePerson()
+  const unlinkPerson = useAdminUnlinkPerson()
   const showToast = useToast()
   const [editing, setEditing] = useState(null)
+  const [linking, setLinking] = useState(null) // person being linked
   const [selectedIds, setSelectedIds] = useState(() => new Set())
 
   // Compute task involvement per person (PIC + watcher)
@@ -283,6 +300,16 @@ function PeoplePanel() {
               person={p}
               picCount={involvementMap.picCount.get(p.id) ?? 0}
               watchCount={involvementMap.watchCount.get(p.id) ?? 0}
+              linkedUserEmail={
+                p.user_id ? usersById.get(p.user_id)?.email ?? null : null
+              }
+              canManageLinks={isSuperadmin}
+              onLink={() => setLinking(p)}
+              onUnlink={() => {
+                if (confirm(`Unlink ${p.name} from their user account?`)) {
+                  unlinkPerson.mutate(p.id)
+                }
+              }}
               isSelected={selectedIds.has(p.id)}
               onToggleSelect={() => toggle(p.id)}
               onEdit={() => setEditing(p)}
@@ -300,6 +327,9 @@ function PeoplePanel() {
           onClose={() => setEditing(null)}
         />
       )}
+      {linking && (
+        <LinkPersonModal person={linking} onClose={() => setLinking(null)} />
+      )}
     </div>
   )
 }
@@ -308,6 +338,10 @@ function PersonRow({
   person: p,
   picCount,
   watchCount,
+  linkedUserEmail,
+  canManageLinks,
+  onLink,
+  onUnlink,
   isSelected,
   onToggleSelect,
   onEdit,
@@ -371,6 +405,15 @@ function PersonRow({
               Unused
             </span>
           )}
+          {p.user_id && (
+            <span
+              className="text-[10px] px-1.5 py-px rounded bg-info-bg text-info-text inline-flex items-center gap-1"
+              title={linkedUserEmail ?? 'Linked to a user account'}
+            >
+              <i className="ti ti-link text-[10px]" />
+              {linkedUserEmail ?? 'Linked'}
+            </span>
+          )}
         </div>
         <div className="text-xs text-text-2 truncate flex items-center gap-2 mt-0.5">
           <span>
@@ -390,6 +433,26 @@ function PersonRow({
         </div>
       </div>
       <div className="flex items-center gap-1 flex-shrink-0">
+        {canManageLinks &&
+          (p.user_id ? (
+            <button
+              onClick={onUnlink}
+              className="text-xs px-2 py-1 rounded text-text-3 hover:text-text hover:bg-surface inline-flex items-center gap-1"
+              title="Unlink from user account"
+            >
+              <i className="ti ti-unlink text-sm" />
+              Unlink
+            </button>
+          ) : (
+            <button
+              onClick={onLink}
+              className="text-xs px-2 py-1 rounded text-info hover:bg-info-bg/40 inline-flex items-center gap-1"
+              title="Link to an existing user account"
+            >
+              <i className="ti ti-link text-sm" />
+              Link
+            </button>
+          ))}
         <button
           onClick={onEdit}
           className="text-xs px-2 py-1 rounded hover:bg-surface text-text-2 hover:text-text"

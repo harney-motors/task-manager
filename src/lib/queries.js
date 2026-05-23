@@ -30,8 +30,10 @@ import {
   adminDeleteUser,
   adminDeleteWorkspace,
   adminDemoteUser,
+  adminLinkPerson,
   adminPromoteUser,
   adminRemoveMember,
+  adminUnlinkPerson,
   fetchAdminActivity,
   fetchAdminSystemStats,
   fetchAdminUsers,
@@ -628,6 +630,38 @@ export function useAdminAddMember() {
     mutationFn: ({ workspaceId, userId, role }) => adminAddMember(workspaceId, userId, role),
     onError: (err) => showToast(errMsg(err, 'Could not add member'), { type: 'error' }),
     onSettled: () => qc.invalidateQueries({ queryKey: ['admin'] }),
+  })
+}
+
+export function useAdminLinkPerson() {
+  const { workspace } = useAuth()
+  const qc = useQueryClient()
+  const showToast = useToast()
+  return useMutation({
+    mutationFn: ({ personId, userId }) => adminLinkPerson(personId, userId),
+    onError: (err) =>
+      showToast(errMsg(err, 'Could not link person'), { type: 'error' }),
+    onSettled: () => {
+      // people query carries the user_id; admin queries carry the
+      // "linked-as" picture. Invalidate both.
+      qc.invalidateQueries({ queryKey: queryKeys.people(workspace?.id) })
+      qc.invalidateQueries({ queryKey: ['admin'] })
+    },
+  })
+}
+
+export function useAdminUnlinkPerson() {
+  const { workspace } = useAuth()
+  const qc = useQueryClient()
+  const showToast = useToast()
+  return useMutation({
+    mutationFn: (personId) => adminUnlinkPerson(personId),
+    onError: (err) =>
+      showToast(errMsg(err, 'Could not unlink person'), { type: 'error' }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.people(workspace?.id) })
+      qc.invalidateQueries({ queryKey: ['admin'] })
+    },
   })
 }
 
