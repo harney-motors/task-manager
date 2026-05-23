@@ -11,6 +11,7 @@ import {
 } from '../lib/queries'
 import { useToast } from '../components/Toast'
 import { picDot } from '../lib/colors'
+import { useTheme } from '../lib/useTheme'
 import PersonModal from '../components/PersonModal'
 import DepartmentModal from '../components/DepartmentModal'
 import Skeleton from '../components/Skeleton'
@@ -786,7 +787,7 @@ function formatRelativeTime(iso) {
 function ProfilePanel() {
   const { user, workspace, signOut } = useAuth()
   return (
-    <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+    <div className="bg-surface border border-border rounded-xl p-5 space-y-5">
       <div>
         <div className="text-xs text-text-2 mb-1">Signed in as</div>
         <div className="text-sm font-medium">{user.email}</div>
@@ -795,6 +796,7 @@ function ProfilePanel() {
         <div className="text-xs text-text-2 mb-1">Workspace</div>
         <div className="text-sm font-medium">{workspace?.name ?? '—'}</div>
       </div>
+      <ThemeSetting />
       <div className="pt-3 border-t border-border">
         <button
           onClick={signOut}
@@ -804,6 +806,41 @@ function ProfilePanel() {
           Sign out
         </button>
       </div>
+    </div>
+  )
+}
+
+function ThemeSetting() {
+  const { preference, setPreference, resolved } = useTheme()
+  const options = [
+    { id: 'light',  label: 'Light',  icon: 'ti-sun' },
+    { id: 'dark',   label: 'Dark',   icon: 'ti-moon' },
+    { id: 'system', label: 'System', icon: 'ti-device-laptop' },
+  ]
+  return (
+    <div className="pt-3 border-t border-border">
+      <div className="text-xs text-text-2 mb-2">Appearance</div>
+      <div className="inline-flex p-0.5 bg-surface-2 rounded-md">
+        {options.map((opt) => (
+          <button
+            key={opt.id}
+            onClick={() => setPreference(opt.id)}
+            className={`text-xs px-3 py-1.5 rounded inline-flex items-center gap-1.5 ${
+              preference === opt.id
+                ? 'bg-surface text-text font-medium shadow-sm'
+                : 'text-text-2 hover:text-text'
+            }`}
+          >
+            <i className={`ti ${opt.icon} text-sm`} />
+            {opt.label}
+          </button>
+        ))}
+      </div>
+      {preference === 'system' && (
+        <div className="text-[11px] text-text-3 mt-1.5">
+          Following your device — currently {resolved}.
+        </div>
+      )}
     </div>
   )
 }

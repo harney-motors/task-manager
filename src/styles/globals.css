@@ -4,6 +4,15 @@
   Theme tokens ported from docs/loop-prototype.html.
   Anything declared here becomes a Tailwind utility automatically
   (e.g. --color-surface => bg-surface, text-surface, border-surface).
+
+  DARK MODE strategy:
+  - All tokens live as CSS variables.
+  - The light values are declared in @theme so Tailwind picks them up.
+  - Dark overrides live in a [data-theme="dark"] block below — the CSS
+    cascade rebinds the same names, so every `bg-surface` etc. picks
+    up the dark color without any class change.
+  - <html data-theme="..."> is set by an inline init script in
+    index.html (no-flash) and kept in sync by src/lib/useTheme.js.
 */
 @theme {
   /* Fonts */
@@ -85,6 +94,80 @@
   --color-dept-parts-text: #72243E;
   --color-dept-ops-bg: #EEEDFE;
   --color-dept-ops-text: #3C3489;
+
+  /* Calendar heatmap tint — referenced as rgba(var(--heatmap-tint-rgb), x)
+     in TodayView / PicHomeView so opacity can be driven by task density. */
+  --heatmap-tint-rgb: 24, 95, 165;
+}
+
+/* ============================================================
+   DARK MODE OVERRIDES
+   ============================================================
+   Tuned for a warm, low-glare night palette that still leans on
+   the brand blue. Backgrounds for semantic / PIC chips are darker
+   variants of their light counterparts; the text gets lighter so
+   contrast lands comfortably (target ≥ 4.5:1 on body text). */
+[data-theme="dark"] {
+  --color-bg: #14120E;
+  --color-surface: #1C1A16;
+  --color-surface-2: #25231F;
+  --color-surface-3: #2F2D28;
+  --color-border: #2F2D28;
+  --color-border-strong: #48453F;
+  --color-text: #F2F0EA;
+  --color-text-2: #B0ADA4;
+  --color-text-3: #7A7872;
+
+  --color-info: #4A8FCE;
+  --color-info-bg: #0E2B45;
+  --color-info-text: #B6D6F3;
+  --color-success: #3FB58F;
+  --color-success-bg: #0E2E26;
+  --color-success-text: #A6E5CD;
+  --color-danger-bg: #3A1414;
+  --color-danger-text: #F0B5B5;
+  --color-warning-bg: #3A2810;
+  --color-warning-text: #F0CB95;
+  --color-in-progress-bg: #0E2B45;
+  --color-in-progress-text: #B6D6F3;
+
+  /* PIC palette — same dot color so identities stay stable, but
+     darker bg and lighter text for chip legibility on dark surface. */
+  --color-pic-purple-bg: #1E1B3A;
+  --color-pic-purple-text: #C5C0F0;
+  --color-pic-coral-bg: #371810;
+  --color-pic-coral-text: #F0B59C;
+  --color-pic-pink-bg: #371522;
+  --color-pic-pink-text: #F0B0CB;
+  --color-pic-green-bg: #1A2A0C;
+  --color-pic-green-text: #BDDC9A;
+  --color-pic-amber-bg: #3A2810;
+  --color-pic-amber-text: #F0CB95;
+  --color-pic-blue-bg: #0E2B45;
+  --color-pic-blue-text: #B6D6F3;
+  --color-pic-teal-bg: #0E2E26;
+  --color-pic-teal-text: #A6E5CD;
+  --color-pic-gray-bg: #2A2925;
+  --color-pic-gray-text: #C6C3BC;
+  --color-pic-red-bg: #3A1414;
+  --color-pic-red-text: #F0B5B5;
+
+  /* Department palette — mirrors PIC mapping. */
+  --color-dept-strategy-bg: #0E2E26;
+  --color-dept-strategy-text: #A6E5CD;
+  --color-dept-service-bg: #0E2B45;
+  --color-dept-service-text: #B6D6F3;
+  --color-dept-sales-bg: #3A2810;
+  --color-dept-sales-text: #F0CB95;
+  --color-dept-finance-bg: #2A2925;
+  --color-dept-finance-text: #C6C3BC;
+  --color-dept-parts-bg: #371522;
+  --color-dept-parts-text: #F0B0CB;
+  --color-dept-ops-bg: #1E1B3A;
+  --color-dept-ops-text: #C5C0F0;
+
+  /* Heatmap tint shifts lighter for contrast against dark surface. */
+  --heatmap-tint-rgb: 102, 168, 235;
 }
 
 html, body, #root {

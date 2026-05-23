@@ -10,8 +10,40 @@
 
     <!-- PWA -->
     <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="theme-color" content="#185FA5" />
+    <meta name="theme-color" content="#185FA5" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#14120E" media="(prefers-color-scheme: dark)" />
     <meta name="application-name" content="Tickd" />
+
+    <!-- No-flash theme init. Runs synchronously before React mounts so
+         the html data-theme is set before any CSS resolves. Also wires
+         a permanent matchMedia listener so 'system' mode keeps tracking
+         OS theme changes regardless of which view is mounted in React.
+         The hook in src/lib/useTheme.js handles the in-app picker. -->
+    <script>
+      (function () {
+        function compute() {
+          try {
+            var stored = localStorage.getItem('tickd-theme') || 'system'
+            if (stored === 'light' || stored === 'dark') return stored
+            return window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : 'light'
+          } catch (e) {
+            return 'light'
+          }
+        }
+        function apply() {
+          document.documentElement.setAttribute('data-theme', compute())
+        }
+        apply()
+        if (window.matchMedia) {
+          window
+            .matchMedia('(prefers-color-scheme: dark)')
+            .addEventListener('change', apply)
+        }
+      })()
+    </script>
 
     <!-- iOS Safari "Add to Home Screen" -->
     <meta name="apple-mobile-web-app-capable" content="yes" />

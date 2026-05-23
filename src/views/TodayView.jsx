@@ -317,8 +317,9 @@ function HeroBand({ today, counts, heatmap, maxHeat, totalActive }) {
 
 function HeatCell({ cell, maxHeat, isToday }) {
   const ratio = cell.count === 0 ? 0 : Math.min(1, cell.count / maxHeat)
-  // Tailwind doesn't do dynamic opacity classes — inline style is fine here
-  // and gives finer-grained gradient than the limited bg-info/30,40,50 set.
+  // Tailwind doesn't do dynamic opacity classes — inline style is fine
+  // here. Tint colour comes from --heatmap-tint-rgb which swaps to a
+  // lighter shade in dark mode so density stays readable on dark bg.
   const bgOpacity = ratio === 0 ? 0 : 0.15 + ratio * 0.65
   const dow = cell.date.toLocaleDateString(undefined, { weekday: 'narrow' })
   return (
@@ -329,7 +330,9 @@ function HeatCell({ cell, maxHeat, isToday }) {
       }`}
       style={{
         backgroundColor:
-          bgOpacity === 0 ? 'transparent' : `rgba(24, 95, 165, ${bgOpacity})`,
+          bgOpacity === 0
+            ? 'transparent'
+            : `rgba(var(--heatmap-tint-rgb), ${bgOpacity})`,
       }}
     >
       <div className="text-text-3 leading-none">{dow}</div>

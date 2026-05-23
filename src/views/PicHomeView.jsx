@@ -339,7 +339,9 @@ function HeatCell({ cell, maxHeat, isToday }) {
       }`}
       style={{
         backgroundColor:
-          bgOpacity === 0 ? 'transparent' : `rgba(24, 95, 165, ${bgOpacity})`,
+          bgOpacity === 0
+            ? 'transparent'
+            : `rgba(var(--heatmap-tint-rgb), ${bgOpacity})`,
       }}
     >
       <div className="text-text-3 leading-none">{dow}</div>
