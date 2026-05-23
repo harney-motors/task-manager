@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import { searchAll } from '../api/search'
-import { nlFilter } from '../api/aiFilter'
+import { aiCommand } from '../api/aiCommand'
 import { picPill } from '../lib/colors'
 import { formatRelative } from '../lib/dates'
 
@@ -11,6 +11,7 @@ export default function SearchPalette({
   onOpenTask,
   onSelectPic,
   onApplyFilter,
+  onPreviewCommand,
 }) {
   const { workspace } = useAuth()
   const [query, setQuery] = useState('')
@@ -55,15 +56,24 @@ export default function SearchPalette({
   }, [open])
 
   async function handleAskAi() {
-    if (!query.trim() || !onApplyFilter) return
+    if (!query.trim()) return
     setAskingAi(true)
     setAiError(null)
     try {
-      const { filter } = await nlFilter(query, { workspaceId: workspace?.id })
-      onApplyFilter(filter)
-      onClose()
+      const { plan } = await aiCommand(query, { workspaceId: workspace?.id })
+      if (plan.kind === 'filter') {
+        onApplyFilter?.(plan.filter)
+        onClose()
+      } else if (plan.kind === 'command') {
+        // Hand the plan off to the parent which renders the preview
+        // modal. We close the palette so the preview lands cleanly.
+        onPreviewCommand?.(plan)
+        onClose()
+      } else {
+        setAiError('Unknown AI response shape')
+      }
     } catch (e) {
-      setAiError(e.message ?? 'AI search failed')
+      setAiError(e.message ?? 'AI request failed')
     } finally {
       setAskingAi(false)
     }
@@ -182,7 +192,7 @@ export default function SearchPalette({
           )}
         </div>
 
-        {query.trim().length >= 4 && onApplyFilter && (
+        {query.trim().length >= 4 && (onApplyFilter || onPreviewCommand) && (
           <div className="border-t border-border bg-info-bg/40">
             <button
               onClick={handleAskAi}
@@ -217,7 +227,7 @@ export default function SearchPalette({
             <span>
               <kbd className="border border-border bg-surface rounded px-1">↵</kbd> open
             </span>
-            {onApplyFilter && (
+            {(onApplyFilter || onPreviewCommand) && (
               <span>
                 <kbd className="border border-border bg-surface rounded px-1">⌘↵</kbd> ask AI
               </span>

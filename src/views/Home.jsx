@@ -15,6 +15,7 @@ import CalendarView from './CalendarView'
 import SettingsView from './SettingsView'
 import SuperAdminView from './SuperAdminView'
 import SearchPalette from '../components/SearchPalette'
+import CommandPreviewModal from '../components/CommandPreviewModal'
 import ExtractFromMeetingModal from '../components/ExtractFromMeetingModal'
 import ActivityFeed from '../components/ActivityFeed'
 import WorkspaceSwitcher from '../components/WorkspaceSwitcher'
@@ -36,6 +37,7 @@ export default function Home() {
   const [showExtract, setShowExtract] = useState(false)
   const [picViewSelectedId, setPicViewSelectedId] = useState(null)
   const [gridFilterSignal, setGridFilterSignal] = useState(null)
+  const [aiCommandPlan, setAiCommandPlan] = useState(null)
 
   // "/" keybind focuses the quick entry input from anywhere on the home page
   // (unless already typing in a form field).
@@ -242,6 +244,11 @@ export default function Home() {
               showToast,
             })
           }}
+          onPreviewCommand={(plan) => setAiCommandPlan(plan)}
+        />
+        <CommandPreviewModal
+          plan={aiCommandPlan}
+          onClose={() => setAiCommandPlan(null)}
         />
         <ExtractFromMeetingModal
           open={showExtract}
