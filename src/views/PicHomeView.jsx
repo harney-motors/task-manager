@@ -10,6 +10,7 @@ import {
 } from '../lib/dates'
 import { picPill, statusPill } from '../lib/colors'
 import TaskRow from '../components/TaskRow'
+import NudgesBanner from '../components/NudgesBanner'
 
 // Simplified landing for users whose role in the active workspace is
 // 'pic'. The PIC's task list is already restricted by RLS — this just
@@ -114,6 +115,9 @@ export default function PicHomeView({ onOpenTask }) {
 
   return (
     <div className="space-y-3">
+      {/* AI nudges */}
+      <NudgesBanner onOpenTask={onOpenTask} />
+
       {/* Hero */}
       <div className="bg-surface border border-border rounded-xl p-4 sm:p-5">
         <div className="flex items-start justify-between gap-4 flex-wrap">

@@ -6,6 +6,7 @@ import { addWatcher, removeWatcher } from '../api/watchers'
 import { fetchJournalEntries, createJournalEntry } from '../api/journal'
 import { fetchRecentActivity } from '../api/activity'
 import { notifyTaskEvent } from '../api/notify'
+import { fetchActiveNudges, dismissNudge } from '../api/nudges'
 import {
   createSavedFilter,
   deleteSavedFilter,
@@ -53,6 +54,39 @@ export const queryKeys = {
   journal:       (taskId)      => ['journal', taskId],
   activity:      (workspaceId, limit) => ['activity', workspaceId, limit],
   savedFilters:  (workspaceId) => ['savedFilters', workspaceId],
+  nudges:        (workspaceId) => ['nudges', workspaceId],
+}
+
+export function useActiveNudges() {
+  const { workspace } = useAuth()
+  return useQuery({
+    queryKey: queryKeys.nudges(workspace?.id),
+    queryFn: () => fetchActiveNudges(workspace.id),
+    enabled: !!workspace,
+    // Refetch every 5 minutes so a scheduled run that lands while
+    // someone's already on Today surfaces without a manual refresh.
+    refetchInterval: 5 * 60 * 1000,
+    staleTime: 60 * 1000,
+  })
+}
+
+export function useDismissNudge() {
+  const { workspace } = useAuth()
+  const qc = useQueryClient()
+  const key = queryKeys.nudges(workspace?.id)
+  return useMutation({
+    mutationFn: (id) => dismissNudge(id),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: key })
+      const previous = qc.getQueryData(key)
+      qc.setQueryData(key, (old) => (old ?? []).filter((n) => n.id !== id))
+      return { previous }
+    },
+    onError: (_err, _id, ctx) => {
+      if (ctx?.previous) qc.setQueryData(key, ctx.previous)
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: key }),
+  })
 }
 
 // ---------- Tasks ----------

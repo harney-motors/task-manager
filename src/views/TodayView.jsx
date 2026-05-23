@@ -9,6 +9,7 @@ import {
 } from '../lib/dates'
 import { picDot, picPill, statusPill } from '../lib/colors'
 import TaskRow from '../components/TaskRow'
+import NudgesBanner from '../components/NudgesBanner'
 
 // Three-zone informational dashboard. Designed to feel less like an
 // inbox and more like a control room: at-a-glance state, then drill-in
@@ -156,6 +157,9 @@ export default function TodayView({ onOpenTask, onSwitchView }) {
 
   return (
     <div className="space-y-3">
+      {/* AI nudges — sits above the hero so anything urgent lands first */}
+      <NudgesBanner onOpenTask={onOpenTask} />
+
       {/* Hero band */}
       <HeroBand
         today={today}
