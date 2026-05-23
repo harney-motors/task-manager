@@ -7,6 +7,7 @@ import {
   unsubscribePush,
   updatePushPreferences,
 } from '../api/push'
+import { sendSelfPush } from '../api/notify'
 import { useToast } from './Toast'
 
 const TRIGGERS = [
@@ -99,6 +100,23 @@ export default function PushSettings() {
       showToast(err.message ?? 'Could not disable notifications', {
         type: 'error',
       })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleTest() {
+    setBusy(true)
+    try {
+      await sendSelfPush({
+        trigger: null, // bypass per-trigger gating so the test always fires
+        title: 'Tickd test notification',
+        body: 'If you see this, push is wired correctly. 🎉',
+        tag: 'tickd:test',
+      })
+      showToast('Test sent. Watch for the notification…')
+    } catch (err) {
+      showToast(err.message ?? 'Could not send test', { type: 'error' })
     } finally {
       setBusy(false)
     }
@@ -202,6 +220,23 @@ export default function PushSettings() {
           </button>
         )}
       </div>
+
+      {enabled && (
+        <div className="pt-3 border-t border-border">
+          <button
+            onClick={handleTest}
+            disabled={busy}
+            className="text-xs px-3 py-1.5 rounded border border-border hover:bg-surface-2 text-text-2 hover:text-text disabled:opacity-50 inline-flex items-center gap-1.5"
+          >
+            <i className="ti ti-send text-sm" />
+            Send test notification
+          </button>
+          <p className="text-[11px] text-text-3 mt-1.5">
+            Pings this device. Confirms the VAPID keys, service worker,
+            and permission are all wired up.
+          </p>
+        </div>
+      )}
 
       {loading ? null : enabled ? (
         <div className="pt-3 border-t border-border space-y-1">
