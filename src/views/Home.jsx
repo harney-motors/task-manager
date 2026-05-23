@@ -328,7 +328,8 @@ export default function Home() {
             <Greeting tasks={tasks} />
             <QuickEntry />
 
-            <div className="mt-4 mb-4">
+            {/* In-page tabs only on tablet+; mobile uses BottomNav. */}
+            <div className="mt-4 mb-4 hidden sm:block">
               <ViewTabs active={view} onChange={setView} />
             </div>
 
