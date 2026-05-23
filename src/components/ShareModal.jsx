@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import { formatSelectionMessage, formatWhatsAppMessage } from '../lib/share'
 import { logActivity } from '../api/activity'
+import ModalHeader from './ModalHeader'
 
 // Two modes:
 //   PIC share:       <ShareModal pic={pic} tasks={...} />
@@ -53,19 +54,14 @@ export default function ShareModal({ pic, tasks, selectionTitle, onClose }) {
   return (
     <div
       onClick={(e) => e.target === e.currentTarget && onClose()}
-      className="fixed inset-0 bg-black/40 z-50 flex items-start sm:items-center justify-center p-2 sm:p-6 overflow-y-auto"
+      className="fixed inset-0 bg-black/40 z-50 flex items-start sm:items-center justify-center p-2 sm:p-6 overflow-y-auto tickd-modal-backdrop"
     >
-      <div className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-sm overflow-hidden">
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <div className="text-sm font-medium">Share to my WhatsApp</div>
-          <button
-            onClick={onClose}
-            className="text-text-3 hover:text-text p-1 rounded hover:bg-surface-2"
-            aria-label="Close"
-          >
-            <i className="ti ti-x text-sm" />
-          </button>
-        </div>
+      <div className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-sm overflow-hidden tickd-modal-content">
+        <ModalHeader
+          title="Share to my WhatsApp"
+          icon="ti-brand-whatsapp"
+          onClose={onClose}
+        />
 
         <div className="px-4 py-3 text-xs text-text-2">
           {isSelection ? (

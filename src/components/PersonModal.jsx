@@ -5,6 +5,7 @@ import {
   useUpdatePerson,
 } from '../lib/queries'
 import ColorPicker from './ColorPicker'
+import ModalHeader from './ModalHeader'
 
 function deriveInitials(name) {
   return name
@@ -75,24 +76,17 @@ export default function PersonModal({ person, onClose }) {
   return (
     <div
       onClick={(e) => e.target === e.currentTarget && onClose()}
-      className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-2 sm:p-10 overflow-y-auto"
+      className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-2 sm:p-10 overflow-y-auto tickd-modal-backdrop"
     >
       <form
         onSubmit={handleSubmit}
-        className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-md overflow-hidden"
+        className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-md overflow-hidden tickd-modal-content"
       >
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <div className="text-sm font-medium">
-            {isEdit ? 'Edit person' : 'Add person'}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-text-3 hover:text-text p-1 rounded hover:bg-surface-2"
-          >
-            <i className="ti ti-x text-sm" />
-          </button>
-        </div>
+        <ModalHeader
+          title={isEdit ? 'Edit person' : 'Add person'}
+          icon="ti-user"
+          onClose={onClose}
+        />
 
         <div className="p-5 space-y-4">
           <Field label="Name">

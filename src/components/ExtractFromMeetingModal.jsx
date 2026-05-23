@@ -6,6 +6,7 @@ import { extractTasksFromTranscript } from '../api/aiExtract'
 import { addWatcher } from '../api/watchers'
 import { useDictation } from '../lib/useDictation'
 import { picPill, statusPill } from '../lib/colors'
+import ModalHeader from './ModalHeader'
 
 const SAMPLE_PLACEHOLDER = `Paste meeting notes or transcript here. e.g.
 
@@ -186,23 +187,14 @@ export default function ExtractFromMeetingModal({ open, onClose }) {
   return (
     <div
       onClick={(e) => e.target === e.currentTarget && !extracting && !creating && onClose()}
-      className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-2 sm:p-10 overflow-y-auto"
+      className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-2 sm:p-10 overflow-y-auto tickd-modal-backdrop"
     >
-      <div className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <div className="flex items-center gap-2">
-            <i className="ti ti-sparkles text-info text-base" />
-            <span className="text-sm font-medium">Import from meeting</span>
-          </div>
-          <button
-            onClick={onClose}
-            disabled={extracting || creating}
-            className="text-text-3 hover:text-text p-1 rounded hover:bg-surface-2 disabled:opacity-50"
-            aria-label="Close"
-          >
-            <i className="ti ti-x text-sm" />
-          </button>
-        </div>
+      <div className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] tickd-modal-content">
+        <ModalHeader
+          title="Import from meeting"
+          icon="ti-sparkles"
+          onClose={extracting || creating ? () => {} : onClose}
+        />
 
         {!hasDrafts ? (
           <div className="flex-1 flex flex-col overflow-hidden">

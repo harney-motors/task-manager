@@ -123,6 +123,9 @@ export default function Home() {
             prev.delete('picFilter')
             prev.delete('dept')
             prev.delete('status')
+            prev.delete('priority')
+            prev.delete('due')
+            prev.delete('sort')
             return prev
           }
           // 'all' is the default — represent as missing param.
@@ -133,6 +136,9 @@ export default function Home() {
           apply('picFilter', signal.picId)
           apply('dept', signal.deptId)
           apply('status', signal.status)
+          apply('priority', signal.priority)
+          apply('due', signal.due)
+          apply('sort', signal.sort)
           return prev
         },
         { replace: false },
@@ -446,62 +452,70 @@ export default function Home() {
               </div>
             </div>
 
-            {view === 'today'    && (
-              <TodayView
-                onOpenTask={setOpenTaskId}
-                onOpenSettings={() => setShowSettings(true)}
-                onSwitchView={(target, hint) => {
-                  if (target === 'pic') {
-                    setView('pic')
-                    if (hint?.picId) setPicViewSelectedId(hint.picId)
-                  } else if (target === 'grid') {
-                    // Apply a status hint to Grid via the existing aiFilter
-                    // signal (same channel Cmd+K uses). bumping a counter on
-                    // `key` ensures the effect re-fires even for identical hints.
-                    setGridFilterSignal({
-                      status: hint?.status ?? 'all',
-                      picId: hint?.picId ?? 'all',
-                      deptId: hint?.deptId ?? 'all',
-                      key: Date.now(),
-                    })
-                    setView('grid')
-                  } else {
-                    setView(target)
-                  }
-                }}
-              />
-            )}
-            {view === 'list'     && <ListView     onOpenTask={setOpenTaskId} />}
-            {view === 'grid'     && (
-              <Suspense fallback={<ViewFallback />}>
-              <GridView
-                onOpenTask={setOpenTaskId}
-                aiFilter={gridFilterSignal}
-                onFiltersChange={(next) => {
-                  // Strip default-all values; setGridFilterSignal handles the null case.
-                  const allDefault =
-                    next.picId === 'all' &&
-                    next.deptId === 'all' &&
-                    next.status === 'all'
-                  setGridFilterSignal(allDefault ? null : next)
-                }}
-              />
-              </Suspense>
-            )}
-            {view === 'pic'      && (
-              <Suspense fallback={<ViewFallback />}>
-                <PicView
+            {/* Wrapping the active view in a keyed container makes React
+                discard + remount on tab change, which replays the
+                tickd-view-in CSS animation each time. */}
+            <div key={view} className="tickd-view-in">
+              {view === 'today'    && (
+                <TodayView
                   onOpenTask={setOpenTaskId}
-                  selectedPicId={picViewSelectedId ?? undefined}
-                  onSelectPic={setPicViewSelectedId}
+                  onOpenSettings={() => setShowSettings(true)}
+                  onSwitchView={(target, hint) => {
+                    if (target === 'pic') {
+                      setView('pic')
+                      if (hint?.picId) setPicViewSelectedId(hint.picId)
+                    } else if (target === 'grid') {
+                      // Apply a status hint to Grid via the existing aiFilter
+                      // signal (same channel Cmd+K uses). bumping a counter on
+                      // `key` ensures the effect re-fires even for identical hints.
+                      setGridFilterSignal({
+                        status: hint?.status ?? 'all',
+                        picId: hint?.picId ?? 'all',
+                        deptId: hint?.deptId ?? 'all',
+                        priority: hint?.priority ?? 'all',
+                        due: hint?.due ?? 'all',
+                        sort: hint?.sort ?? 'all',
+                        key: Date.now(),
+                      })
+                      setView('grid')
+                    } else {
+                      setView(target)
+                    }
+                  }}
                 />
-              </Suspense>
-            )}
-            {view === 'calendar' && (
-              <Suspense fallback={<ViewFallback />}>
-                <CalendarView onOpenTask={setOpenTaskId} />
-              </Suspense>
-            )}
+              )}
+              {view === 'list'     && <ListView     onOpenTask={setOpenTaskId} />}
+              {view === 'grid'     && (
+                <Suspense fallback={<ViewFallback />}>
+                <GridView
+                  onOpenTask={setOpenTaskId}
+                  aiFilter={gridFilterSignal}
+                  onFiltersChange={(next) => {
+                    // Strip default-all values; setGridFilterSignal handles the null case.
+                    const allDefault =
+                      next.picId === 'all' &&
+                      next.deptId === 'all' &&
+                      next.status === 'all'
+                    setGridFilterSignal(allDefault ? null : next)
+                  }}
+                />
+                </Suspense>
+              )}
+              {view === 'pic'      && (
+                <Suspense fallback={<ViewFallback />}>
+                  <PicView
+                    onOpenTask={setOpenTaskId}
+                    selectedPicId={picViewSelectedId ?? undefined}
+                    onSelectPic={setPicViewSelectedId}
+                  />
+                </Suspense>
+              )}
+              {view === 'calendar' && (
+                <Suspense fallback={<ViewFallback />}>
+                  <CalendarView onOpenTask={setOpenTaskId} />
+                </Suspense>
+              )}
+            </div>
 
             {/* Activity feed sits below the view content so it isn't the first
                 thing you see on sign-in. */}

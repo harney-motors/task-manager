@@ -299,7 +299,7 @@ function WatchedRow({ task, onClick }) {
       onClick={onClick}
       className="py-2.5 border-b border-border last:border-b-0 cursor-pointer hover:bg-surface-2 -mx-4 px-4 transition-colors"
     >
-      <div className="text-sm truncate">{task.title}</div>
+      <div className="text-sm line-clamp-2">{task.title}</div>
       <div className="text-[11px] text-text-2 flex items-center gap-1.5 mt-1 flex-wrap">
         {task.pic ? (
           <span

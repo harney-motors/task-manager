@@ -47,7 +47,7 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
 
       <div className="flex-1 min-w-0">
         <div
-          className={`text-sm font-medium truncate ${done ? 'line-through text-text-3' : ''}`}
+          className={`text-sm font-medium line-clamp-2 ${done ? 'line-through text-text-3' : ''}`}
         >
           {task.title}
         </div>

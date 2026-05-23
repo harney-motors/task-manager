@@ -21,6 +21,7 @@ import JournalPanel from './JournalPanel'
 import TaskActivityPanel from './TaskActivityPanel'
 import SubtasksField from './SubtasksField'
 import DependenciesField from './DependenciesField'
+import ModalHeader from './ModalHeader'
 import { useTaskDependencies } from '../lib/queries'
 
 export default function TaskModal({ task, onClose, onOpenTask }) {
@@ -169,30 +170,23 @@ export default function TaskModal({ task, onClose, onOpenTask }) {
   return (
     <div
       onClick={(e) => e.target === e.currentTarget && onClose()}
-      className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-2 sm:p-10 overflow-y-auto"
+      className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-2 sm:p-10 overflow-y-auto tickd-modal-backdrop"
     >
-      <div className="flex flex-col bg-surface rounded-2xl border border-border shadow-xl w-full max-w-xl">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <div className="flex items-center gap-3 min-w-0">
-            <span
-              className={`text-[11px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${statusPill(displayStatus)}`}
-            >
-              {displayStatus}
-            </span>
-            <span className="text-xs font-mono text-text-3 flex-shrink-0">
-              {taskNumber}
-            </span>
-            <SaveBadge tone={saveTone} isTemp={isTemp} />
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded hover:bg-surface-2 text-text-3 hover:text-text flex-shrink-0"
-            aria-label="Close"
-          >
-            <i className="ti ti-x text-sm" />
-          </button>
-        </div>
+      <div className="flex flex-col bg-surface rounded-2xl border border-border shadow-xl w-full max-w-xl tickd-modal-content">
+        <ModalHeader
+          title={taskNumber}
+          onClose={onClose}
+          rightSlot={
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span
+                className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${statusPill(displayStatus)}`}
+              >
+                {displayStatus}
+              </span>
+              <SaveBadge tone={saveTone} isTemp={isTemp} />
+            </div>
+          }
+        />
 
         {/* Tabs */}
         {!isTemp && (

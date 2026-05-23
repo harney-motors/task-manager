@@ -18,7 +18,7 @@ export default function ViewTabs({ active, onChange }) {
             onClick={() => onChange(tab.id)}
             className={`px-3 py-1.5 text-xs rounded-md inline-flex items-center gap-1.5 transition-colors whitespace-nowrap ${
               active === tab.id
-                ? 'bg-surface text-text font-medium shadow-sm'
+                ? 'bg-surface text-text font-medium shadow-sm tickd-tab-active'
                 : 'text-text-2 hover:text-text'
             }`}
           >

@@ -624,7 +624,7 @@ function DayList({ day, tasks, onOpenTask, onSelectDay, selectMode, selectedIds,
                   if (selectMode) onToggleSelect?.(t.id)
                   else onOpenTask(t.id)
                 }}
-                className={`block w-full text-left text-xs px-2 py-1.5 rounded ${picPill(t.pic?.color)} truncate ${
+                className={`block w-full text-left text-xs px-2 py-1.5 rounded ${picPill(t.pic?.color)} line-clamp-2 whitespace-normal ${
                   selectMode && isSel
                     ? 'ring-2 ring-info ring-inset'
                     : ''

@@ -214,3 +214,96 @@ button, label, [role="button"] {
     font-size: 16px;
   }
 }
+
+/* ============================================================
+   Subtle iOS-style transitions
+   ============================================================
+   Modal backdrop fades; modal content drops + fades into place.
+   Apply with className="tickd-modal-backdrop" and
+   className="tickd-modal-content". Honors prefers-reduced-motion. */
+
+@keyframes tickd-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes tickd-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.tickd-modal-backdrop {
+  animation: tickd-backdrop-in 140ms ease-out both;
+}
+.tickd-modal-content {
+  animation: tickd-modal-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: 50% 0%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tickd-modal-backdrop,
+  .tickd-modal-content {
+    animation: none;
+  }
+}
+
+/* View transition — fades + slightly slides the active view in. Apply
+   on the view container; React's conditional rendering remounts the
+   class fresh on every tab switch so the animation plays each time. */
+@keyframes tickd-view-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tickd-view-in {
+  animation: tickd-view-in 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tickd-view-in {
+    animation: none;
+  }
+}
+
+/* iOS Reminders-style inset list separator. Use on a UL/parent: the
+   separator (border) on each child stops 16px short of the left edge
+   so it visually aligns with the text rather than the gutter. */
+.tickd-inset-separators > * + * {
+  border-top: 1px solid var(--color-border);
+  margin-left: 1rem;
+  padding-left: 0;
+}
+.tickd-inset-separators > *:last-child {
+  border-bottom: none;
+}
+
+/* Tab button micro-bounce on activate — the new background pops in
+   subtly without being distracting. Keep durations short (<200ms)
+   so it never gets in the user's way. */
+.tickd-tab-active {
+  animation: tickd-tab-pop 160ms ease-out both;
+}
+@keyframes tickd-tab-pop {
+  from {
+    transform: scale(0.97);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tickd-tab-active {
+    animation: none;
+  }
+}

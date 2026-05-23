@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import ModalHeader from './ModalHeader'
 
 // Cheat-sheet modal triggered by `?`. Lists every shortcut grouped by
 // context so a new user (or your future self) can see what's wired
@@ -61,22 +62,14 @@ export default function ShortcutsHelpModal({ open, onClose }) {
   return (
     <div
       onClick={(e) => e.target === e.currentTarget && onClose()}
-      className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-2 sm:p-10 overflow-y-auto"
+      className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-2 sm:p-10 overflow-y-auto tickd-modal-backdrop"
     >
-      <div className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-lg overflow-hidden">
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <div className="text-sm font-medium inline-flex items-center gap-2">
-            <i className="ti ti-keyboard text-base text-info" />
-            Keyboard shortcuts
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded hover:bg-surface-2 text-text-3 hover:text-text"
-            aria-label="Close"
-          >
-            <i className="ti ti-x text-sm" />
-          </button>
-        </div>
+      <div className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-lg overflow-hidden tickd-modal-content">
+        <ModalHeader
+          title="Keyboard shortcuts"
+          icon="ti-keyboard"
+          onClose={onClose}
+        />
         <div className="px-5 py-4 space-y-5 max-h-[70vh] overflow-y-auto">
           {SECTIONS.map((sec) => (
             <section key={sec.title}>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAdminLinkPerson, useAdminUsers } from '../lib/queries'
 import { findPersonForEmail } from '../lib/matchPerson'
 import { useToast } from './Toast'
+import ModalHeader from './ModalHeader'
 
 // Superadmin tool: link an EXISTING auth user to an EXISTING person.
 // Complements admin-create-user (which links on create) for the case
@@ -76,22 +77,14 @@ export default function LinkPersonModal({ person, onClose }) {
   return (
     <div
       onClick={(e) => e.target === e.currentTarget && onClose()}
-      className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-2 sm:p-10 overflow-y-auto"
+      className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-2 sm:p-10 overflow-y-auto tickd-modal-backdrop"
     >
-      <div className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]">
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <div className="text-sm font-medium inline-flex items-center gap-2">
-            <i className="ti ti-link text-info text-base" />
-            Link person to user
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded hover:bg-surface-2 text-text-3 hover:text-text"
-            aria-label="Close"
-          >
-            <i className="ti ti-x text-sm" />
-          </button>
-        </div>
+      <div className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh] tickd-modal-content">
+        <ModalHeader
+          title="Link person to user"
+          icon="ti-link"
+          onClose={onClose}
+        />
 
         <div className="px-5 py-3 border-b border-border">
           <div className="text-xs text-text-2">Linking:</div>

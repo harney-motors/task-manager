@@ -413,7 +413,7 @@ function GridRow({
         </button>
 
         <div
-          className={`text-sm truncate ${done ? 'line-through text-text-3' : ''}`}
+          className={`text-sm line-clamp-2 ${done ? 'line-through text-text-3' : ''}`}
         >
           {task.title}
         </div>

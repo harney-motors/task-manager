@@ -155,9 +155,9 @@ export default function SearchPalette({
   return (
     <div
       onClick={(e) => e.target === e.currentTarget && onClose()}
-      className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-12 sm:pt-20 p-2 sm:p-4"
+      className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-12 sm:pt-20 p-2 sm:p-4 tickd-modal-backdrop"
     >
-      <div className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-xl overflow-hidden">
+      <div className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-xl overflow-hidden tickd-modal-content">
         <div className="flex items-center gap-3 p-3 border-b border-border">
           <i className="ti ti-search text-text-3 text-base" />
           <input

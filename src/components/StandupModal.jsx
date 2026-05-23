@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import { generateStandup } from '../api/standup'
 import { useToast } from './Toast'
+import ModalHeader from './ModalHeader'
 
 // "Generate today's standup" modal. Auto-fires the generation when
 // it opens; user can copy the markdown straight to their clipboard
@@ -68,22 +69,14 @@ export default function StandupModal({ open, onClose }) {
   return (
     <div
       onClick={(e) => e.target === e.currentTarget && onClose()}
-      className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-2 sm:p-10 overflow-y-auto"
+      className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-2 sm:p-10 overflow-y-auto tickd-modal-backdrop"
     >
-      <div className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <div className="text-sm font-medium inline-flex items-center gap-2">
-            <i className="ti ti-clipboard-text text-info text-base" />
-            Today&rsquo;s standup
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded hover:bg-surface-2 text-text-3 hover:text-text"
-            aria-label="Close"
-          >
-            <i className="ti ti-x text-sm" />
-          </button>
-        </div>
+      <div className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh] tickd-modal-content">
+        <ModalHeader
+          title="Today's standup"
+          icon="ti-clipboard-text"
+          onClose={onClose}
+        />
 
         <div className="px-5 py-3 text-xs text-text-2 border-b border-border">
           AI-summarised from your owned and watched tasks. Copy-paste straight

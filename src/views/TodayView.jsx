@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useTasks, usePeople } from '../lib/queries'
 import {
   addDays,
@@ -11,6 +11,7 @@ import { picDot, picPill, statusPill } from '../lib/colors'
 import TaskRow from '../components/TaskRow'
 import NudgesBanner from '../components/NudgesBanner'
 import EmptyWorkspaceGuide from '../components/EmptyWorkspaceGuide'
+import PicWeekModal from '../components/PicWeekModal'
 
 // Three-zone informational dashboard. Designed to feel less like an
 // inbox and more like a control room: at-a-glance state, then drill-in
@@ -27,6 +28,9 @@ import EmptyWorkspaceGuide from '../components/EmptyWorkspaceGuide'
 export default function TodayView({ onOpenTask, onSwitchView, onOpenSettings }) {
   const { data: tasks = [], isLoading } = useTasks()
   const { data: people = [] } = usePeople()
+
+  // PIC chip → quick peek modal (item #5 of iOS polish pass)
+  const [pickedPic, setPickedPic] = useState(null)
 
   const today = startOfToday()
   const todayIso = formatIso(today)
@@ -231,7 +235,8 @@ export default function TodayView({ onOpenTask, onSwitchView, onOpenSettings }) 
         />
       </div>
 
-      {/* Smart insights */}
+      {/* Smart insights — each chip drills into Grid with the right
+          pre-filter applied via the existing onSwitchView signal. */}
       {insights.length > 0 && (
         <div className="bg-surface border border-border rounded-xl p-3">
           <div className="text-[11px] uppercase tracking-wider text-text-3 mb-2 px-1">
@@ -239,19 +244,24 @@ export default function TodayView({ onOpenTask, onSwitchView, onOpenSettings }) 
           </div>
           <div className="flex flex-wrap gap-1.5">
             {insights.map((i) => (
-              <span
+              <button
                 key={i.key}
-                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs border ${insightTone(i.tone)}`}
+                type="button"
+                onClick={() => {
+                  const hint = insightToFilter(i.key)
+                  if (hint && onSwitchView) onSwitchView('grid', hint)
+                }}
+                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs border hover:opacity-90 cursor-pointer ${insightTone(i.tone)}`}
               >
                 <i className={`ti ${i.icon} text-sm`} />
                 {i.text}
-              </span>
+              </button>
             ))}
           </div>
         </div>
       )}
 
-      {/* This week by PIC */}
+      {/* This week by PIC — chip click opens a quick peek modal. */}
       {weekByPic.length > 0 && (
         <div className="bg-surface border border-border rounded-xl p-4">
           <div className="flex items-baseline justify-between mb-3">
@@ -265,7 +275,7 @@ export default function TodayView({ onOpenTask, onSwitchView, onOpenSettings }) 
             {weekByPic.map(({ person, count }) => (
               <button
                 key={person.id}
-                onClick={() => onSwitchView?.('pic', { picId: person.id })}
+                onClick={() => setPickedPic(person)}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs border border-border hover:border-border-strong hover:bg-surface-2 text-text-2 hover:text-text"
               >
                 <span className={`w-2 h-2 rounded-full ${picDot(person.color)}`} />
@@ -275,6 +285,21 @@ export default function TodayView({ onOpenTask, onSwitchView, onOpenSettings }) 
             ))}
           </div>
         </div>
+      )}
+      {pickedPic && (
+        <PicWeekModal
+          person={pickedPic}
+          tasks={tasks}
+          onOpenTask={(id) => {
+            setPickedPic(null)
+            onOpenTask(id)
+          }}
+          onSeeAll={() => {
+            setPickedPic(null)
+            onSwitchView?.('pic', { picId: pickedPic.id })
+          }}
+          onClose={() => setPickedPic(null)}
+        />
       )}
     </div>
   )
@@ -393,14 +418,14 @@ function ZoneCard({
   return (
     <div className="bg-surface border border-border rounded-xl overflow-hidden flex flex-col">
       <div className="px-4 py-3 border-b border-border">
-        <div className="flex items-center gap-2">
-          <i className={`ti ${icon} text-base ${zoneIconTone(tone)}`} />
+        <div className="flex items-center gap-2.5">
+          <IconSquare icon={icon} tone={tone} />
           <h2 className="text-sm font-medium">{title}</h2>
           {tasks.length > 0 && (
             <span className="text-[11px] text-text-3">· {tasks.length}</span>
           )}
         </div>
-        <div className="text-[11px] text-text-3 mt-0.5">{subtitle}</div>
+        <div className="text-[11px] text-text-3 mt-1 ml-9">{subtitle}</div>
       </div>
       {tasks.length === 0 ? (
         <div className="flex-1 px-4 py-8 text-center text-xs text-text-3">
@@ -440,7 +465,7 @@ function ZoneRow({ task, onClick }) {
       onClick={onClick}
       className="py-2.5 border-b border-border last:border-b-0 cursor-pointer hover:bg-surface-2 -mx-4 px-4 transition-colors"
     >
-      <div className="text-sm truncate">{task.title}</div>
+      <div className="text-sm line-clamp-2">{task.title}</div>
       <div className="text-[11px] text-text-2 flex items-center gap-1.5 mt-1 flex-wrap">
         {task.pic ? (
           <span
@@ -498,8 +523,53 @@ function insightTone(tone) {
   return 'border-border text-text-2 bg-surface-2/40'
 }
 
-function zoneIconTone(tone) {
-  if (tone === 'danger') return 'text-danger-text'
-  if (tone === 'info') return 'text-info'
-  return 'text-text-3'
+// Map a smart-insight chip key → a filter hint understood by Home's
+// `setGridFilterSignal` (which writes the URL params Grid reads from).
+// We keep this to fields the URL filter contract already supports:
+// picId / deptId / status / priority / due / sort.
+//
+// `unassigned` has no first-class filter today, so we fall back to
+// sorting so unassigned rows clump together at the top.
+function insightToFilter(key) {
+  switch (key) {
+    case 'high-overdue':
+      return { priority: 'High', due: 'overdue' }
+    case 'stale':
+      return { sort: 'updated' }
+    case 'unassigned':
+      return { sort: 'pic' }
+    case 'no-due':
+      return { due: 'none' }
+    default:
+      return null
+  }
+}
+
+// iOS-Reminders-style colored square: 28px tile, white icon on a
+// brand-toned solid background. Picks a sensible color per tone.
+function IconSquare({ icon, tone }) {
+  const bg = iconSquareBg(tone)
+  return (
+    <span
+      className={`inline-flex items-center justify-center w-7 h-7 rounded-md ${bg} flex-shrink-0`}
+    >
+      <i className={`ti ${icon} text-white text-base`} />
+    </span>
+  )
+}
+
+function iconSquareBg(tone) {
+  switch (tone) {
+    case 'danger':
+      return 'bg-[#FF3B30]' // iOS systemRed
+    case 'info':
+      return 'bg-info'
+    case 'success':
+      return 'bg-[#34C759]' // iOS systemGreen
+    case 'warning':
+      return 'bg-[#FF9500]' // iOS systemOrange
+    case 'muted':
+    default:
+      return 'bg-[#8E8E93]' // iOS systemGray
+  }
 }
