@@ -57,10 +57,10 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
         >
           {task.title}
         </div>
-        <div className="text-xs text-text-2 flex items-center gap-2 mt-0.5 flex-wrap">
+        <div className="text-[11px] sm:text-xs text-text-2 flex items-center gap-1.5 sm:gap-2 mt-1 sm:mt-0.5 flex-wrap">
           {task.pic ? (
             <span
-              className={`inline-flex items-center gap-1 px-1.5 py-px rounded text-[11px] font-medium ${picPill(task.pic.color)} ${
+              className={`inline-flex items-center gap-1 px-1.5 py-px rounded text-[10px] sm:text-[11px] font-medium ${picPill(task.pic.color)} ${
                 task.pic.is_active === false ? 'opacity-60' : ''
               }`}
               title={
@@ -72,13 +72,16 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
               {task.pic.is_active === false && (
                 <i className="ti ti-user-off text-[10px]" />
               )}
-              {task.pic.name}
+              {/* First name only on phone to match Grid mobile row +
+                  keep the meta line short; full name on tablet+. */}
+              <span className="sm:hidden">{task.pic.name.split(' ')[0]}</span>
+              <span className="hidden sm:inline">{task.pic.name}</span>
             </span>
           ) : (
-            <span className="text-text-3">Unassigned</span>
+            <span className="text-text-3 text-[10px] sm:text-xs">Unassigned</span>
           )}
           {task.due_date && (
-            <span className={overdue ? 'text-danger-text font-medium' : ''}>
+            <span className={overdue ? 'text-danger-text font-medium' : 'text-text-3 sm:text-text-2'}>
               {/* Long form on tablet+ ("3 days ago"), compact form on phone
                   ("Mon 12") — keeps mobile rows scannable without the noise
                   of "112 days ago"-style strings. */}
@@ -144,7 +147,7 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
       </div>
 
       <span
-        className={`text-[11px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${statusPill(displayStatus)}`}
+        className={`text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${statusPill(displayStatus)}`}
       >
         {displayStatus}
       </span>
