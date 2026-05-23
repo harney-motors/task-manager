@@ -7,6 +7,8 @@ import {
   unsubscribePush,
   updatePushPreferences,
 } from '../api/push'
+import { ensureServiceWorker } from '../lib/registerSw'
+import { supabase } from '../lib/supabase'
 import { sendSelfPush } from '../api/notify'
 import { useToast } from './Toast'
 
@@ -43,6 +45,9 @@ export default function PushSettings() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [subs, setSubs] = useState([])
+  // Endpoint of *this device's* current PushSubscription, or null. We
+  // compare DB rows against this to determine local enabled-ness.
+  const [localEndpoint, setLocalEndpoint] = useState(null)
   const showToast = useToast()
 
   useEffect(() => {
@@ -53,6 +58,10 @@ export default function PushSettings() {
   async function refresh() {
     setLoading(true)
     try {
+      const reg = await ensureServiceWorker()
+      const localSub = await reg?.pushManager.getSubscription().catch(() => null)
+      setLocalEndpoint(localSub?.endpoint ?? null)
+
       const rows = await fetchMyPushSubscriptions()
       setSubs(rows)
     } catch (err) {
@@ -62,12 +71,18 @@ export default function PushSettings() {
     }
   }
 
-  // Treat preferences as a single shared state across all of THIS
-  // user's subscriptions — simpler than per-device UI. If they want
-  // device-specific tuning later, the schema's already there.
-  const activeSub = subs[0] ?? null
-  const enabled = !!activeSub
-  const prefs = activeSub?.preferences ?? {
+  const localSubRow = localEndpoint
+    ? subs.find((s) => s.endpoint === localEndpoint)
+    : null
+  const enabledHere = !!localSubRow
+  const otherDeviceCount = subs.filter(
+    (s) => s.endpoint !== localEndpoint,
+  ).length
+
+  // Preferences shown reflect the local device when subscribed; if
+  // not subscribed here, fall back to defaults so the panel still
+  // shows the available triggers.
+  const prefs = localSubRow?.preferences ?? {
     assigned_to_me: true,
     due_soon: true,
     watched_changed: true,
@@ -94,12 +109,40 @@ export default function PushSettings() {
     setBusy(true)
     try {
       await unsubscribePush()
+      // Safety net: if for any reason the local PushManager had no
+      // subscription but the DB row exists for this endpoint (we
+      // can hit this when the browser revokes the sub independently
+      // while the row persists), delete the matching DB row too.
+      if (localSubRow) {
+        await supabase
+          .from('push_subscriptions')
+          .delete()
+          .eq('id', localSubRow.id)
+      }
       await refresh()
       showToast('Notifications turned off on this device.')
     } catch (err) {
       showToast(err.message ?? 'Could not disable notifications', {
         type: 'error',
       })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleRemoveOtherDevice(subId) {
+    if (!confirm('Stop sending notifications to that device?')) return
+    setBusy(true)
+    try {
+      const { error } = await supabase
+        .from('push_subscriptions')
+        .delete()
+        .eq('id', subId)
+      if (error) throw error
+      await refresh()
+      showToast('Device removed.')
+    } catch (err) {
+      showToast(err.message ?? 'Could not remove device', { type: 'error' })
     } finally {
       setBusy(false)
     }
@@ -123,25 +166,25 @@ export default function PushSettings() {
   }
 
   async function handleToggleTrigger(id, value) {
-    if (!activeSub) return
+    if (!localSubRow) return
     const nextPrefs = { ...prefs, [id]: value }
     // Optimistic UI
     setSubs((prev) =>
       prev.map((s) =>
-        s.id === activeSub.id ? { ...s, preferences: nextPrefs } : s,
+        s.id === localSubRow.id ? { ...s, preferences: nextPrefs } : s,
       ),
     )
     try {
-      // Apply the same preferences to every device for this user
-      // so toggling here is consistent across phone/desktop.
-      await Promise.all(
-        subs.map((s) => updatePushPreferences(s.id, nextPrefs)),
-      )
+      // Only update the local device's prefs. Per-device tuning later
+      // can be added; for now keep cross-device behaviour predictable.
+      await updatePushPreferences(localSubRow.id, nextPrefs)
     } catch (err) {
       showToast(err.message ?? 'Could not save preference', { type: 'error' })
       refresh()
     }
   }
+
+  // ---------- Render ----------
 
   if (!pushSupported()) {
     return (
@@ -190,17 +233,20 @@ export default function PushSettings() {
     )
   }
 
+  const otherDevices = subs.filter((s) => s.endpoint !== localEndpoint)
+
   return (
     <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <div className="text-sm font-medium">Push notifications</div>
           <p className="text-xs text-text-2 mt-1">
-            Get pinged on this device when tasks need your attention. You
-            can fine-tune what triggers a notification below.
+            Get pinged on this device when tasks need your attention. Each
+            device subscribes separately — enabling on desktop won&rsquo;t
+            enrol your phone.
           </p>
         </div>
-        {enabled ? (
+        {enabledHere ? (
           <button
             onClick={handleDisable}
             disabled={busy}
@@ -216,12 +262,12 @@ export default function PushSettings() {
             className="text-xs px-3 py-1.5 rounded bg-info text-white font-medium hover:opacity-90 disabled:opacity-50 inline-flex items-center gap-1.5"
           >
             <i className="ti ti-bell text-sm" />
-            Enable notifications
+            Enable on this device
           </button>
         )}
       </div>
 
-      {enabled && (
+      {enabledHere && (
         <div className="pt-3 border-t border-border">
           <button
             onClick={handleTest}
@@ -232,14 +278,17 @@ export default function PushSettings() {
             Send test notification
           </button>
           <p className="text-[11px] text-text-3 mt-1.5">
-            Pings this device. Confirms the VAPID keys, service worker,
-            and permission are all wired up.
+            Pings this device. Confirms the VAPID keys, service worker, and
+            permission are all wired up.
           </p>
         </div>
       )}
 
-      {loading ? null : enabled ? (
+      {loading ? null : enabledHere ? (
         <div className="pt-3 border-t border-border space-y-1">
+          <div className="text-[11px] uppercase tracking-wider text-text-3 mb-1">
+            Triggers (this device)
+          </div>
           {TRIGGERS.map((t) => (
             <label
               key={t.id}
@@ -260,17 +309,70 @@ export default function PushSettings() {
         </div>
       ) : (
         <div className="pt-3 border-t border-border text-xs text-text-3">
-          Enable to choose which events fire a notification.
+          Tap “Enable on this device” to choose which events fire a
+          notification here.
         </div>
       )}
 
-      {subs.length > 1 && (
-        <div className="text-[11px] text-text-3 pt-2 border-t border-border">
-          Tickd has push enabled on {subs.length} device
-          {subs.length === 1 ? '' : 's'} for this account. Preferences apply
-          to all of them.
+      {otherDevices.length > 0 && (
+        <div className="pt-3 border-t border-border">
+          <div className="text-[11px] uppercase tracking-wider text-text-3 mb-1.5">
+            Other devices ({otherDevices.length})
+          </div>
+          <ul className="space-y-1">
+            {otherDevices.map((s) => (
+              <li
+                key={s.id}
+                className="flex items-center justify-between gap-2 text-xs"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-text-2">
+                    {summariseUserAgent(s.user_agent)}
+                  </div>
+                  <div className="text-[10px] text-text-3">
+                    Added{' '}
+                    {new Date(s.created_at).toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleRemoveOtherDevice(s.id)}
+                  disabled={busy}
+                  className="text-[11px] text-text-3 hover:text-danger-text underline disabled:opacity-50"
+                  title="Stop sending notifications to that device"
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="text-[10px] text-text-3 mt-1.5">
+            Removing here stops the server from sending to that device. To
+            re-enable, open Tickd on that device and tap Enable.
+          </p>
         </div>
       )}
     </div>
   )
+}
+
+// Best-effort short label for a user-agent string. Web push devices
+// don't carry a "device name" so we infer from UA.
+function summariseUserAgent(ua) {
+  if (!ua) return 'Unknown device'
+  // Order matters — match more specific first.
+  if (/iPhone/.test(ua)) return 'iPhone'
+  if (/iPad/.test(ua)) return 'iPad'
+  if (/Android/.test(ua)) {
+    if (/Mobile/.test(ua)) return 'Android phone'
+    return 'Android tablet'
+  }
+  if (/Mac OS X/.test(ua) && /Safari/.test(ua) && !/Chrome/.test(ua))
+    return 'Mac · Safari'
+  if (/Macintosh/.test(ua)) return 'Mac · Chrome / Edge'
+  if (/Windows/.test(ua)) return 'Windows'
+  if (/Linux/.test(ua)) return 'Linux'
+  return ua.slice(0, 60)
 }
