@@ -9,7 +9,6 @@ import QuickEntryModal from '../components/QuickEntryModal'
 import FAB from '../components/FAB'
 import TaskModal from '../components/TaskModal'
 import Greeting from '../components/Greeting'
-import ViewTabs from '../components/ViewTabs'
 import TodayView from './TodayView'
 import ListView from './ListView'
 import PicHomeView from './PicHomeView'
@@ -20,6 +19,7 @@ import ActivityFeed from '../components/ActivityFeed'
 import WorkspaceSwitcher from '../components/WorkspaceSwitcher'
 import NudgeBadge from '../components/NudgeBadge'
 import BottomNav from '../components/BottomNav'
+import Sidebar from '../components/Sidebar'
 import ShortcutsHelpModal from '../components/ShortcutsHelpModal'
 import StandupModal from '../components/StandupModal'
 import MobileMoreMenu from '../components/MobileMoreMenu'
@@ -437,15 +437,31 @@ export default function Home() {
   ]
 
   return (
-    <div className="min-h-screen bg-bg text-text font-sans pb-16 sm:pb-0">
-      {/* ===== STICKY TOPBAR =====
-          Sticks to the top of the viewport on every tab so navigation +
-          search + overflow are always reachable as you scroll. Honors
-          safe-area-inset-top so it sits below the iOS notch in PWA
-          mode. Translucent bg + backdrop-blur gives the iOS feel of
-          content blurring behind the bar. */}
+    <div className="min-h-screen bg-bg text-text font-sans pb-16 sm:pb-0 flex">
+      {/* ===== DESKTOP SIDEBAR =====
+          Left rail with brand, workspace, view nav, secondary actions,
+          and sign-out. Replaces the desktop topbar's role. The
+          ClickUp/Linear/Notion idiom. Hidden on phone — BottomNav
+          owns that surface. */}
+      <Sidebar
+        view={view}
+        onChange={setView}
+        onGoHome={goHome}
+        onOpenSettings={() => setShowSettings(true)}
+        onOpenSuperAdmin={() => setShowSuperAdmin(true)}
+        onOpenSearch={() => setShowSearch(true)}
+        onOpenMeeting={() => setShowExtract(true)}
+        onOpenStandup={() => setShowStandup(true)}
+        onOpenPulse={() => setShowPulse(true)}
+        isPicRole={isPicRole}
+      />
+
+      <div className="flex-1 min-w-0">
+      {/* ===== MOBILE STICKY TOPBAR =====
+          Phone only — the slim chrome (logo · workspace · nudges ·
+          search · overflow). Desktop chrome lives in the sidebar. */}
       <header
-        className="sticky top-0 z-30 bg-bg/85 backdrop-blur-xl border-b border-border/60"
+        className="sm:hidden sticky top-0 z-30 bg-bg/85 backdrop-blur-xl border-b border-border/60"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
         <div className="mx-auto max-w-5xl px-4 sm:px-6 py-2 sm:py-3">
@@ -477,87 +493,8 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ===== DESKTOP TOPBAR (tablet+) ===== */}
-        <div className="hidden sm:flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3 min-w-0">
-            <button
-              onClick={goHome}
-              aria-label="Home"
-              className="flex items-center gap-3 min-w-0 hover:opacity-80 transition-opacity"
-            >
-              <TickdMark size={32} className="flex-shrink-0" />
-              <TickdWordmark className="text-lg" />
-            </button>
-            <WorkspaceSwitcher />
-          </div>
-          <div className="flex items-center gap-3 text-sm min-w-0">
-            <span className="text-text-2 truncate max-w-[180px]">
-              {user.email}
-            </span>
-            <NudgeBadge />
-            {!isPicRole && (
-              <button
-                onClick={() => setShowExtract(true)}
-                className="px-2 py-1 rounded hover:bg-surface-2 text-text-2 hover:text-text inline-flex items-center gap-1.5 text-xs border border-border"
-                aria-label="Import from meeting"
-                title="Import tasks from meeting notes"
-              >
-                <i className="ti ti-sparkles text-sm text-info" />
-                Meeting
-              </button>
-            )}
-            <button
-              onClick={() => setShowStandup(true)}
-              className="p-2 rounded hover:bg-surface-2 text-text-2 hover:text-text"
-              aria-label="Generate today's standup"
-              title="Generate today's standup"
-            >
-              <i className="ti ti-clipboard-text text-base" />
-            </button>
-            {!isPicRole && (
-              <button
-                onClick={() => setShowPulse(true)}
-                className="p-2 rounded hover:bg-surface-2 text-text-2 hover:text-text"
-                aria-label="Workspace pulse"
-                title="Workspace pulse"
-              >
-                <i className="ti ti-chart-bar text-base" />
-              </button>
-            )}
-            <button
-              onClick={() => setShowSearch(true)}
-              className="px-2 py-1 rounded hover:bg-surface-2 text-text-2 hover:text-text inline-flex items-center gap-1.5 text-xs border border-border"
-              aria-label="Search"
-              title="Search (Cmd+K)"
-            >
-              <i className="ti ti-search text-sm" />
-              <kbd className="text-[10px] text-text-3">⌘K</kbd>
-            </button>
-            {isSuperadmin && (
-              <button
-                onClick={() => setShowSuperAdmin(true)}
-                className="p-2 rounded hover:bg-surface-2 text-text-2 hover:text-text"
-                aria-label="Super admin"
-                title="Super admin panel"
-              >
-                <i className="ti ti-shield-lock text-base text-info" />
-              </button>
-            )}
-            <button
-              onClick={() => setShowSettings(true)}
-              className="p-2 rounded hover:bg-surface-2 text-text-2 hover:text-text"
-              aria-label="Settings"
-            >
-              <i className="ti ti-settings text-base" />
-            </button>
-            <button
-              onClick={signOut}
-              className="text-text-3 hover:text-text underline text-xs whitespace-nowrap"
-            >
-              Sign out
-            </button>
-          </div>
-        </div>
+        {/* Desktop chrome lives in the Sidebar component now — no
+            duplicate topbar here. */}
         </div>
       </header>
 
@@ -585,14 +522,9 @@ export default function Home() {
               <QuickEntry />
             </div>
 
-            {/* In-page tabs only on tablet+; mobile uses BottomNav.
-                Always keep top spacing so the gap between QuickEntry
-                and the view body stays consistent on both sizes. */}
-            <div className="mt-4 mb-4">
-              <div className="hidden sm:block">
-                <ViewTabs active={view} onChange={setView} />
-              </div>
-            </div>
+            {/* ViewTabs removed at sm+ — the desktop Sidebar handles
+                view switching. BottomNav still owns it on phone. */}
+            <div className="mt-4 mb-4 sm:mt-0 sm:mb-2" />
 
             {/* Wrapping the active view in a keyed container makes React
                 discard + remount on tab change, which replays the
@@ -714,6 +646,7 @@ export default function Home() {
           onClose={() => setShowQuickAdd(false)}
         />
       </div>
+      </div>{/* /flex-1 main column wrapper */}
 
       {/* Mobile-only FAB for quick-add. Sits above the bottom nav and
           opens a sheet with the existing QuickEntry form inside. */}
