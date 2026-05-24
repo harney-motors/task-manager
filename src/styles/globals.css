@@ -402,6 +402,43 @@ body:has(.tickd-modal-backdrop) {
   }
 }
 
+/* ============================================================
+   ClickUp-inspired surface elevation
+   ============================================================
+   Cards (anything that combines bg-surface + border + rounded-xl)
+   get a subtle drop shadow so panels visually sit above the bg-bg
+   underlay — the look ClickUp / Linear / Notion all share. Dark
+   mode uses a stronger but still subtle shadow because the page bg
+   is already darker than the card.
+
+   Excluded: bg-surface-2 / bg-surface-3 are *inset* surfaces (hover
+   states, sticky group headers) and shouldn't elevate. */
+.bg-surface.border-border.rounded-xl,
+.bg-surface.border-border.rounded-2xl {
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+[data-theme='dark'] .bg-surface.border-border.rounded-xl,
+[data-theme='dark'] .bg-surface.border-border.rounded-2xl {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.25),
+    0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Sticky topbars / sub-view headers get a subtle "scrolled" lift —
+   uses a very small offset shadow that reads as elevation against
+   content scrolling underneath. */
+header.sticky,
+.tickd-sticky-shadow {
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+[data-theme='dark'] header.sticky,
+[data-theme='dark'] .tickd-sticky-shadow {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
 /* View transition — fades + slightly slides the active view in. Apply
    on the view container; React's conditional rendering remounts the
    class fresh on every tab switch so the animation plays each time. */

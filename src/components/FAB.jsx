@@ -11,7 +11,7 @@ export default function FAB({ icon = 'ti-plus', label = 'Add', onClick }) {
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="sm:hidden fixed right-4 z-30 w-14 h-14 rounded-full bg-info text-white shadow-lg shadow-info/40 flex items-center justify-center text-2xl active:scale-95 transition-transform"
+      className="sm:hidden fixed right-4 z-30 w-14 h-14 rounded-full bg-info text-white shadow-xl shadow-info/45 ring-1 ring-white/20 flex items-center justify-center text-2xl active:scale-90 hover:scale-105 transition-transform"
       style={{
         // Sit comfortably above the bottom nav (h-14 ≈ 56px + safe area).
         bottom: 'calc(72px + env(safe-area-inset-bottom))',
