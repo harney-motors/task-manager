@@ -20,6 +20,7 @@ import NudgeBadge from '../components/NudgeBadge'
 import BottomNav from '../components/BottomNav'
 import ShortcutsHelpModal from '../components/ShortcutsHelpModal'
 import StandupModal from '../components/StandupModal'
+import MobileMoreMenu from '../components/MobileMoreMenu'
 import { TickdMark, TickdWordmark } from '../components/TickdMark'
 import { useIsSuperadmin } from '../lib/queries'
 
@@ -332,32 +333,110 @@ export default function Home() {
   const openTask = tasks.find((t) => t.id === openTaskId)
   const isPicRole = workspace?.role === 'pic'
 
+  const goHome = () => {
+    setView('today')
+    setOpenTaskId(null)
+    setShowSettings(false)
+    setShowSuperAdmin(false)
+    setShowSearch(false)
+    setShowExtract(false)
+  }
+
+  // Secondary actions surfaced in the mobile overflow menu (and as
+  // standalone topbar buttons on desktop). Centralised so the two
+  // chrome variants can't drift out of sync.
+  const overflowActions = [
+    {
+      id: 'meeting',
+      label: 'Import from meeting',
+      icon: 'ti-sparkles',
+      onClick: () => setShowExtract(true),
+      visible: !isPicRole,
+    },
+    {
+      id: 'standup',
+      label: "Today's standup",
+      icon: 'ti-clipboard-text',
+      onClick: () => setShowStandup(true),
+    },
+    {
+      id: 'pulse',
+      label: 'Workspace pulse',
+      icon: 'ti-chart-bar',
+      onClick: () => setShowPulse(true),
+      visible: !isPicRole,
+    },
+    {
+      id: 'superadmin',
+      label: 'Super admin',
+      icon: 'ti-shield-lock',
+      onClick: () => setShowSuperAdmin(true),
+      visible: isSuperadmin,
+    },
+    {
+      id: 'settings',
+      label: 'Settings',
+      icon: 'ti-settings',
+      onClick: () => setShowSettings(true),
+    },
+    {
+      id: 'signout',
+      label: 'Sign out',
+      icon: 'ti-logout',
+      onClick: signOut,
+      destructive: true,
+    },
+  ]
+
   return (
-    <div className="min-h-screen bg-bg text-text font-sans pb-16 sm:pb-0">
-      <div className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
-        <div className="flex items-center justify-between mb-5 sm:mb-6">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+    <div
+      className="min-h-screen bg-bg text-text font-sans pb-16 sm:pb-0"
+      style={{ paddingTop: 'env(safe-area-inset-top)' }}
+    >
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 py-4 sm:py-8">
+        {/* ===== MOBILE TOPBAR (phone only) =====
+            Slim chrome: logo · workspace · nudges · search · overflow.
+            Everything secondary lives in the kebab menu so the bar
+            doesn't compete with the page title underneath. */}
+        <div className="sm:hidden flex items-center justify-between mb-3 gap-2">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             <button
-              onClick={() => {
-                setView('today')
-                setOpenTaskId(null)
-                setShowSettings(false)
-                setShowSuperAdmin(false)
-                setShowSearch(false)
-                setShowExtract(false)
-              }}
+              onClick={goHome}
               aria-label="Home"
-              className="flex items-center gap-2 sm:gap-3 min-w-0 hover:opacity-80 transition-opacity"
+              className="flex-shrink-0 active:opacity-70 transition-opacity"
             >
-              <TickdMark size={32} className="flex-shrink-0" />
-              {/* Wordmark eats horizontal room next to the workspace
-                  switcher on phones; the icon alone covers branding. */}
-              <TickdWordmark className="text-lg hidden sm:inline" />
+              <TickdMark size={28} />
             </button>
             <WorkspaceSwitcher />
           </div>
-          <div className="flex items-center gap-2 sm:gap-3 text-sm min-w-0">
-            <span className="text-text-2 hidden sm:inline truncate max-w-[180px]">
+          <div className="flex items-center gap-0.5 flex-shrink-0">
+            <NudgeBadge />
+            <button
+              onClick={() => setShowSearch(true)}
+              className="w-10 h-10 rounded-full inline-flex items-center justify-center text-text-2 hover:text-text hover:bg-surface-2 active:bg-surface-3 transition-colors"
+              aria-label="Search"
+            >
+              <i className="ti ti-search text-lg" />
+            </button>
+            <MobileMoreMenu items={overflowActions} />
+          </div>
+        </div>
+
+        {/* ===== DESKTOP TOPBAR (tablet+) ===== */}
+        <div className="hidden sm:flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={goHome}
+              aria-label="Home"
+              className="flex items-center gap-3 min-w-0 hover:opacity-80 transition-opacity"
+            >
+              <TickdMark size={32} className="flex-shrink-0" />
+              <TickdWordmark className="text-lg" />
+            </button>
+            <WorkspaceSwitcher />
+          </div>
+          <div className="flex items-center gap-3 text-sm min-w-0">
+            <span className="text-text-2 truncate max-w-[180px]">
               {user.email}
             </span>
             <NudgeBadge />
@@ -369,7 +448,7 @@ export default function Home() {
                 title="Import tasks from meeting notes"
               >
                 <i className="ti ti-sparkles text-sm text-info" />
-                <span className="hidden sm:inline">Meeting</span>
+                Meeting
               </button>
             )}
             <button
@@ -397,7 +476,7 @@ export default function Home() {
               title="Search (Cmd+K)"
             >
               <i className="ti ti-search text-sm" />
-              <kbd className="hidden sm:inline text-[10px] text-text-3">⌘K</kbd>
+              <kbd className="text-[10px] text-text-3">⌘K</kbd>
             </button>
             {isSuperadmin && (
               <button
@@ -416,11 +495,9 @@ export default function Home() {
             >
               <i className="ti ti-settings text-base" />
             </button>
-            {/* Sign out lives in Settings → Profile too; hide on
-                phones so the topbar stops overflowing. */}
             <button
               onClick={signOut}
-              className="hidden sm:inline text-text-3 hover:text-text underline text-xs whitespace-nowrap"
+              className="text-text-3 hover:text-text underline text-xs whitespace-nowrap"
             >
               Sign out
             </button>

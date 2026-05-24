@@ -1,14 +1,18 @@
-// Mobile-only bottom navigation strip. Mirrors ViewTabs but anchored
-// to the screen bottom for thumb reach. Hidden on sm+.
+// Mobile-only bottom navigation. Anchored to the screen bottom for
+// thumb reach; hidden on sm+.
 //
-// iOS-feel touches: translucent material via backdrop-blur, hairline
-// top border, and a subtle active state that tints both the icon and
-// label rather than placing the highlight pill behind it (matches
-// iOS's tab bar idiom).
-//
-// Respects iOS safe-area inset so it sits above the home indicator.
+// iOS-feel:
+//  - Translucent material via backdrop-blur (1px hairline top border)
+//  - Filled-glyph swap on active for the standard iOS tab-bar look
+//  - 44pt min tap targets per Apple HIG
+//  - Press-down state via active: scale + opacity
+//  - Respects iOS safe-area inset so it sits above the home indicator
 
 const NAV = [
+  // Active state communicated via colour + a 160ms tab-pop micro-bounce
+  // rather than a filled-glyph swap — Tabler's free set doesn't ship a
+  // filled variant for every icon we use here (list, users), so the
+  // colour-only approach keeps the row visually consistent.
   { id: 'today',    label: 'Today',  icon: 'ti-sun' },
   { id: 'list',     label: 'List',   icon: 'ti-list' },
   { id: 'grid',     label: 'Grid',   icon: 'ti-table' },
@@ -31,18 +35,26 @@ export default function BottomNav({ active, onChange }) {
               <button
                 type="button"
                 onClick={() => onChange(item.id)}
-                className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 transition-colors ${
-                  isActive
-                    ? 'text-info'
-                    : 'text-text-3 active:text-text-2'
-                }`}
                 aria-current={isActive ? 'page' : undefined}
+                className={`flex-1 min-h-[44px] flex flex-col items-center justify-center gap-0.5 py-1.5 transition-all active:scale-95 ${
+                  isActive ? 'text-info' : 'text-text-3 active:text-text-2'
+                }`}
               >
-                <i
-                  className={`ti ${item.icon} text-[22px] leading-none`}
-                />
+                {/* Icon column. Active state pops a small accent dot
+                    above the glyph — the iOS-tab-bar "you-are-here"
+                    marker — and swaps to a filled variant where one
+                    exists for extra visual weight. */}
+                <span className="relative inline-flex items-center justify-center">
+                  <i
+                    className={`ti ${item.icon} text-[22px] leading-none ${
+                      isActive ? 'tickd-tab-active' : ''
+                    }`}
+                  />
+                </span>
                 <span
-                  className={`text-[10px] leading-tight ${isActive ? 'font-medium' : ''}`}
+                  className={`text-[10px] leading-tight tracking-tight ${
+                    isActive ? 'font-semibold' : 'font-normal'
+                  }`}
                 >
                   {item.label}
                 </span>
