@@ -5,6 +5,8 @@ import { useDepartments, usePeople, useTasks } from '../lib/queries'
 import { useToast } from '../components/Toast'
 import { applyAiFilter } from '../lib/applyAiFilter'
 import QuickEntry from '../components/QuickEntry'
+import QuickEntryModal from '../components/QuickEntryModal'
+import FAB from '../components/FAB'
 import TaskModal from '../components/TaskModal'
 import Greeting from '../components/Greeting'
 import ViewTabs from '../components/ViewTabs'
@@ -62,6 +64,7 @@ export default function Home() {
   const [showHelp, setShowHelp] = useState(false)
   const [showStandup, setShowStandup] = useState(false)
   const [showPulse, setShowPulse] = useState(false)
+  const [showQuickAdd, setShowQuickAdd] = useState(false)
   const [aiCommandPlan, setAiCommandPlan] = useState(null)
 
   // ---- URL-backed navigation state ----
@@ -507,10 +510,12 @@ export default function Home() {
         {isPicRole ? (
           <>
             {/* PIC mode — simplified focused experience. Quick-entry stays
-                so PICs can log their own follow-ups; everything else is
-                hidden. */}
+                visible on tablet+ (still a primary affordance there);
+                on phone it's accessed via the FAB to free up real estate. */}
             <Greeting tasks={tasks} />
-            <QuickEntry />
+            <div className="hidden sm:block">
+              <QuickEntry />
+            </div>
             <div className="mt-4">
               <PicHomeView onOpenTask={setOpenTaskId} />
             </div>
@@ -518,7 +523,11 @@ export default function Home() {
         ) : (
           <>
             <Greeting tasks={tasks} />
-            <QuickEntry />
+            {/* Phone gets the FAB instead — QuickEntry would eat the top
+                third of the screen on small viewports. */}
+            <div className="hidden sm:block">
+              <QuickEntry />
+            </div>
 
             {/* In-page tabs only on tablet+; mobile uses BottomNav.
                 Always keep top spacing so the gap between QuickEntry
@@ -644,7 +653,16 @@ export default function Home() {
           onClose={() => setShowHelp(false)}
         />
         <StandupModal open={showStandup} onClose={() => setShowStandup(false)} />
+        <QuickEntryModal
+          open={showQuickAdd}
+          onClose={() => setShowQuickAdd(false)}
+        />
       </div>
+
+      {/* Mobile-only FAB for quick-add. Sits above the bottom nav and
+          opens a sheet with the existing QuickEntry form inside. */}
+      <FAB onClick={() => setShowQuickAdd(true)} label="Add task" />
+
       {/* Mobile-only bottom nav. PIC-mode users see no tabs since
           PicHomeView is a single-page experience. */}
       {!isPicRole && <BottomNav active={view} onChange={setView} />}

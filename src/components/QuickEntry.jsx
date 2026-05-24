@@ -6,7 +6,9 @@ import { detectPic } from '../lib/detectPic'
 import { picPill, picDot } from '../lib/colors'
 import { useToast } from './Toast'
 
-export default function QuickEntry() {
+// `onSubmitted` (optional) — fired after a task is queued. Lets the
+// QuickEntry sheet auto-dismiss on mobile after the user adds a task.
+export default function QuickEntry({ onSubmitted }) {
   const { user } = useAuth()
   const { data: people = [] } = usePeople()
   const createTask = useCreateTask()
@@ -80,6 +82,7 @@ export default function QuickEntry() {
       pic_id: effectivePic?.id ?? null,
       source: 'Quick entry',
     })
+    onSubmitted?.()
   }
 
   function handleMicClick() {
