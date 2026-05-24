@@ -27,12 +27,9 @@ export default function ModalHeader({
         onClick={onClose}
         aria-label="Close"
         title="Close"
-        className="group/close relative w-3 h-3 rounded-full bg-[#FF5F57] hover:opacity-90 inline-flex items-center justify-center flex-shrink-0"
+        className="w-8 h-8 rounded-full inline-flex items-center justify-center text-text-2 hover:text-text hover:bg-surface-2 active:bg-surface-3 transition-colors flex-shrink-0"
       >
-        <i
-          className="ti ti-x text-[#7B0008] opacity-0 group-hover/close:opacity-100 transition-opacity"
-          style={{ fontSize: '8px', lineHeight: 1 }}
-        />
+        <i className="ti ti-x text-base" />
       </button>
     </div>
   )
