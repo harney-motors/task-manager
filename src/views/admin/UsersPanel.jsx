@@ -65,20 +65,21 @@ export default function UsersPanel() {
 
   return (
     <div className="bg-surface border border-border rounded-xl overflow-hidden">
-      <div className="flex items-center justify-between p-4 border-b border-border">
-        <div>
+      <div className="flex items-center justify-between px-3 sm:px-4 py-3 sm:py-4 border-b border-border gap-2">
+        <div className="min-w-0">
           <h2 className="text-sm font-medium">All users</h2>
-          <p className="text-xs text-text-2 mt-0.5">
-            {users.length} signed-up user{users.length === 1 ? '' : 's'}.
-            Promote to superadmin gives full cross-tenant access.
+          <p className="text-[11px] sm:text-xs text-text-2 mt-0.5 truncate">
+            {users.length} signed-up user{users.length === 1 ? '' : 's'}
+            <span className="hidden sm:inline">. Promote to superadmin gives full cross-tenant access.</span>
           </p>
         </div>
         <button
           onClick={() => setCreateOpen(true)}
-          className="text-xs px-3 py-1.5 rounded bg-info text-white font-medium hover:opacity-90 inline-flex items-center gap-1.5"
+          className="text-xs px-2.5 sm:px-3 py-1.5 rounded bg-info text-white font-medium hover:opacity-90 active:scale-95 transition-transform inline-flex items-center gap-1 sm:gap-1.5 flex-shrink-0"
         >
           <i className="ti ti-user-plus text-sm" />
-          Create user
+          <span className="hidden sm:inline">Create user</span>
+          <span className="sm:hidden">New</span>
         </button>
       </div>
 

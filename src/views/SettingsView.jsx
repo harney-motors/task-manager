@@ -216,17 +216,20 @@ function PeoplePanel() {
 
   return (
     <div className="bg-surface border border-border rounded-xl overflow-hidden">
-      <div className="flex items-center justify-between p-4 border-b border-border flex-wrap gap-2">
-        <div>
+      <div className="flex items-center justify-between px-3 sm:px-4 py-3 sm:py-4 border-b border-border gap-2">
+        <div className="min-w-0">
           <h2 className="text-sm font-medium">People</h2>
-          <p className="text-xs text-text-2 mt-0.5">
+          <p className="text-[11px] sm:text-xs text-text-2 mt-0.5 hidden sm:block">
             {visiblePeople.length} {showInactive ? 'total' : 'active'} ·
             PICs receive tasks. &quot;Unused&quot; means no current tasks and no
             watches.
           </p>
+          <p className="text-[11px] text-text-2 mt-0.5 sm:hidden">
+            {visiblePeople.length} {showInactive ? 'total' : 'active'}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="inline-flex items-center gap-1.5 text-xs text-text-2 cursor-pointer">
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <label className="hidden sm:inline-flex items-center gap-1.5 text-xs text-text-2 cursor-pointer">
             <input
               type="checkbox"
               checked={showInactive}
@@ -237,10 +240,12 @@ function PeoplePanel() {
           </label>
           <button
             onClick={() => setEditing('new')}
-            className="text-xs px-3 py-1.5 rounded bg-info text-white font-medium hover:opacity-90 inline-flex items-center gap-1.5"
+            className="text-xs px-2.5 sm:px-3 py-1.5 rounded bg-info text-white font-medium hover:opacity-90 active:scale-95 transition-transform inline-flex items-center gap-1 sm:gap-1.5"
+            aria-label="Add person"
           >
             <i className="ti ti-plus text-sm" />
-            Add person
+            <span className="hidden sm:inline">Add person</span>
+            <span className="sm:hidden">Add</span>
           </button>
         </div>
       </div>
@@ -389,7 +394,7 @@ function PersonRow({
 
   return (
     <div
-      className={`flex items-center gap-3 px-4 py-3 border-b border-border last:border-b-0 transition-colors ${
+      className={`flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 border-b border-border last:border-b-0 transition-colors ${
         isSelected ? 'bg-info-bg/60' : 'hover:bg-surface-2'
       } ${!isActive ? 'opacity-60' : ''}`}
     >
@@ -404,7 +409,7 @@ function PersonRow({
         className={`w-2.5 h-2.5 rounded-full ${picDot(p.color)} flex-shrink-0`}
       />
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-sm font-medium truncate">{p.name}</span>
           {!isActive && (
             <span className="text-[10px] px-1.5 py-px rounded bg-surface-3 text-text-3 uppercase tracking-wider">
@@ -418,80 +423,90 @@ function PersonRow({
           )}
           {p.user_id && (
             <span
-              className="text-[10px] px-1.5 py-px rounded bg-info-bg text-info-text inline-flex items-center gap-1"
+              className="text-[10px] px-1.5 py-px rounded bg-info-bg text-info-text inline-flex items-center gap-1 max-w-[160px] truncate"
               title={linkedUserEmail ?? 'Linked to a user account'}
             >
-              <i className="ti ti-link text-[10px]" />
-              {linkedUserEmail ?? 'Linked'}
+              <i className="ti ti-link text-[10px] flex-shrink-0" />
+              <span className="truncate">{linkedUserEmail ?? 'Linked'}</span>
             </span>
           )}
         </div>
-        <div className="text-xs text-text-2 truncate flex items-center gap-2 mt-0.5">
-          <span>
-            {p.title || '—'}
-            {p.department && ` · ${p.department}`}
-            {' · '}
-            {p.role === 'pic' ? 'PIC' : p.role}
-          </span>
+        <div className="text-[11px] sm:text-xs text-text-2 truncate mt-0.5">
+          {p.title || '—'}
+          {p.department && ` · ${p.department}`}
+          {' · '}
+          {p.role === 'pic' ? 'PIC' : p.role}
           {picCount > 0 && (
-            <span className="text-text-3">
-              · {picCount} task{picCount === 1 ? '' : 's'}
-            </span>
+            <span className="text-text-3"> · {picCount} task{picCount === 1 ? '' : 's'}</span>
           )}
           {watchCount > 0 && (
-            <span className="text-text-3">· watching {watchCount}</span>
+            <span className="hidden sm:inline text-text-3"> · watching {watchCount}</span>
           )}
         </div>
       </div>
-      <div className="flex items-center gap-1 flex-shrink-0">
+      {/* Actions — text on tablet+, icon-only on phone. The full labels
+          would otherwise wrap to a 2nd line and double the row height. */}
+      <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
         {canManageLinks &&
           (p.user_id ? (
             <button
               onClick={onUnlink}
-              className="text-xs px-2 py-1 rounded text-text-3 hover:text-text hover:bg-surface inline-flex items-center gap-1"
+              className="w-8 h-8 sm:w-auto sm:h-auto sm:px-2 sm:py-1 rounded inline-flex items-center justify-center sm:gap-1 text-xs text-text-3 hover:text-text hover:bg-surface"
               title="Unlink from user account"
+              aria-label="Unlink"
             >
               <i className="ti ti-unlink text-sm" />
-              Unlink
+              <span className="hidden sm:inline">Unlink</span>
             </button>
           ) : (
             <button
               onClick={onLink}
-              className="text-xs px-2 py-1 rounded text-info hover:bg-info-bg/40 inline-flex items-center gap-1"
+              className="w-8 h-8 sm:w-auto sm:h-auto sm:px-2 sm:py-1 rounded inline-flex items-center justify-center sm:gap-1 text-xs text-info hover:bg-info-bg/40"
               title="Link to an existing user account"
+              aria-label="Link"
             >
               <i className="ti ti-link text-sm" />
-              Link
+              <span className="hidden sm:inline">Link</span>
             </button>
           ))}
         <button
           onClick={onEdit}
-          className="text-xs px-2 py-1 rounded hover:bg-surface text-text-2 hover:text-text"
+          className="w-8 h-8 sm:w-auto sm:h-auto sm:px-2 sm:py-1 rounded inline-flex items-center justify-center text-xs text-text-2 hover:text-text hover:bg-surface"
+          aria-label="Edit"
+          title="Edit"
         >
-          Edit
+          <i className="ti ti-pencil text-sm sm:hidden" />
+          <span className="hidden sm:inline">Edit</span>
         </button>
         {isActive ? (
           <button
             onClick={handleDeactivate}
-            className="text-xs px-2 py-1 rounded text-text-3 hover:text-text hover:bg-surface"
+            className="w-8 h-8 sm:w-auto sm:h-auto sm:px-2 sm:py-1 rounded inline-flex items-center justify-center text-xs text-text-3 hover:text-text hover:bg-surface"
             title="Soft-hide from dropdowns"
+            aria-label="Deactivate"
           >
-            Deactivate
+            <i className="ti ti-user-off text-sm sm:hidden" />
+            <span className="hidden sm:inline">Deactivate</span>
           </button>
         ) : (
           <button
             onClick={() => onReactivate.mutate(p.id)}
-            className="text-xs px-2 py-1 rounded text-info hover:bg-info-bg/40"
+            className="w-8 h-8 sm:w-auto sm:h-auto sm:px-2 sm:py-1 rounded inline-flex items-center justify-center text-xs text-info hover:bg-info-bg/40"
+            title="Reactivate"
+            aria-label="Reactivate"
           >
-            Reactivate
+            <i className="ti ti-user-check text-sm sm:hidden" />
+            <span className="hidden sm:inline">Reactivate</span>
           </button>
         )}
         <button
           onClick={handleDelete}
-          className="text-xs px-2 py-1 rounded text-text-3 hover:text-danger-text hover:bg-danger-bg"
+          className="w-8 h-8 sm:w-auto sm:h-auto sm:px-2 sm:py-1 rounded inline-flex items-center justify-center text-xs text-text-3 hover:text-danger-text hover:bg-danger-bg"
           title="Permanently delete (unassigns their tasks)"
+          aria-label="Delete"
         >
-          Delete
+          <i className="ti ti-trash text-sm sm:hidden" />
+          <span className="hidden sm:inline">Delete</span>
         </button>
       </div>
     </div>
@@ -550,7 +565,7 @@ function DepartmentsPanel() {
             return (
               <div
                 key={d.id}
-                className="flex items-center gap-3 px-4 py-3 border-b border-border last:border-b-0 hover:bg-surface-2 transition-colors"
+                className="flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 border-b border-border last:border-b-0 hover:bg-surface-2 transition-colors"
               >
                 <span
                   className={`w-2.5 h-2.5 rounded-full ${picDot(d.color)} flex-shrink-0`}
@@ -570,12 +585,15 @@ function DepartmentsPanel() {
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
                   <button
                     onClick={() => setEditing(d)}
-                    className="text-xs px-2 py-1 rounded hover:bg-surface text-text-2 hover:text-text"
+                    className="w-8 h-8 sm:w-auto sm:h-auto sm:px-2 sm:py-1 rounded inline-flex items-center justify-center text-xs text-text-2 hover:text-text hover:bg-surface"
+                    aria-label="Edit"
+                    title="Edit"
                   >
-                    Edit
+                    <i className="ti ti-pencil text-sm sm:hidden" />
+                    <span className="hidden sm:inline">Edit</span>
                   </button>
                   <button
                     onClick={() => {
@@ -587,9 +605,12 @@ function DepartmentsPanel() {
                         remove.mutate(d.id)
                       }
                     }}
-                    className="text-xs px-2 py-1 rounded text-text-3 hover:text-danger-text hover:bg-danger-bg"
+                    className="w-8 h-8 sm:w-auto sm:h-auto sm:px-2 sm:py-1 rounded inline-flex items-center justify-center text-xs text-text-3 hover:text-danger-text hover:bg-danger-bg"
+                    aria-label="Delete"
+                    title="Delete"
                   >
-                    Delete
+                    <i className="ti ti-trash text-sm sm:hidden" />
+                    <span className="hidden sm:inline">Delete</span>
                   </button>
                 </div>
               </div>

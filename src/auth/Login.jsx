@@ -105,7 +105,7 @@ export default function Login() {
               type="button"
               onClick={handleGoogle}
               disabled={googleSubmitting || submitting}
-              className="w-full border border-border rounded-md py-2.5 text-sm font-medium hover:bg-surface-2 disabled:opacity-50 inline-flex items-center justify-center gap-2.5"
+              className="w-full min-h-[44px] border border-border rounded-lg py-3 text-sm font-medium hover:bg-surface-2 active:bg-surface-3 transition-colors disabled:opacity-50 inline-flex items-center justify-center gap-2.5"
             >
               {googleSubmitting ? (
                 <i className="ti ti-loader-2 animate-spin text-sm" />
@@ -129,12 +129,12 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="w-full border border-border rounded-md px-3 py-2.5 text-sm outline-none focus:border-info bg-bg"
+                className="w-full min-h-[44px] border border-border rounded-lg px-3 py-3 text-sm outline-none focus:border-info bg-bg"
               />
               <button
                 type="submit"
                 disabled={submitting || googleSubmitting || !email}
-                className="w-full bg-info text-white text-sm font-medium py-2.5 rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full min-h-[44px] bg-info text-white text-sm font-medium py-3 rounded-lg hover:opacity-90 active:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? 'Sending link…' : 'Email me a sign-in link'}
               </button>
