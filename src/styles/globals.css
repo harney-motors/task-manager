@@ -252,6 +252,98 @@ button, label, [role="button"] {
   }
 }
 
+/* ----- Mobile sheet treatment -----
+   On phones (<640px) we override centered-modal behaviour so every
+   modal that uses the .tickd-modal-* classes becomes an iOS-style
+   bottom sheet: full width, anchored to the bottom edge, top corners
+   only rounded, slide-up animation, and a small drag-handle pill at
+   the top edge to communicate "this is a sheet you can dismiss".
+
+   Works across all modals without needing to touch each component —
+   the existing Tailwind classes are overridden via !important inside
+   this media query. Desktop styling is untouched. */
+@keyframes tickd-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 639px) {
+  .tickd-modal-backdrop {
+    /* Anchor the sheet to the bottom of the screen instead of the top. */
+    align-items: flex-end !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .tickd-modal-content {
+    /* Sheet shape: full width, rounded only at the top, no border on
+       the sides since it kisses both viewport edges. */
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: 92vh !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: none !important;
+    /* Reserve room below the iOS home indicator. */
+    padding-bottom: env(safe-area-inset-bottom);
+    /* Slide-up replaces the desktop drop-in. iOS spring easing. */
+    animation: tickd-sheet-in 280ms cubic-bezier(0.32, 0.72, 0, 1) both !important;
+    transform-origin: 50% 100% !important;
+    position: relative;
+  }
+
+  /* Drag-handle pill at the top centre — purely visual cue. The
+     close button in ModalHeader still works; the handle just signals
+     "this is dismissable like a native sheet". */
+  .tickd-modal-content::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 36px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--color-border-strong);
+    z-index: 1;
+    pointer-events: none;
+  }
+}
+
+@media (max-width: 639px) and (prefers-reduced-motion: reduce) {
+  .tickd-modal-content {
+    animation: none !important;
+  }
+}
+
+/* Popover entrance — distinct from modals so it doesn't get the
+   bottom-sheet treatment on mobile. Used by MobileMoreMenu and any
+   small anchored dropdowns. */
+@keyframes tickd-popover-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+.tickd-popover {
+  animation: tickd-popover-in 140ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tickd-popover {
+    animation: none;
+  }
+}
+
 /* View transition — fades + slightly slides the active view in. Apply
    on the view container; React's conditional rendering remounts the
    class fresh on every tab switch so the animation plays each time. */

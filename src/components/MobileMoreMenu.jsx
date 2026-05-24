@@ -52,7 +52,7 @@ export default function MobileMoreMenu({ items }) {
       {open && (
         <div
           role="menu"
-          className="absolute top-full right-0 mt-1 bg-surface border border-border rounded-xl shadow-xl min-w-[200px] py-1 z-50 tickd-modal-content origin-top-right"
+          className="absolute top-full right-0 mt-1 bg-surface border border-border rounded-xl shadow-xl min-w-[200px] py-1 z-50 tickd-popover origin-top-right"
         >
           {visibleItems.map((item, idx) => {
             const showDivider =
