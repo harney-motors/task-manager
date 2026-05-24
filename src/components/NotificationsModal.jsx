@@ -67,6 +67,11 @@ export default function NotificationsModal({ open, onClose }) {
     for (const n of sorted) dismiss.mutate(n.id)
   }
 
+  function openHistory() {
+    onClose()
+    window.dispatchEvent(new CustomEvent('tickd:open-notifications-page'))
+  }
+
   return (
     <div
       onClick={(e) => e.target === e.currentTarget && onClose()}
@@ -104,6 +109,18 @@ export default function NotificationsModal({ open, onClose }) {
               ))}
             </ul>
           )}
+        </div>
+
+        {/* Footer: "See history" jumps to the dedicated /notifications
+            page with active + dismissed nudges, filter tabs, search. */}
+        <div className="px-4 py-2 bg-surface-2 border-t border-border flex items-center justify-center">
+          <button
+            onClick={openHistory}
+            className="text-xs text-text-2 hover:text-text active:text-text inline-flex items-center gap-1.5 px-2 py-1"
+          >
+            <i className="ti ti-history text-sm" />
+            See full history
+          </button>
         </div>
       </div>
     </div>

@@ -24,3 +24,27 @@ export async function dismissNudge(id) {
     .eq('id', id)
   if (error) throw error
 }
+
+// Full history — active + dismissed — for the dedicated /notifications
+// page. Newest first, capped to a reasonable window so a long-lived
+// workspace doesn't ship megabytes back to the client.
+export async function fetchAllNudges(workspaceId, { limit = 100 } = {}) {
+  const { data, error } = await supabase
+    .from('ai_nudges')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return data ?? []
+}
+
+// Restore a dismissed nudge (just flip status back to active + clear
+// dismissed_at). Used by the history page's "Restore" affordance.
+export async function restoreNudge(id) {
+  const { error } = await supabase
+    .from('ai_nudges')
+    .update({ status: 'active', dismissed_at: null })
+    .eq('id', id)
+  if (error) throw error
+}

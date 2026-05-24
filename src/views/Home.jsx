@@ -36,6 +36,7 @@ const CalendarView = lazy(() => import('./CalendarView'))
 const SettingsView = lazy(() => import('./SettingsView'))
 const SuperAdminView = lazy(() => import('./SuperAdminView'))
 const PulseView = lazy(() => import('./PulseView'))
+const NotificationsView = lazy(() => import('./NotificationsView'))
 const ExtractFromMeetingModal = lazy(() =>
   import('../components/ExtractFromMeetingModal'),
 )
@@ -65,6 +66,7 @@ export default function Home() {
   const [showStandup, setShowStandup] = useState(false)
   const [showPulse, setShowPulse] = useState(false)
   const [showQuickAdd, setShowQuickAdd] = useState(false)
+  const [showNotificationsPage, setShowNotificationsPage] = useState(false)
   const [aiCommandPlan, setAiCommandPlan] = useState(null)
 
   // ---- URL-backed navigation state ----
@@ -174,11 +176,22 @@ export default function Home() {
         setShowSettings(false)
         setShowSuperAdmin(false)
         setShowPulse(false)
+        setShowNotificationsPage(false)
         setOpenTaskId(e.detail.taskId)
       }
     }
     window.addEventListener('tickd:open-task', onOpen)
     return () => window.removeEventListener('tickd:open-task', onOpen)
+  }, [])
+
+  // Notifications "See all" → full-page history view.
+  useEffect(() => {
+    function onOpenPage() {
+      setShowNotificationsPage(true)
+    }
+    window.addEventListener('tickd:open-notifications-page', onOpenPage)
+    return () =>
+      window.removeEventListener('tickd:open-notifications-page', onOpenPage)
   }, [])
 
 
@@ -345,6 +358,19 @@ export default function Home() {
           onBack={() => setShowPulse(false)}
           onOpenTask={(id) => {
             setShowPulse(false)
+            setOpenTaskId(id)
+          }}
+        />
+      </Suspense>
+    )
+  }
+  if (showNotificationsPage) {
+    return (
+      <Suspense fallback={<ViewFallback />}>
+        <NotificationsView
+          onBack={() => setShowNotificationsPage(false)}
+          onOpenTask={(id) => {
+            setShowNotificationsPage(false)
             setOpenTaskId(id)
           }}
         />

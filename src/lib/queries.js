@@ -6,7 +6,12 @@ import { addWatcher, removeWatcher } from '../api/watchers'
 import { fetchJournalEntries, createJournalEntry } from '../api/journal'
 import { fetchRecentActivity } from '../api/activity'
 import { notifyTaskEvent } from '../api/notify'
-import { fetchActiveNudges, dismissNudge } from '../api/nudges'
+import {
+  fetchActiveNudges,
+  fetchAllNudges,
+  dismissNudge,
+  restoreNudge,
+} from '../api/nudges'
 import {
   createSavedCommand,
   deleteSavedCommand,
@@ -68,6 +73,7 @@ export const queryKeys = {
   activity:      (workspaceId, limit) => ['activity', workspaceId, limit],
   savedFilters:  (workspaceId) => ['savedFilters', workspaceId],
   nudges:        (workspaceId) => ['nudges', workspaceId],
+  nudgesAll:     (workspaceId) => ['nudges-all', workspaceId],
   savedCommands: (workspaceId) => ['savedCommands', workspaceId],
   taskDeps:      (taskId)      => ['taskDeps', taskId],
   workspaceBlockers: (workspaceId) => ['workspaceBlockers', workspaceId],
@@ -202,7 +208,36 @@ export function useDismissNudge() {
     onError: (_err, _id, ctx) => {
       if (ctx?.previous) qc.setQueryData(key, ctx.previous)
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: key }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: key })
+      // History view consumes a different query — refresh it too so
+      // a just-dismissed nudge slides into the Dismissed section.
+      qc.invalidateQueries({ queryKey: queryKeys.nudgesAll(workspace?.id) })
+    },
+  })
+}
+
+// Full history — active + dismissed. Used by /notifications.
+export function useAllNudges() {
+  const { workspace } = useAuth()
+  return useQuery({
+    queryKey: queryKeys.nudgesAll(workspace?.id),
+    queryFn: () => fetchAllNudges(workspace.id),
+    enabled: !!workspace,
+    staleTime: 60 * 1000,
+  })
+}
+
+// Restore a dismissed nudge back to active.
+export function useRestoreNudge() {
+  const { workspace } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id) => restoreNudge(id),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.nudges(workspace?.id) })
+      qc.invalidateQueries({ queryKey: queryKeys.nudgesAll(workspace?.id) })
+    },
   })
 }
 
@@ -855,6 +890,33 @@ export function useCreateJournalEntry(taskId) {
       }
     },
   })
+}
+
+// Realtime subscription for AI nudges scoped to a workspace. Triggers
+// a cache invalidation on any insert/update/delete so the bell badge
+// and Notifications panel stay in sync without a manual refresh.
+// Used by NotificationsHost which mounts once at the app level.
+export function subscribeNudgesRealtime(workspaceId, qc) {
+  if (!workspaceId) return () => {}
+  const channel = supabase
+    .channel(`nudges:${workspaceId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'ai_nudges',
+        filter: `workspace_id=eq.${workspaceId}`,
+      },
+      () => {
+        qc.invalidateQueries({ queryKey: queryKeys.nudges(workspaceId) })
+        qc.invalidateQueries({ queryKey: queryKeys.nudgesAll(workspaceId) })
+      },
+    )
+    .subscribe()
+  return () => {
+    supabase.removeChannel(channel)
+  }
 }
 
 // Realtime subscription helper for journal entries on a task. Returns
