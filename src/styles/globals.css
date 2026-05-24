@@ -276,32 +276,53 @@ button, label, [role="button"] {
     /* Anchor the sheet to the bottom of the screen instead of the top. */
     align-items: flex-end !important;
     padding: 0 !important;
+    /* No overflow on the backdrop — the sheet itself scrolls. */
     overflow: hidden !important;
   }
 
   .tickd-modal-content {
-    /* Sheet shape: full width, rounded only at the top, no border on
-       the sides since it kisses both viewport edges. */
+    /* Sheet shape: full width, rounded only at the top, no side borders
+       since it kisses both viewport edges. svh (small-viewport-height)
+       beats vh on iOS because it accounts for the dynamic URL bar /
+       toolbar, so the sheet never gets clipped by browser chrome. */
     max-width: 100% !important;
     width: 100% !important;
-    max-height: 92vh !important;
+    max-height: 92svh !important;
     border-bottom-left-radius: 0 !important;
     border-bottom-right-radius: 0 !important;
     border-left: none !important;
     border-right: none !important;
     border-bottom: none !important;
+    /* The sheet itself scrolls internally so the header stays put when
+       iOS focuses an input + raises the keyboard. */
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     /* Reserve room below the iOS home indicator. */
     padding-bottom: env(safe-area-inset-bottom);
-    /* Slide-up replaces the desktop drop-in. iOS spring easing. */
-    animation: tickd-sheet-in 280ms cubic-bezier(0.32, 0.72, 0, 1) both !important;
+    /* Slide-up replaces the desktop drop-in. iOS spring easing; will-
+       change hints the compositor so the animation is GPU-accelerated
+       (smoother on phones). */
+    animation: tickd-sheet-in 220ms cubic-bezier(0.32, 0.72, 0, 1) both !important;
     transform-origin: 50% 100% !important;
+    will-change: transform;
     position: relative;
   }
 
-  /* Drag-handle pill at the top centre — purely visual cue. The
-     close button in ModalHeader still works; the handle just signals
-     "this is dismissable like a native sheet". */
-  .tickd-modal-content::before {
+  /* Pin the ModalHeader inside the sheet so the close button stays
+     reachable even when the user (or the soft keyboard) scrolls the
+     body content. Opt-in: any header rendered with the
+     .tickd-sheet-header class gets the sticky treatment + the
+     drag-handle pill above it. (ModalHeader carries this class.) */
+  .tickd-modal-content .tickd-sheet-header {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--color-surface);
+    padding-top: 14px !important;
+  }
+
+  .tickd-modal-content .tickd-sheet-header::before {
     content: '';
     position: absolute;
     top: 6px;
@@ -311,9 +332,16 @@ button, label, [role="button"] {
     height: 4px;
     border-radius: 999px;
     background: var(--color-border-strong);
-    z-index: 1;
     pointer-events: none;
   }
+}
+
+/* Body scroll lock — when any modal backdrop is in the tree, freeze
+   the page behind it so iOS touch events don't bleed through and
+   scroll the underlying view. :has() is broadly supported on iOS
+   Safari 15.4+ and all modern desktop browsers. */
+body:has(.tickd-modal-backdrop) {
+  overflow: hidden;
 }
 
 @media (max-width: 639px) and (prefers-reduced-motion: reduce) {

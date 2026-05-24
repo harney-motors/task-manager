@@ -15,7 +15,7 @@ export default function ModalHeader({
 }) {
   return (
     <div
-      className={`flex items-center gap-3 px-4 py-3 border-b border-border ${className}`}
+      className={`tickd-sheet-header flex items-center gap-3 px-4 py-3 border-b border-border ${className}`}
     >
       <div className="flex-1 min-w-0 flex items-center gap-2">
         {icon && <i className={`ti ${icon} text-info text-base flex-shrink-0`} />}
