@@ -28,6 +28,7 @@ export default function SearchPalette({
   const [results, setResults] = useState({ tasks: [], people: [], journal: [] })
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [isSearching, setIsSearching] = useState(false)
+  const [searchError, setSearchError] = useState(null)
   const [askingAi, setAskingAi] = useState(false)
   const [aiError, setAiError] = useState(null)
   const [recent, setRecent] = useState([])
@@ -49,16 +50,26 @@ export default function SearchPalette({
     if (!query.trim() || !workspace) {
       setResults({ tasks: [], people: [], journal: [] })
       setIsSearching(false)
+      setSearchError(null)
       return
     }
     const id = setTimeout(() => {
       setIsSearching(true)
+      setSearchError(null)
       searchAll(workspace.id, query)
         .then((r) => {
           setResults(r)
           setSelectedIndex(0)
         })
-        .catch((e) => console.warn('[search]', e))
+        .catch((e) => {
+          // Previously this was console.warn-only — a search failure
+          // (RLS, network, malformed tsquery) just produced an empty
+          // results list with no indication something went wrong.
+          // Surface it inline so the user understands and can retry.
+          console.warn('[search]', e)
+          setSearchError(e?.message ?? 'Search failed')
+          setResults({ tasks: [], people: [], journal: [] })
+        })
         .finally(() => setIsSearching(false))
     }, 150)
     return () => clearTimeout(id)
@@ -300,6 +311,14 @@ export default function SearchPalette({
                 </div>
               )}
             </div>
+          ) : searchError ? (
+            <div className="px-4 py-6 text-center">
+              <div className="text-sm text-danger-text mb-1">Search failed</div>
+              <div className="text-[11px] text-text-3">{searchError}</div>
+              <div className="text-[10px] text-text-3 mt-2">
+                Ask Tickd AI instead with ⌘↵
+              </div>
+            </div>
           ) : flat.length === 0 && !isSearching ? (
             <Empty msg={`No matches for "${query}"`} />
           ) : (
@@ -341,7 +360,7 @@ export default function SearchPalette({
           )}
         </div>
 
-        {query.trim().length >= 4 && (onApplyFilter || onPreviewCommand) && (
+        {query.trim().length >= 2 && (onApplyFilter || onPreviewCommand) && (
           <div className="border-t border-border bg-info-bg/40">
             <button
               onClick={handleAskAi}
