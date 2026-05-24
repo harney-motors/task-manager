@@ -92,15 +92,18 @@ export default function PicWeekModal({
       onClick={(e) => e.target === e.currentTarget && onClose()}
       className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-2 sm:p-10 overflow-y-auto tickd-modal-backdrop"
     >
-      {/* Grid layout (3 rows: header · body · footer) rather than flex
-          because `flex-1 min-h-0` collapses to 0 when the container is
-          auto-sized (content shorter than max-h). Grid's `1fr` in a
-          row track fills remaining space without that gotcha — works
-          whether the modal is full-height or content-fit. */}
-      <div className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-md overflow-hidden grid grid-rows-[auto_auto_minmax(0,1fr)_auto] max-h-[85vh] tickd-modal-content">
+      {/* Whole-modal scroll pattern: the wrapper itself is the scroll
+          container (overflow-y-auto, max-h-[85vh]). Header sticks at
+          top, footer sticks at bottom; body scrolls between them. This
+          sidesteps every flex/grid gotcha around "fill remaining space
+          when the container is auto-sized" — sticky positioning just
+          pins to the wrapper's scrollport regardless of content
+          height. */}
+      <div className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-md max-h-[85vh] overflow-y-auto tickd-modal-content">
         <ModalHeader
           title={`${person.name} · this week`}
           onClose={onClose}
+          className="sticky top-0 z-10 bg-surface"
           rightSlot={
             <span className="text-[11px] text-text-3 flex-shrink-0">
               {totalCount} task{totalCount === 1 ? '' : 's'}
@@ -115,9 +118,7 @@ export default function PicWeekModal({
           </span>
         </div>
 
-        {/* Grid row 3 — body. minmax(0, 1fr) on the row track lets
-            this scroll properly; no min-h-0 dance needed. */}
-        <div className="overflow-y-auto">
+        <div>
           {grouped.length === 0 ? (
             <div className="px-5 py-10 text-center text-xs text-text-3">
               Nothing in {person.name.split(' ')[0]}'s week.
@@ -173,16 +174,16 @@ export default function PicWeekModal({
           )}
         </div>
 
-        <div className="px-4 py-3 bg-surface-2 border-t border-border flex justify-end gap-2">
+        <div className="sticky bottom-0 z-10 px-4 py-3 bg-surface-2 border-t border-border flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="text-xs px-3 py-1.5 rounded border border-border hover:bg-surface"
+            className="text-xs px-3 py-1.5 rounded border border-border hover:bg-surface active:bg-surface-2 transition-colors"
           >
             Close
           </button>
           <button
             onClick={onSeeAll}
-            className="text-xs px-3 py-1.5 rounded bg-info text-white font-medium inline-flex items-center gap-1.5"
+            className="text-xs px-3 py-1.5 rounded bg-info text-white font-medium hover:opacity-90 active:opacity-80 inline-flex items-center gap-1.5"
           >
             <i className="ti ti-arrow-right text-sm" />
             See all in PIC view
