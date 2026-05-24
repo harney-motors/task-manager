@@ -28,7 +28,12 @@ export default function PicWeekModal({
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const today = startOfToday()
+  // Stable for the lifetime of the modal — a fresh Date() each render
+  // changes the reference every time, churning useMemo recomputes on
+  // every parent render (the modal is mounted inside TodayView which
+  // re-renders constantly as task data changes). Stabilising here
+  // collapses that into one calculation per open.
+  const today = useMemo(() => startOfToday(), [])
 
   const grouped = useMemo(() => {
     if (!person) return []
@@ -105,7 +110,12 @@ export default function PicWeekModal({
           </span>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        {/* `min-h-0` is the magic — flex children default to
+            min-height: auto which prevents `overflow-y: auto` from
+            ever clipping. Without it the inner content forces the
+            flex parent past its max-h cap, pushing the footer below
+            the modal. */}
+        <div className="flex-1 min-h-0 overflow-y-auto">
           {grouped.length === 0 ? (
             <div className="px-5 py-10 text-center text-xs text-text-3">
               Nothing in {person.name.split(' ')[0]}'s week.
