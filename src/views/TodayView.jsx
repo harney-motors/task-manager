@@ -424,13 +424,20 @@ function ZoneCard({
   const remaining = tasks.length - visible.length
 
   return (
-    <div className="bg-surface border border-border rounded-xl overflow-hidden flex flex-col tickd-card-hover">
+    <div className="relative bg-surface border border-border rounded-xl overflow-hidden flex flex-col tickd-card-hover">
+      {/* Tone accent stripe — colour-codes the card so the three
+          zones are scannable at a glance, like the colour-bar pattern
+          Trello/Linear use on board columns. */}
+      <span
+        aria-hidden="true"
+        className={`absolute top-0 left-0 right-0 h-1 ${accentBg(tone)}`}
+      />
       <div className="px-3 sm:px-4 py-2.5 sm:py-3 border-b border-border">
         <div className="flex items-center gap-2.5">
           <IconSquare icon={icon} tone={tone} />
-          <h2 className="text-sm font-medium">{title}</h2>
+          <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
           {tasks.length > 0 && (
-            <span className="text-[11px] text-text-3">· {tasks.length}</span>
+            <span className="text-[11px] text-text-3 font-medium">· {tasks.length}</span>
           )}
         </div>
         <div className="text-[11px] text-text-3 mt-0.5 sm:mt-1 ml-9">{subtitle}</div>
@@ -575,5 +582,23 @@ function iconSquareBg(tone) {
     case 'muted':
     default:
       return 'bg-[#8E8E93]' // iOS systemGray
+  }
+}
+
+// Accent stripe colour for the top-of-card bar. Slightly more muted
+// than the IconSquare so it reads as a tint, not a banner.
+function accentBg(tone) {
+  switch (tone) {
+    case 'danger':
+      return 'bg-red-500/80'
+    case 'info':
+      return 'bg-blue-500/80'
+    case 'success':
+      return 'bg-emerald-500/80'
+    case 'warning':
+      return 'bg-orange-500/80'
+    case 'muted':
+    default:
+      return 'bg-text-3/40'
   }
 }

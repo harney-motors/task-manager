@@ -485,6 +485,21 @@ header.sticky,
   }
 }
 
+/* Sticky "just below the topbar". Group/section headers use this so
+   they slot under the global topbar (sticky top-0 z-30) instead of
+   getting swallowed by it. Mobile topbar is ~56px + safe-area inset;
+   desktop is ~64px. iOS PWA users get the notch handled via env(). */
+.tickd-stick-below-topbar {
+  position: sticky;
+  top: calc(3.25rem + env(safe-area-inset-top));
+  z-index: 20;
+}
+@media (min-width: 640px) {
+  .tickd-stick-below-topbar {
+    top: 3.5rem;
+  }
+}
+
 /* View transition — fades + slightly slides the active view in. Apply
    on the view container; React's conditional rendering remounts the
    class fresh on every tab switch so the animation plays each time. */

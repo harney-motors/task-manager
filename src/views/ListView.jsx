@@ -398,7 +398,11 @@ function Panel({
 
   return (
     <div className="bg-surface border border-border rounded-xl overflow-hidden">
-      <div className="px-3 py-2 sm:px-4 sm:py-3 border-b border-border flex items-center gap-2">
+      {/* Panel header sticks just below the global topbar as you scroll
+          so you always know which group you're inside. Translucent bg
+          + backdrop-blur gives it depth against the rows passing
+          underneath — the Notion/Linear pattern. */}
+      <div className="tickd-stick-below-topbar px-3 py-2 sm:px-4 sm:py-3 border-b border-border flex items-center gap-2 bg-surface/95 backdrop-blur-md">
         {allTasks.length > 0 && (
           <input
             type="checkbox"
@@ -412,9 +416,9 @@ function Panel({
             className="cursor-pointer"
           />
         )}
-        <h2 className="text-sm font-medium">{title}</h2>
+        <h2 className="text-sm font-semibold">{title}</h2>
         {count > 0 && (
-          <span className="text-[11px] text-text-3">· {count}</span>
+          <span className="text-[11px] text-text-3 font-medium">· {count}</span>
         )}
       </div>
       <div className="px-3 sm:px-4">{children}</div>
