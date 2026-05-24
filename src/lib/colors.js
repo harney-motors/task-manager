@@ -34,15 +34,19 @@ export function picDot(color) {
   return PIC_DOT[color] ?? PIC_DOT.gray
 }
 
-// Status badge styling matches the prototype.
-// "Ongoing" is for initiatives with no end date — reuses the purple
-// PIC palette since purple reads as perpetual / always-running.
+// Status badges — vivid, solid-color tags inspired by ClickUp's status
+// pills. White text on saturated bg so they pop against any row.
+//
+// Open is intentionally muted (subdued gray) — most tasks are Open, so
+// the colour shouldn't compete with the more meaningful states. The
+// other four pills (In progress, Done, Overdue, Ongoing) are loud on
+// purpose: a glance at the row should tell you the state.
 export const STATUS_PILL = {
-  Open:           'bg-warning-bg     text-warning-text',
-  'In progress':  'bg-in-progress-bg text-in-progress-text',
-  Done:           'bg-success-bg     text-success-text',
-  Overdue:        'bg-danger-bg      text-danger-text',
-  Ongoing:        'bg-pic-purple-bg  text-pic-purple-text',
+  Open:           'bg-text-3/20 text-text-2',
+  'In progress':  'bg-blue-600 text-white',
+  Done:           'bg-emerald-600 text-white',
+  Overdue:        'bg-red-600 text-white',
+  Ongoing:        'bg-violet-600 text-white',
 }
 
 export function statusPill(status) {

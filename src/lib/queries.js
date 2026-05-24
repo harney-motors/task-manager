@@ -259,6 +259,30 @@ export function useCreateTask() {
         action: 'task.created',
         payload: { title: task.title },
       })
+      // Surface the new task with a one-tap "Open" so the user can
+      // immediately add PIC / due / priority without hunting for it.
+      // Skip when the task already arrived via the AI extractor or a
+      // bulk command — those flows do their own UX.
+      const fromQuickFlow =
+        !task.source || /quick|fab|whatsapp/i.test(task.source ?? '')
+      if (fromQuickFlow) {
+        const truncated =
+          (task.title ?? '').length > 40
+            ? `${task.title.slice(0, 40).trimEnd()}…`
+            : task.title ?? 'task'
+        showToast(`Added "${truncated}"`, {
+          action: {
+            label: 'Open',
+            onClick: () => {
+              window.dispatchEvent(
+                new CustomEvent('tickd:open-task', {
+                  detail: { taskId: task.id },
+                }),
+              )
+            },
+          },
+        })
+      }
     },
     onError: (err, _fields, ctx) => {
       if (ctx?.previous) qc.setQueryData(key, ctx.previous)

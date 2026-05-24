@@ -163,6 +163,16 @@ export default function Home() {
     return off
   }, [])
 
+  // Quick-add → tap "Open" on the toast → fire `tickd:open-task`.
+  // useCreateTask dispatches that event; we open the modal in place.
+  useEffect(() => {
+    function onOpen(e) {
+      if (e?.detail?.taskId) setOpenTaskId(e.detail.taskId)
+    }
+    window.addEventListener('tickd:open-task', onOpen)
+    return () => window.removeEventListener('tickd:open-task', onOpen)
+  }, [])
+
   // Cold-start deep link: if the URL has ?task=<id> (set by the SW
   // when there was no open tab to focus), open that task and strip
   // the param so a reload doesn't keep re-opening it.
