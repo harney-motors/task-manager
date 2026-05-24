@@ -13,6 +13,7 @@ import {
 import { useSearchParams } from 'react-router-dom'
 import { formatShortDate, isOverdue } from '../lib/dates'
 import { picPill, statusPill } from '../lib/colors'
+import Avatar from '../components/Avatar'
 import { addWatcher } from '../api/watchers'
 import { exportTasksToCsv } from '../lib/exportCsv'
 import { bulkDeleteWithUndo } from '../lib/deferredBulkDelete'
@@ -407,13 +408,9 @@ function GridRow({
           </div>
           <div className="text-[11px] text-text-2 flex items-center gap-1.5 mt-1 flex-wrap">
             {task.pic ? (
-              <span
-                className={`px-1.5 py-px rounded text-[10px] font-medium ${picPill(task.pic.color)}`}
-              >
-                {task.pic.name.split(' ')[0]}
-              </span>
+              <Avatar person={task.pic} size="sm" showName />
             ) : (
-              <span className="text-text-3 text-[10px]">Unassigned</span>
+              <Avatar person={null} size="sm" showName />
             )}
             {task.due_date && (
               <span className={overdue ? 'text-danger-text font-medium' : 'text-text-3'}>

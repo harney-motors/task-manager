@@ -8,7 +8,8 @@ import {
   parseDate,
   startOfToday,
 } from '../lib/dates'
-import { picPill, statusPill } from '../lib/colors'
+import { statusPill } from '../lib/colors'
+import Avatar from '../components/Avatar'
 import TaskRow from '../components/TaskRow'
 import NudgesBanner from '../components/NudgesBanner'
 
@@ -302,13 +303,9 @@ function WatchedRow({ task, onClick }) {
       <div className="text-sm line-clamp-2">{task.title}</div>
       <div className="text-[11px] text-text-2 flex items-center gap-1.5 mt-1 flex-wrap">
         {task.pic ? (
-          <span
-            className={`px-1.5 py-px rounded text-[10px] font-medium ${picPill(task.pic.color)}`}
-          >
-            {task.pic.name}
-          </span>
+          <Avatar person={task.pic} size="sm" showName />
         ) : (
-          <span className="text-text-3 text-[10px]">Unassigned</span>
+          <Avatar person={null} size="sm" showName />
         )}
         {task.due_date && (
           <span className={overdue ? 'text-danger-text font-medium' : 'text-text-3'}>

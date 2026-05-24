@@ -7,8 +7,9 @@ import {
   parseDate,
   startOfToday,
 } from '../lib/dates'
-import { picDot, picPill, statusPill } from '../lib/colors'
+import { statusPill } from '../lib/colors'
 import TaskRow from '../components/TaskRow'
+import Avatar from '../components/Avatar'
 import NudgesBanner from '../components/NudgesBanner'
 import EmptyWorkspaceGuide from '../components/EmptyWorkspaceGuide'
 import PicWeekModal from '../components/PicWeekModal'
@@ -282,11 +283,11 @@ export default function TodayView({ onOpenTask, onSwitchView, onOpenSettings }) 
               <button
                 key={person.id}
                 onClick={() => setPickedPic(person)}
-                className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-md text-[11px] sm:text-xs border border-border hover:border-border-strong hover:bg-surface-2 active:bg-surface-2 text-text-2 hover:text-text flex-shrink-0 whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full text-[11px] sm:text-xs border border-border hover:border-border-strong hover:bg-surface-2 active:bg-surface-2 text-text-2 hover:text-text flex-shrink-0 whitespace-nowrap transition-colors"
               >
-                <span className={`w-2 h-2 rounded-full ${picDot(person.color)}`} />
+                <Avatar person={person} size="sm" />
                 {person.name.split(' ')[0]}
-                <span className="text-text-3">{count}</span>
+                <span className="text-text-3 font-medium">{count}</span>
               </button>
             ))}
           </div>
@@ -423,7 +424,7 @@ function ZoneCard({
   const remaining = tasks.length - visible.length
 
   return (
-    <div className="bg-surface border border-border rounded-xl overflow-hidden flex flex-col">
+    <div className="bg-surface border border-border rounded-xl overflow-hidden flex flex-col tickd-card-hover">
       <div className="px-3 sm:px-4 py-2.5 sm:py-3 border-b border-border">
         <div className="flex items-center gap-2.5">
           <IconSquare icon={icon} tone={tone} />
@@ -475,13 +476,9 @@ function ZoneRow({ task, onClick }) {
       <div className="text-sm line-clamp-2">{task.title}</div>
       <div className="text-[11px] text-text-2 flex items-center gap-1.5 mt-1 flex-wrap">
         {task.pic ? (
-          <span
-            className={`px-1.5 py-px rounded text-[10px] font-medium ${picPill(task.pic.color)}`}
-          >
-            {task.pic.name.split(' ')[0]}
-          </span>
+          <Avatar person={task.pic} size="sm" showName />
         ) : (
-          <span className="text-text-3 text-[10px]">Unassigned</span>
+          <Avatar person={null} size="sm" showName />
         )}
         {task.due_date && (
           <span className={overdue ? 'text-danger-text font-medium' : 'text-text-3'}>

@@ -19,6 +19,7 @@ import {
 } from '../lib/queries'
 import { isOverdue } from '../lib/dates'
 import { picDot, picPill } from '../lib/colors'
+import Avatar from '../components/Avatar'
 import { addWatcher } from '../api/watchers'
 import { exportTasksToCsv } from '../lib/exportCsv'
 import { bulkDeleteWithUndo } from '../lib/deferredBulkDelete'
@@ -233,9 +234,9 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
               onClick={() => setSelectedPicId(p.id)}
               isSelected={isSelected}
             >
-              <span className={`w-2 h-2 rounded-full ${picDot(p.color)}`} />
+              <Avatar person={p} size="sm" />
               {p.name.split(' ')[0]}
-              {count > 0 && <span className="text-text-3">{count}</span>}
+              {count > 0 && <span className="text-text-3 font-medium">{count}</span>}
             </DroppablePicChip>
           )
         })}
@@ -259,11 +260,7 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
       {selectedPic && (
         <div className="px-3 py-2 sm:px-4 sm:py-3 bg-surface-2 border-b border-border flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-            <div
-              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-[11px] sm:text-sm font-medium flex-shrink-0 ${picPill(selectedPic.color)}`}
-            >
-              {selectedPic.initials}
-            </div>
+            <Avatar person={selectedPic} size="lg" />
             <div className="min-w-0">
               <div className="text-sm font-medium truncate">{selectedPic.name}</div>
               <div className="text-[11px] sm:text-xs text-text-2 truncate">

@@ -6,7 +6,8 @@ import {
   isOverdue,
   startOfToday,
 } from '../lib/dates'
-import { picPill, statusPill } from '../lib/colors'
+import { statusPill } from '../lib/colors'
+import Avatar from './Avatar'
 
 // `inWrapper` — true when this row is rendered inside a SelectableTaskRow
 // (or anything that owns its own hover/edge layout). In that case we
@@ -58,27 +59,18 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
           {task.title}
         </div>
         <div className="text-[11px] sm:text-xs text-text-2 flex items-center gap-1.5 sm:gap-2 mt-1 sm:mt-0.5 flex-wrap">
+          {/* PIC avatar — initials in a coloured circle, first name
+              beside (the modern ClickUp/Linear/Monday pattern). */}
           {task.pic ? (
-            <span
-              className={`inline-flex items-center gap-1 px-1.5 py-px rounded text-[10px] sm:text-[11px] font-medium ${picPill(task.pic.color)} ${
-                task.pic.is_active === false ? 'opacity-60' : ''
-              }`}
-              title={
-                task.pic.is_active === false
-                  ? `${task.pic.name} is inactive — consider reassigning`
-                  : task.pic.name
-              }
-            >
-              {task.pic.is_active === false && (
-                <i className="ti ti-user-off text-[10px]" />
-              )}
-              {/* First name only on phone to match Grid mobile row +
-                  keep the meta line short; full name on tablet+. */}
-              <span className="sm:hidden">{task.pic.name.split(' ')[0]}</span>
-              <span className="hidden sm:inline">{task.pic.name}</span>
+            <span className="inline-flex items-center gap-1.5 min-w-0">
+              <Avatar person={task.pic} size="sm" />
+              <span className="text-[11px] sm:text-xs truncate max-w-[140px]">
+                <span className="sm:hidden">{task.pic.name.split(' ')[0]}</span>
+                <span className="hidden sm:inline">{task.pic.name}</span>
+              </span>
             </span>
           ) : (
-            <span className="text-text-3 text-[10px] sm:text-xs">Unassigned</span>
+            <Avatar person={null} size="sm" showName />
           )}
           {task.due_date && (
             <span className={overdue ? 'text-danger-text font-medium' : 'text-text-3 sm:text-text-2'}>
