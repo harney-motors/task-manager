@@ -28,20 +28,24 @@
        surface-2   = subtle hover / inset inside cards
        surface-3   = next-step elevation
      Dark palette stays as tuned in Phase 9.1. */
-  --color-bg: #F2F2F7;
+  --color-bg: #F5F6FA;          /* slightly cooler underlay so white cards pop */
   --color-surface: #FFFFFF;
   --color-surface-2: #F7F7F9; /* subtle hover on white */
   --color-surface-3: #E5E5EA; /* iOS systemGray5 */
-  --color-border: #E5E5EA;
+  --color-border: #ECECF1;      /* softer than #E5E5EA — pulled back so
+                                   shadows do more of the card-edge work */
   --color-border-strong: #C7C7CC; /* iOS separator */
   --color-text: #1C1C1E;      /* iOS label */
   --color-text-2: #3A3A3C;    /* iOS secondaryLabel */
   --color-text-3: #8E8E93;    /* iOS tertiaryLabel */
 
-  /* Semantic */
-  --color-info: #185FA5;
-  --color-info-bg: #E6F1FB;
-  --color-info-text: #0C447C;
+  /* Semantic — refreshed to modern indigo as the primary tone.
+     Tickd's old #185FA5 read "corporate blue"; the indigo family is
+     the established SaaS-app primary (Linear, Stripe, Vercel, Notion
+     accents) and pairs nicely with the existing PIC palette. */
+  --color-info: #4F46E5;        /* indigo-600 */
+  --color-info-bg: #EEF2FF;     /* indigo-50  */
+  --color-info-text: #312E81;   /* indigo-900 */
   --color-success: #1D9E75;
   --color-success-bg: #E1F5EE;
   --color-success-text: #085041;
@@ -49,8 +53,8 @@
   --color-danger-text: #791F1F;
   --color-warning-bg: #FAEEDA;
   --color-warning-text: #633806;
-  --color-in-progress-bg: #E6F1FB;
-  --color-in-progress-text: #0C447C;
+  --color-in-progress-bg: #EEF2FF;
+  --color-in-progress-text: #312E81;
 
   /* PIC palette — purple */
   --color-pic-purple-bg: #EEEDFE;
@@ -104,8 +108,9 @@
   --color-dept-ops-text: #3C3489;
 
   /* Calendar heatmap tint — referenced as rgba(var(--heatmap-tint-rgb), x)
-     in TodayView / PicHomeView so opacity can be driven by task density. */
-  --heatmap-tint-rgb: 24, 95, 165;
+     in TodayView / PicHomeView so opacity can be driven by task density.
+     Indigo-600 rgb. */
+  --heatmap-tint-rgb: 79, 70, 229;
 }
 
 /* ============================================================
@@ -126,9 +131,12 @@
   --color-text-2: #B0ADA4;
   --color-text-3: #7A7872;
 
-  --color-info: #4A8FCE;
-  --color-info-bg: #0E2B45;
-  --color-info-text: #B6D6F3;
+  /* Indigo for dark mode: brighter primary, deep-violet bg, soft
+     lavender text — keeps contrast comfortable on the warm dark
+     surface without losing the brand colour. */
+  --color-info: #818CF8;        /* indigo-400 */
+  --color-info-bg: #1E1B4B;     /* indigo-950 */
+  --color-info-text: #C7D2FE;   /* indigo-200 */
   --color-success: #3FB58F;
   --color-success-bg: #0E2E26;
   --color-success-text: #A6E5CD;
@@ -136,8 +144,8 @@
   --color-danger-text: #F0B5B5;
   --color-warning-bg: #3A2810;
   --color-warning-text: #F0CB95;
-  --color-in-progress-bg: #0E2B45;
-  --color-in-progress-text: #B6D6F3;
+  --color-in-progress-bg: #1E1B4B;
+  --color-in-progress-text: #C7D2FE;
 
   /* PIC palette — same dot color so identities stay stable, but
      darker bg and lighter text for chip legibility on dark surface. */
@@ -406,25 +414,25 @@ body:has(.tickd-modal-backdrop) {
    ClickUp-inspired surface elevation
    ============================================================
    Cards (anything that combines bg-surface + border + rounded-xl)
-   get a subtle drop shadow so panels visually sit above the bg-bg
-   underlay — the look ClickUp / Linear / Notion all share. Dark
-   mode uses a stronger but still subtle shadow because the page bg
-   is already darker than the card.
+   get a soft drop shadow so panels visually float above the bg-bg
+   underlay — the look ClickUp / Linear / Notion all share. With the
+   recent border lightening, shadows do more of the card-edge work
+   than the border outline.
 
    Excluded: bg-surface-2 / bg-surface-3 are *inset* surfaces (hover
    states, sticky group headers) and shouldn't elevate. */
 .bg-surface.border-border.rounded-xl,
 .bg-surface.border-border.rounded-2xl {
   box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.04),
-    0 1px 3px rgba(15, 23, 42, 0.04);
+    0 1px 2px rgba(15, 23, 42, 0.05),
+    0 2px 6px rgba(15, 23, 42, 0.05);
 }
 
 [data-theme='dark'] .bg-surface.border-border.rounded-xl,
 [data-theme='dark'] .bg-surface.border-border.rounded-2xl {
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.25),
-    0 1px 3px rgba(0, 0, 0, 0.2);
+    0 1px 2px rgba(0, 0, 0, 0.3),
+    0 2px 6px rgba(0, 0, 0, 0.25);
 }
 
 /* Sticky topbars / sub-view headers get a subtle "scrolled" lift —
