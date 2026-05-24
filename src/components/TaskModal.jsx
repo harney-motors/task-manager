@@ -9,6 +9,7 @@ import {
   useUpdateTask,
 } from '../lib/queries'
 import { picPill, statusPill } from '../lib/colors'
+import Avatar from './Avatar'
 import {
   addDays as addDaysIso,
   isOverdue,
@@ -316,17 +317,20 @@ function DetailsTab({
         </div>
       )}
 
-      {/* Title + source */}
-      <div className="px-5 pt-4 pb-2">
+      {/* Title + source — bigger, bolder heading; the modal's "page
+          title" feel that Notion / Linear use. */}
+      <div className="px-5 pt-4 pb-3">
         <textarea
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onBlur={handleTitleBlur}
           rows={2}
           disabled={isTemp}
-          className="w-full text-lg font-medium leading-snug bg-transparent outline-none resize-none focus:bg-surface-2 rounded px-1 -mx-1 disabled:opacity-60"
+          placeholder="Untitled task"
+          className="w-full text-lg sm:text-xl font-semibold leading-snug tracking-tight bg-transparent outline-none resize-none focus:bg-surface-2 rounded px-1 -mx-1 disabled:opacity-60 placeholder:text-text-3"
         />
-        <div className="text-xs text-text-2 mt-1">
+        <div className="text-[11px] text-text-3 mt-1 inline-flex items-center gap-1.5">
+          <i className="ti ti-history text-xs" />
           Captured · {task.source ?? 'Manual entry'}
         </div>
       </div>
@@ -334,6 +338,10 @@ function DetailsTab({
       {/* Fields */}
       <div className="px-5 pb-3">
         <FieldRow label="PIC" icon="ti-user">
+          {/* Avatar inline so the assignee is visually obvious before
+              you even read the dropdown — matches how Linear/Monday
+              show people in property rows. */}
+          <Avatar person={task.pic} size="sm" />
           <select
             value={task.pic_id ?? ''}
             onChange={(e) => updateField('pic_id', e.target.value || null)}
@@ -469,9 +477,10 @@ function DetailsTab({
             {(task.watchers ?? []).map((w) => (
               <span
                 key={w.id}
-                className={`text-[11px] px-2 py-0.5 rounded inline-flex items-center gap-1 ${picPill(w.color)}`}
+                className="text-[11px] pl-0.5 pr-1.5 py-0.5 rounded-full inline-flex items-center gap-1 border border-border bg-surface hover:bg-surface-2 transition-colors"
               >
-                {w.name.split(' ')[0]}
+                <Avatar person={w} size="xs" />
+                <span>{w.name.split(' ')[0]}</span>
                 <button
                   onClick={() =>
                     removeWatcher.mutate({
@@ -480,7 +489,7 @@ function DetailsTab({
                     })
                   }
                   disabled={isTemp}
-                  className="opacity-70 hover:opacity-100"
+                  className="text-text-3 hover:text-text"
                   aria-label={`Remove watcher ${w.name}`}
                 >
                   <i className="ti ti-x text-[10px]" />
