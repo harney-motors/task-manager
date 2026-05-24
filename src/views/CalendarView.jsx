@@ -78,7 +78,13 @@ export default function CalendarView({ onOpenTask }) {
   const showToast = useToast()
   const queryClient = useQueryClient()
   const { workspace } = useAuth()
-  const [range, setRange] = useState('4w')
+  // Default to a smaller range on phone — a 4-week grid is unreadably
+  // dense on a 390px viewport. Tablet+ keeps the original 4-week default.
+  const [range, setRange] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
+      ? '1w'
+      : '4w',
+  )
   const [anchor, setAnchor] = useState(() => new Date())
   const [activeId, setActiveId] = useState(null)
   const [selectMode, setSelectMode] = useState(false)
@@ -243,60 +249,70 @@ export default function CalendarView({ onOpenTask }) {
     <div className="bg-surface border border-border rounded-xl overflow-hidden">
       {/* Calendar is laid out by date — group/sort don't apply. */}
       <TaskFilterBar hide={['group', 'sort']} />
-      <div className="p-3 border-b border-border flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-1">
+      {/* Top bar — two rows on phone (nav row + range chips row) so
+          neither has to wrap mid-control; one row on tablet+. */}
+      <div className="border-b border-border">
+        <div className="px-2 sm:px-3 py-2 flex items-center gap-1 sm:gap-2">
           <button
             onClick={() => step('prev')}
-            className="p-2 hover:bg-surface-2 rounded text-text-2 hover:text-text"
+            className="w-9 h-9 rounded-full inline-flex items-center justify-center text-text-2 hover:text-text hover:bg-surface-2 active:bg-surface-3 transition-colors flex-shrink-0"
             aria-label="Previous"
           >
-            <i className="ti ti-chevron-left text-sm" />
+            <i className="ti ti-chevron-left text-base" />
           </button>
-          <div className="text-sm font-medium px-2 min-w-0">{navTitle}</div>
+          <div className="text-sm font-medium px-1 sm:px-2 min-w-0 flex-1 text-center sm:text-left truncate">
+            {navTitle}
+          </div>
           <button
             onClick={() => step('next')}
-            className="p-2 hover:bg-surface-2 rounded text-text-2 hover:text-text"
+            className="w-9 h-9 rounded-full inline-flex items-center justify-center text-text-2 hover:text-text hover:bg-surface-2 active:bg-surface-3 transition-colors flex-shrink-0"
             aria-label="Next"
           >
-            <i className="ti ti-chevron-right text-sm" />
+            <i className="ti ti-chevron-right text-base" />
           </button>
           <button
             onClick={() => setAnchor(new Date())}
-            className="text-xs px-2 py-1 ml-1 rounded border border-border hover:bg-surface-2"
+            className="text-xs px-2.5 py-1.5 rounded-full border border-border hover:bg-surface-2 active:bg-surface-3 transition-colors flex-shrink-0"
           >
             Today
           </button>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+
+        <div className="px-2 sm:px-3 pb-2 sm:pb-2 flex items-center justify-between gap-2">
           <button
             onClick={() => {
               if (selectMode) exitSelectMode()
               else setSelectMode(true)
             }}
-            className={`text-xs px-2.5 py-1 rounded border inline-flex items-center gap-1.5 ${
+            className={`text-xs px-2.5 py-1 rounded border inline-flex items-center gap-1.5 active:scale-95 transition-transform ${
               selectMode
                 ? 'border-info text-info bg-info-bg'
                 : 'border-border text-text-2 hover:text-text'
             }`}
-            title={selectMode ? 'Exit select mode' : 'Enable select mode (click chips to multi-select)'}
+            title={selectMode ? 'Exit select mode' : 'Enable select mode'}
           >
             <i className={`ti ${selectMode ? 'ti-square-check' : 'ti-square'} text-sm`} />
-            {selectMode ? 'Done selecting' : 'Select'}
+            <span className="hidden sm:inline">
+              {selectMode ? 'Done selecting' : 'Select'}
+            </span>
           </button>
-          <div className="inline-flex items-center gap-0.5 p-0.5 bg-surface-2 rounded-md">
-            {RANGES.map((r) => (
-              <button
-                key={r.id}
-                onClick={() => setRange(r.id)}
-                className={`text-xs px-2.5 py-1 rounded ${
-                  range === r.id
-                    ? 'bg-surface text-text font-medium shadow-sm'
-                    : 'text-text-2 hover:text-text'
-                }`}
-              >
-                {r.label}
-              </button>
-            ))}
+          {/* Range selector — horizontal-scroll on phone so 5 options fit. */}
+          <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="inline-flex items-center gap-0.5 p-0.5 bg-surface-2 rounded-md">
+              {RANGES.map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => setRange(r.id)}
+                  className={`text-[11px] sm:text-xs px-2 sm:px-2.5 py-1 rounded whitespace-nowrap transition-colors active:scale-95 ${
+                    range === r.id
+                      ? 'bg-surface text-text font-medium shadow-sm'
+                      : 'text-text-2 hover:text-text'
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>

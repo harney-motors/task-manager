@@ -392,16 +392,23 @@ export default function Home() {
   ]
 
   return (
-    <div
-      className="min-h-screen bg-bg text-text font-sans pb-16 sm:pb-0"
-      style={{ paddingTop: 'env(safe-area-inset-top)' }}
-    >
-      <div className="mx-auto max-w-5xl px-4 sm:px-6 py-4 sm:py-8">
-        {/* ===== MOBILE TOPBAR (phone only) =====
-            Slim chrome: logo · workspace · nudges · search · overflow.
-            Everything secondary lives in the kebab menu so the bar
-            doesn't compete with the page title underneath. */}
-        <div className="sm:hidden flex items-center justify-between mb-3 gap-2">
+    <div className="min-h-screen bg-bg text-text font-sans pb-16 sm:pb-0">
+      {/* ===== STICKY TOPBAR =====
+          Sticks to the top of the viewport on every tab so navigation +
+          search + overflow are always reachable as you scroll. Honors
+          safe-area-inset-top so it sits below the iOS notch in PWA
+          mode. Translucent bg + backdrop-blur gives the iOS feel of
+          content blurring behind the bar. */}
+      <header
+        className="sticky top-0 z-30 bg-bg/85 backdrop-blur-xl border-b border-border/60"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 py-2 sm:py-3">
+          {/* ===== MOBILE TOPBAR (phone only) =====
+              Slim chrome: logo · workspace · nudges · search · overflow.
+              Everything secondary lives in the kebab menu so the bar
+              doesn't compete with the page title underneath. */}
+          <div className="sm:hidden flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <button
               onClick={goHome}
@@ -506,6 +513,10 @@ export default function Home() {
             </button>
           </div>
         </div>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 py-4 sm:py-6">
 
         {isPicRole ? (
           <>

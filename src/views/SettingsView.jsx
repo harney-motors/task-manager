@@ -50,37 +50,48 @@ export default function SettingsView({ onBack }) {
 
   return (
     <div className="min-h-screen bg-bg text-text font-sans">
-      <div className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
-        <div className="flex items-center gap-3 mb-6">
-          <button
-            onClick={onBack}
-            className="p-2 rounded hover:bg-surface-2 text-text-2 hover:text-text"
-            aria-label="Back"
-          >
-            <i className="ti ti-arrow-left text-base" />
-          </button>
-          <h1 className="text-xl font-medium tracking-tight">Settings</h1>
-        </div>
+      {/* Sticky header — back button + title + tab strip all stay
+          accessible while you scroll the panel body underneath. */}
+      <header
+        className="sticky top-0 z-30 bg-bg/85 backdrop-blur-xl border-b border-border/60"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
+        <div className="mx-auto max-w-4xl px-3 sm:px-6 py-2 sm:py-3">
+          <div className="flex items-center gap-2 sm:gap-3 mb-2">
+            <button
+              onClick={onBack}
+              className="w-9 h-9 rounded-full inline-flex items-center justify-center text-text-2 hover:text-text hover:bg-surface-2 active:bg-surface-3 transition-colors flex-shrink-0"
+              aria-label="Back"
+            >
+              <i className="ti ti-arrow-left text-base" />
+            </button>
+            <h1 className="text-base sm:text-xl font-medium tracking-tight">
+              Settings
+            </h1>
+          </div>
 
-        <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0 mb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="inline-flex items-center gap-1 p-1 bg-surface-2 rounded-lg">
-            {tabs.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className={`px-3 py-1.5 text-xs rounded-md inline-flex items-center gap-1.5 whitespace-nowrap ${
-                  tab === t.id
-                    ? 'bg-surface text-text font-medium shadow-sm'
-                    : 'text-text-2 hover:text-text'
-                }`}
-              >
-                <i className={`ti ${t.icon} text-sm`} />
-                {t.label}
-              </button>
-            ))}
+          <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="inline-flex items-center gap-1 p-1 bg-surface-2 rounded-lg">
+              {tabs.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className={`px-3 py-1.5 text-xs rounded-md inline-flex items-center gap-1.5 whitespace-nowrap transition-colors active:scale-95 ${
+                    tab === t.id
+                      ? 'bg-surface text-text font-medium shadow-sm'
+                      : 'text-text-2 hover:text-text'
+                  }`}
+                >
+                  <i className={`ti ${t.icon} text-sm`} />
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
+      </header>
 
+      <div className="mx-auto max-w-4xl px-3 sm:px-6 py-4 sm:py-6">
         {tab === 'people' && <PeoplePanel />}
         {tab === 'departments' && <DepartmentsPanel />}
         {tab === 'calendar' && <CalendarSyncPanel />}
