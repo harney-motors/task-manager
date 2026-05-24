@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useTasks, usePeople } from '../lib/queries'
 import {
   addDays,
@@ -12,7 +12,6 @@ import TaskRow from '../components/TaskRow'
 import Avatar from '../components/Avatar'
 import NudgesBanner from '../components/NudgesBanner'
 import EmptyWorkspaceGuide from '../components/EmptyWorkspaceGuide'
-import PicWeekModal from '../components/PicWeekModal'
 import Skeleton from '../components/Skeleton'
 
 // Three-zone informational dashboard. Designed to feel less like an
@@ -30,9 +29,6 @@ import Skeleton from '../components/Skeleton'
 export default function TodayView({ onOpenTask, onSwitchView, onOpenSettings }) {
   const { data: tasks = [], isLoading } = useTasks()
   const { data: people = [] } = usePeople()
-
-  // PIC chip → quick peek modal (item #5 of iOS polish pass)
-  const [pickedPic, setPickedPic] = useState(null)
 
   const today = startOfToday()
   const todayIso = formatIso(today)
@@ -132,25 +128,6 @@ export default function TodayView({ onOpenTask, onSwitchView, onOpenSettings }) 
     return items
   }, [tasks, today])
 
-  // ----- This week by PIC -----
-  const weekByPic = useMemo(() => {
-    const weekEnd = addDays(today, 7)
-    const counts = new Map()
-    for (const t of tasks) {
-      if (t.status === 'Done' || t.status === 'Ongoing') continue
-      if (!t.pic_id) continue
-      if (!t.due_date) continue
-      const d = parseDate(t.due_date)
-      if (!d) continue
-      // include overdue + this week
-      if (d > weekEnd) continue
-      counts.set(t.pic_id, (counts.get(t.pic_id) ?? 0) + 1)
-    }
-    return people
-      .map((p) => ({ person: p, count: counts.get(p.id) ?? 0 }))
-      .filter((r) => r.count > 0)
-      .sort((a, b) => b.count - a.count)
-  }, [tasks, people, today])
 
   const totalActive = tasks.filter((t) => t.status !== 'Done').length
 
@@ -277,52 +254,9 @@ export default function TodayView({ onOpenTask, onSwitchView, onOpenSettings }) 
         </div>
       )}
 
-      {/* This week by PIC — chip click opens a quick peek modal.
-          On phone the chip strip is horizontal-scroll so 10+ people
-          don't eat 4 rows of vertical space. */}
-      {weekByPic.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-3 sm:p-4">
-          <div className="flex items-baseline justify-between mb-2 sm:mb-3 gap-2">
-            <h2 className="text-sm font-medium">This week by PIC</h2>
-            <span className="text-[10px] sm:text-[11px] text-text-3 text-right">
-              <span className="hidden sm:inline">
-                {weekByPic.reduce((sum, r) => sum + r.count, 0)} tasks due in the next 7 days
-              </span>
-              <span className="sm:hidden">
-                {weekByPic.reduce((sum, r) => sum + r.count, 0)} this week
-              </span>
-            </span>
-          </div>
-          <div className="flex sm:flex-wrap gap-1 sm:gap-1.5 -mx-3 px-3 sm:mx-0 sm:px-0 overflow-x-auto sm:overflow-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {weekByPic.map(({ person, count }) => (
-              <button
-                key={person.id}
-                onClick={() => setPickedPic(person)}
-                className="inline-flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full text-[11px] sm:text-xs border border-border hover:border-border-strong hover:bg-surface-2 active:bg-surface-2 text-text-2 hover:text-text flex-shrink-0 whitespace-nowrap transition-colors"
-              >
-                <Avatar person={person} size="sm" />
-                {person.name.split(' ')[0]}
-                <span className="text-text-3 font-medium">{count}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-      {pickedPic && (
-        <PicWeekModal
-          person={pickedPic}
-          tasks={tasks}
-          onOpenTask={(id) => {
-            setPickedPic(null)
-            onOpenTask(id)
-          }}
-          onSeeAll={() => {
-            setPickedPic(null)
-            onSwitchView?.('pic', { picId: pickedPic.id })
-          }}
-          onClose={() => setPickedPic(null)}
-        />
-      )}
+      {/* "This week by PIC" removed in favour of the PIC tab (richer
+          views: chips, drag-and-drop, bulk actions). Today stays
+          focused on what needs attention rather than per-PIC breakdown. */}
     </div>
   )
 }
