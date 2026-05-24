@@ -48,30 +48,43 @@ export default function WorkspacesPanel() {
       ) : workspaces.length === 0 ? (
         <div className="p-8 text-center text-xs text-text-3">No workspaces yet.</div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead className="bg-surface-2 text-text-2">
-              <tr>
-                <Th>Name</Th>
-                <Th>Created</Th>
-                <Th align="right">Members</Th>
-                <Th align="right">People</Th>
-                <Th align="right">Tasks</Th>
-                <Th>Last activity</Th>
-                <Th></Th>
-              </tr>
-            </thead>
-            <tbody>
-              {workspaces.map((w) => (
-                <WorkspaceRow
-                  key={w.id}
-                  workspace={w}
-                  onManageMembers={() => setMembersFor(w)}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          {/* Desktop: traditional table layout */}
+          <div className="hidden sm:block overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-surface-2 text-text-2">
+                <tr>
+                  <Th>Name</Th>
+                  <Th>Created</Th>
+                  <Th align="right">Members</Th>
+                  <Th align="right">People</Th>
+                  <Th align="right">Tasks</Th>
+                  <Th>Last activity</Th>
+                  <Th></Th>
+                </tr>
+              </thead>
+              <tbody>
+                {workspaces.map((w) => (
+                  <WorkspaceRow
+                    key={w.id}
+                    workspace={w}
+                    onManageMembers={() => setMembersFor(w)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {/* Mobile: stacked cards — same data, mobile-readable layout. */}
+          <div className="sm:hidden divide-y divide-border">
+            {workspaces.map((w) => (
+              <WorkspaceCard
+                key={w.id}
+                workspace={w}
+                onManageMembers={() => setMembersFor(w)}
+              />
+            ))}
+          </div>
+        </>
       )}
 
       {createOpen && <CreateWorkspaceModal onClose={() => setCreateOpen(false)} />}
@@ -143,6 +156,72 @@ function WorkspaceRow({ workspace: w, onManageMembers }) {
         </button>
       </td>
     </tr>
+  )
+}
+
+// Mobile card render for a workspace row. Stacks the same fields into
+// a readable layout for narrow viewports.
+function WorkspaceCard({ workspace: w, onManageMembers }) {
+  const showToast = useToast()
+  const remove = useAdminDeleteWorkspace()
+  const [deleting, setDeleting] = useState(false)
+
+  async function handleDelete() {
+    if (
+      !confirm(
+        `Delete "${w.name}" and ALL its tasks, members, people, departments? This cannot be undone.`,
+      )
+    )
+      return
+    setDeleting(true)
+    try {
+      await remove.mutateAsync(w.id)
+      showToast(`Deleted "${w.name}"`)
+    } catch {
+      // toast handled by hook
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <div className="px-3 py-3">
+      <div className="text-sm font-medium truncate">{w.name}</div>
+      {/* Stat chips — counts as compact pills so the row reads at a glance. */}
+      <div className="mt-1.5 flex items-center gap-1.5 flex-wrap text-[11px]">
+        <span className="px-1.5 py-0.5 rounded bg-surface-2 text-text-2">
+          {w.member_count} member{w.member_count === 1 ? '' : 's'}
+        </span>
+        <span className="px-1.5 py-0.5 rounded bg-surface-2 text-text-2">
+          {w.people_count} {w.people_count === 1 ? 'person' : 'people'}
+        </span>
+        <span className="px-1.5 py-0.5 rounded bg-surface-2 text-text-2">
+          {w.task_count} task{w.task_count === 1 ? '' : 's'}
+        </span>
+      </div>
+      <div className="mt-1 text-[10px] text-text-3 truncate">
+        Created {fmtDate(w.created_at)}
+        {w.last_activity && ` · active ${fmtDate(w.last_activity)}`}
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <button
+          onClick={onManageMembers}
+          className="flex-1 min-h-[36px] text-xs px-3 rounded-md border border-border text-text-2 hover:text-text active:bg-surface-2 transition-colors inline-flex items-center justify-center gap-1.5"
+        >
+          <i className="ti ti-users text-sm" />
+          Members
+        </button>
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="min-h-[36px] text-xs px-3 rounded-md text-danger-text border border-danger-bg active:bg-danger-bg/30 transition-colors disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
+          aria-label="Delete workspace"
+        >
+          <i className="ti ti-trash text-sm" />
+          Delete
+        </button>
+      </div>
+    </div>
   )
 }
 

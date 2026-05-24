@@ -96,7 +96,7 @@ export default function PersonModal({ person, onClose }) {
               onChange={(e) => set('name', e.target.value)}
               autoFocus
               required
-              className="w-full border border-border rounded-md px-3 py-2 text-sm outline-none focus:border-info bg-bg"
+              className="w-full min-h-[44px] sm:min-h-0 border border-border rounded-lg sm:rounded-md px-3 py-2.5 sm:py-2 text-sm outline-none focus:border-info bg-bg"
             />
           </Field>
 
@@ -106,7 +106,7 @@ export default function PersonModal({ person, onClose }) {
               value={form.title}
               onChange={(e) => set('title', e.target.value)}
               placeholder="e.g. Service Manager"
-              className="w-full border border-border rounded-md px-3 py-2 text-sm outline-none focus:border-info bg-bg"
+              className="w-full min-h-[44px] sm:min-h-0 border border-border rounded-lg sm:rounded-md px-3 py-2.5 sm:py-2 text-sm outline-none focus:border-info bg-bg"
             />
           </Field>
 
@@ -114,7 +114,7 @@ export default function PersonModal({ person, onClose }) {
             <select
               value={form.department}
               onChange={(e) => set('department', e.target.value)}
-              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-bg cursor-pointer"
+              className="w-full min-h-[44px] sm:min-h-0 border border-border rounded-lg sm:rounded-md px-3 py-2.5 sm:py-2 text-sm bg-bg cursor-pointer"
             >
               <option value="">—</option>
               {departments.map((d) => (
@@ -158,14 +158,14 @@ export default function PersonModal({ person, onClose }) {
           <button
             type="button"
             onClick={onClose}
-            className="text-xs px-3 py-1.5 rounded border border-border hover:bg-surface"
+            className="min-h-[40px] sm:min-h-0 text-xs px-3 py-2 sm:py-1.5 rounded-md sm:rounded border border-border hover:bg-surface active:bg-surface-2 transition-colors"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={submitting}
-            className="text-xs px-3 py-1.5 rounded bg-info text-white font-medium hover:opacity-90 disabled:opacity-50"
+            className="min-h-[40px] sm:min-h-0 text-xs px-3 py-2 sm:py-1.5 rounded-md sm:rounded bg-info text-white font-medium hover:opacity-90 active:opacity-80 transition-opacity disabled:opacity-50"
           >
             {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Add person'}
           </button>

@@ -367,20 +367,43 @@ export default function CalendarView({ onOpenTask }) {
           onDragEnd={handleDragEnd}
           onDragCancel={() => setActiveId(null)}
         >
-          {/* Mobile: vertical day list */}
+          {/* Mobile: agenda-style scrolling list.
+              - Empty days are hidden when there's at least one populated
+                day in range (keeps the page short + focused).
+              - Day headers stick to the top of the scroll container —
+                iOS Reminders / Calendar idiom.
+              - Today gets an info-accented header so it stands out. */}
           <div className="sm:hidden">
-            {days.map((d) => (
-              <DayList
-                key={d.toISOString()}
-                day={d}
-                tasks={tasksByDay.get(toIso(d)) ?? []}
-                onOpenTask={onOpenTask}
-                onSelectDay={handleDayCellClick}
-                selectMode={selectMode}
-                selectedIds={selectedIds}
-                onToggleSelect={toggleSelection}
-              />
-            ))}
+            {(() => {
+              const dayEntries = days.map((d) => ({
+                day: d,
+                tasks: tasksByDay.get(toIso(d)) ?? [],
+              }))
+              const anyTasks = dayEntries.some((e) => e.tasks.length > 0)
+              const visible = anyTasks
+                ? dayEntries.filter((e) => e.tasks.length > 0 || isTodayDF(e.day))
+                : dayEntries
+
+              if (visible.length === 0) {
+                return (
+                  <div className="py-10 text-center text-xs text-text-3">
+                    Nothing scheduled in this range.
+                  </div>
+                )
+              }
+              return visible.map(({ day, tasks }) => (
+                <DayList
+                  key={day.toISOString()}
+                  day={day}
+                  tasks={tasks}
+                  onOpenTask={onOpenTask}
+                  onSelectDay={handleDayCellClick}
+                  selectMode={selectMode}
+                  selectedIds={selectedIds}
+                  onToggleSelect={toggleSelection}
+                />
+              ))
+            })()}
           </div>
 
           {/* Tablet+: grid */}
@@ -617,42 +640,82 @@ function DayTaskChip({ task, onClick, selectMode, isSelected, blocked }) {
 
 function DayList({ day, tasks, onOpenTask, onSelectDay, selectMode, selectedIds, onToggleSelect }) {
   const isToday = isTodayDF(day)
+  // Friendly relative labels: Today / Tomorrow / Yesterday — then fall
+  // back to the dated form. Matches how iOS Reminders titles sections.
+  const diff = Math.round((day - new Date().setHours(0, 0, 0, 0)) / 86400000)
+  const relLabel =
+    diff === 0
+      ? 'Today'
+      : diff === 1
+        ? 'Tomorrow'
+        : diff === -1
+          ? 'Yesterday'
+          : null
+
   return (
-    <div className="border-b border-border last:border-b-0 p-3">
+    <section>
       <button
         type="button"
         onClick={() => onSelectDay?.(day)}
-        className={`text-xs font-medium mb-1.5 inline-flex items-center hover:text-text ${isToday ? 'text-info-text' : 'text-text-2'}`}
+        className={`sticky top-0 z-10 w-full text-left flex items-baseline justify-between gap-2 px-3 py-2 bg-bg/95 backdrop-blur-md border-b border-border ${
+          isToday ? 'text-info' : 'text-text'
+        }`}
       >
-        {format(day, 'EEE, MMM d')}
-        {isToday && <span className="ml-1 text-[10px] text-info">· Today</span>}
+        <span className="text-sm font-semibold tracking-tight">
+          {relLabel ?? format(day, 'EEEE')}
+        </span>
+        <span className="text-[11px] text-text-3 font-normal">
+          {format(day, 'MMM d')}
+          {tasks.length > 0 && ` · ${tasks.length}`}
+        </span>
       </button>
       {tasks.length === 0 ? (
-        <div className="text-[11px] text-text-3 pl-1">Nothing scheduled</div>
+        <div className="px-3 py-3 text-[11px] text-text-3 italic">
+          Nothing scheduled
+        </div>
       ) : (
-        <div className="space-y-1">
+        <ul className="divide-y divide-border">
           {tasks.map((t) => {
             const isSel = selectedIds?.has(t.id) ?? false
             return (
-              <button
-                key={t.id}
-                onClick={() => {
-                  if (selectMode) onToggleSelect?.(t.id)
-                  else onOpenTask(t.id)
-                }}
-                className={`block w-full text-left text-xs px-2 py-1.5 rounded ${picPill(t.pic?.color)} line-clamp-2 whitespace-normal ${
-                  selectMode && isSel
-                    ? 'ring-2 ring-info ring-inset'
-                    : ''
-                }`}
-              >
-                {selectMode && isSel && <i className="ti ti-check mr-1" />}
-                {t.title}
-              </button>
+              <li key={t.id}>
+                <button
+                  onClick={() => {
+                    if (selectMode) onToggleSelect?.(t.id)
+                    else onOpenTask(t.id)
+                  }}
+                  className={`w-full text-left px-3 py-2.5 flex items-start gap-2.5 active:bg-surface-2 transition-colors ${
+                    selectMode && isSel ? 'bg-info-bg/60' : ''
+                  }`}
+                >
+                  {selectMode && (
+                    <i
+                      className={`ti ${isSel ? 'ti-circle-check-filled text-info' : 'ti-circle'} text-base mt-0.5 flex-shrink-0`}
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm line-clamp-2">{t.title}</div>
+                    <div className="text-[11px] mt-0.5 flex items-center gap-1.5 flex-wrap">
+                      {t.pic ? (
+                        <span
+                          className={`px-1.5 py-px rounded text-[10px] font-medium ${picPill(t.pic.color)}`}
+                        >
+                          {t.pic.name.split(' ')[0]}
+                        </span>
+                      ) : (
+                        <span className="text-text-3 text-[10px]">Unassigned</span>
+                      )}
+                      {t.priority && (
+                        <span className="text-text-3 text-[10px]">{t.priority}</span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              </li>
             )
           })}
-        </div>
+        </ul>
       )}
-    </div>
+    </section>
   )
 }
