@@ -1,41 +1,50 @@
 import { useActiveNudges } from '../lib/queries'
 
-// Small bell button for the topbar. Renders a count badge when there
-// are active nudges and scrolls to the nudges banner on click.
+// Bell button for the topbar. Always visible (even when empty, on
+// tablet+) so users have a consistent place to find notifications;
+// hidden on phone only when empty to save space in the cramped
+// mobile chrome.
 //
-// Hidden when:
-//   - The user has no active nudges (no point taking up topbar space)
-//   - We're not on a view that mounts the banner (we still render but
-//     the click can't scroll to anything; the parent decides whether
-//     to mount NudgeBadge at all).
+// Clicking dispatches a `tickd:open-notifications` event — Home.jsx
+// listens for it and pops the NotificationsModal regardless of which
+// view the user is on. This replaces the previous "scroll to inline
+// banner" behaviour which only worked on Today.
 export default function NudgeBadge() {
   const { data: nudges = [] } = useActiveNudges()
-  if (nudges.length === 0) return null
+  const count = nudges.length
 
-  function handleClick() {
-    const el = document.getElementById('nudges-banner')
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    } else {
-      // Fallback: scroll to top so the user at least sees the home
-      // view where the banner lives.
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
+  // On phone, hide entirely when empty so the slim topbar isn't
+  // wasted on a dead bell. Desktop always renders it for consistency.
+  if (count === 0) {
+    return (
+      <button
+        type="button"
+        onClick={openPanel}
+        aria-label="Notifications (none)"
+        title="Notifications"
+        className="hidden sm:inline-flex w-10 h-10 rounded-full items-center justify-center text-text-2 hover:text-text hover:bg-surface-2 active:bg-surface-3 transition-colors"
+      >
+        <i className="ti ti-bell text-lg" />
+      </button>
+    )
   }
 
   return (
     <button
-      onClick={handleClick}
-      className="relative p-2 rounded hover:bg-surface-2 text-text-2 hover:text-text"
-      aria-label={`${nudges.length} active nudge${nudges.length === 1 ? '' : 's'}`}
-      title={`${nudges.length} active nudge${nudges.length === 1 ? '' : 's'}`}
+      type="button"
+      onClick={openPanel}
+      aria-label={`${count} notification${count === 1 ? '' : 's'}`}
+      title={`${count} notification${count === 1 ? '' : 's'}`}
+      className="relative w-10 h-10 rounded-full inline-flex items-center justify-center text-text-2 hover:text-text hover:bg-surface-2 active:bg-surface-3 transition-colors"
     >
-      <i className="ti ti-bell text-base" />
-      <span
-        className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-info text-white text-[9px] font-bold flex items-center justify-center"
-      >
-        {nudges.length > 9 ? '9+' : nudges.length}
+      <i className="ti ti-bell text-lg" />
+      <span className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-bg">
+        {count > 9 ? '9+' : count}
       </span>
     </button>
   )
+}
+
+function openPanel() {
+  window.dispatchEvent(new CustomEvent('tickd:open-notifications'))
 }

@@ -3,6 +3,7 @@ import WorkspacesPanel from './admin/WorkspacesPanel'
 import UsersPanel from './admin/UsersPanel'
 import ActivityPanel from './admin/ActivityPanel'
 import SystemPanel from './admin/SystemPanel'
+import NudgeBadge from '../components/NudgeBadge'
 
 const TABS = [
   { id: 'workspaces', label: 'Workspaces', icon: 'ti-building' },
@@ -30,9 +31,10 @@ export default function SuperAdminView({ onBack }) {
               <i className="ti ti-arrow-left text-base" />
             </button>
             <i className="ti ti-shield-lock text-info text-lg flex-shrink-0" />
-            <h1 className="text-base sm:text-xl font-medium tracking-tight">
+            <h1 className="text-base sm:text-xl font-medium tracking-tight flex-1 min-w-0">
               Super admin
             </h1>
+            <NudgeBadge />
           </div>
 
           <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

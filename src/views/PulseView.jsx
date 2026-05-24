@@ -3,6 +3,7 @@ import { useAuth } from '../auth/AuthProvider'
 import { usePeople, useTasks } from '../lib/queries'
 import { addDays, parseDate, startOfToday, isOverdue } from '../lib/dates'
 import { picPill } from '../lib/colors'
+import NudgeBadge from '../components/NudgeBadge'
 
 // Workspace pulse / health dashboard. Owner+editor-visible analytics
 // over the active workspace: average time-to-done, oldest open task,
@@ -115,10 +116,11 @@ export default function PulseView({ onBack, onOpenTask }) {
               <i className="ti ti-arrow-left text-base" />
             </button>
             <i className="ti ti-chart-bar text-info text-lg flex-shrink-0" />
-            <h1 className="text-base sm:text-lg font-medium tracking-tight truncate">
+            <h1 className="text-base sm:text-lg font-medium tracking-tight truncate flex-1 min-w-0">
               Workspace pulse
               <span className="hidden sm:inline"> · {workspace?.name}</span>
             </h1>
+            <NudgeBadge />
           </div>
         </div>
       </header>

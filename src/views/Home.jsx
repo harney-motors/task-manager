@@ -163,15 +163,24 @@ export default function Home() {
     return off
   }, [])
 
-  // Quick-add → tap "Open" on the toast → fire `tickd:open-task`.
-  // useCreateTask dispatches that event; we open the modal in place.
+  // Quick-add toast "Open" + Notifications "Open task" both dispatch
+  // `tickd:open-task`. We pop the TaskModal in place AND drop out of
+  // any open sub-view so the modal is actually visible — when the user
+  // is on Settings/SuperAdmin/Pulse, Home returns early and the modal
+  // wouldn't render otherwise.
   useEffect(() => {
     function onOpen(e) {
-      if (e?.detail?.taskId) setOpenTaskId(e.detail.taskId)
+      if (e?.detail?.taskId) {
+        setShowSettings(false)
+        setShowSuperAdmin(false)
+        setShowPulse(false)
+        setOpenTaskId(e.detail.taskId)
+      }
     }
     window.addEventListener('tickd:open-task', onOpen)
     return () => window.removeEventListener('tickd:open-task', onOpen)
   }, [])
+
 
   // Cold-start deep link: if the URL has ?task=<id> (set by the SW
   // when there was no open tab to focus), open that task and strip

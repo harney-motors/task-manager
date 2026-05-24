@@ -19,6 +19,7 @@ import PersonModal from '../components/PersonModal'
 import DepartmentModal from '../components/DepartmentModal'
 import LinkPersonModal from '../components/LinkPersonModal'
 import PushSettings from '../components/PushSettings'
+import NudgeBadge from '../components/NudgeBadge'
 import Skeleton from '../components/Skeleton'
 import {
   calendarFeedUrl,
@@ -65,9 +66,10 @@ export default function SettingsView({ onBack }) {
             >
               <i className="ti ti-arrow-left text-base" />
             </button>
-            <h1 className="text-base sm:text-xl font-medium tracking-tight">
+            <h1 className="text-base sm:text-xl font-medium tracking-tight flex-1 min-w-0">
               Settings
             </h1>
+            <NudgeBadge />
           </div>
 
           <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
