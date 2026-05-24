@@ -368,42 +368,24 @@ export default function CalendarView({ onOpenTask }) {
           onDragCancel={() => setActiveId(null)}
         >
           {/* Mobile: agenda-style scrolling list.
-              - Empty days are hidden when there's at least one populated
-                day in range (keeps the page short + focused).
-              - Day headers stick to the top of the scroll container —
-                iOS Reminders / Calendar idiom.
-              - Today gets an info-accented header so it stands out. */}
+              Every day in the selected range gets a section — so the
+              user can visually see how big "2 weeks" vs "1 week" vs
+              "Month" actually is. Empty days show a "Nothing scheduled"
+              line (1 line, compact). Day headers are sticky — iOS
+              Reminders / Calendar idiom. */}
           <div className="sm:hidden">
-            {(() => {
-              const dayEntries = days.map((d) => ({
-                day: d,
-                tasks: tasksByDay.get(toIso(d)) ?? [],
-              }))
-              const anyTasks = dayEntries.some((e) => e.tasks.length > 0)
-              const visible = anyTasks
-                ? dayEntries.filter((e) => e.tasks.length > 0 || isTodayDF(e.day))
-                : dayEntries
-
-              if (visible.length === 0) {
-                return (
-                  <div className="py-10 text-center text-xs text-text-3">
-                    Nothing scheduled in this range.
-                  </div>
-                )
-              }
-              return visible.map(({ day, tasks }) => (
-                <DayList
-                  key={day.toISOString()}
-                  day={day}
-                  tasks={tasks}
-                  onOpenTask={onOpenTask}
-                  onSelectDay={handleDayCellClick}
-                  selectMode={selectMode}
-                  selectedIds={selectedIds}
-                  onToggleSelect={toggleSelection}
-                />
-              ))
-            })()}
+            {days.map((d) => (
+              <DayList
+                key={d.toISOString()}
+                day={d}
+                tasks={tasksByDay.get(toIso(d)) ?? []}
+                onOpenTask={onOpenTask}
+                onSelectDay={handleDayCellClick}
+                selectMode={selectMode}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelection}
+              />
+            ))}
           </div>
 
           {/* Tablet+: grid */}

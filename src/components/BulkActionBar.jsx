@@ -33,17 +33,20 @@ export default function BulkActionBar({
   className = '',
 }) {
   return (
+    // On phone, the bar becomes a horizontal-scroll row so the action
+    // selects don't wrap into multiple lines (they wouldn't fit anyway).
+    // The "count + Clear" label stays pinned to the left.
     <div
-      className={`bg-info text-white px-4 py-2 flex items-center gap-2 flex-wrap text-xs ${className}`}
+      className={`bg-info text-white px-3 sm:px-4 py-2 flex items-center gap-1.5 sm:gap-2 sm:flex-wrap text-xs overflow-x-auto sm:overflow-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`}
     >
-      <span className="font-medium">{count} selected</span>
+      <span className="font-medium flex-shrink-0">{count} selected</span>
       <button
         onClick={onClear}
-        className="underline opacity-90 hover:opacity-100"
+        className="underline opacity-90 hover:opacity-100 active:opacity-100 flex-shrink-0"
       >
         Clear
       </button>
-      <div className="flex-1" />
+      <div className="hidden sm:block sm:flex-1" />
 
       {onSetStatus && (
         <BulkSelect onChange={onSetStatus} placeholder="Set status…">
@@ -152,7 +155,7 @@ function BulkSelect({ onChange, placeholder, children }) {
           e.target.value = ''
         }
       }}
-      className="text-xs bg-white/15 hover:bg-white/25 rounded px-2 py-1 border border-white/30 text-white cursor-pointer max-w-[140px]"
+      className="text-xs bg-white/15 hover:bg-white/25 rounded px-2 py-1 border border-white/30 text-white cursor-pointer max-w-[140px] flex-shrink-0"
     >
       <option value="" className="text-text">
         {placeholder}

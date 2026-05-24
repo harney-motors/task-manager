@@ -40,7 +40,7 @@ export default function ActivityFeed({ onOpenTask, compactLimit = 5 }) {
   const hasMore = activity.length > compactLimit
 
   return (
-    <div className="bg-surface-2 rounded-xl px-4 py-3 mb-4">
+    <div className="bg-surface-2 rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 mb-4">
       <div className="flex items-center justify-between text-xs text-text-2 mb-2">
         <div className="flex items-center gap-2">
           <i className="ti ti-history text-sm" />

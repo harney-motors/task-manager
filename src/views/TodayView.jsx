@@ -238,11 +238,11 @@ export default function TodayView({ onOpenTask, onSwitchView, onOpenSettings }) 
       {/* Smart insights — each chip drills into Grid with the right
           pre-filter applied via the existing onSwitchView signal. */}
       {insights.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-3">
-          <div className="text-[11px] uppercase tracking-wider text-text-3 mb-2 px-1">
+        <div className="bg-surface border border-border rounded-xl p-2.5 sm:p-3">
+          <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-text-3 mb-1.5 sm:mb-2 px-1">
             Smart insights
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1 sm:gap-1.5">
             {insights.map((i) => (
               <button
                 key={i.key}
@@ -251,9 +251,9 @@ export default function TodayView({ onOpenTask, onSwitchView, onOpenSettings }) 
                   const hint = insightToFilter(i.key)
                   if (hint && onSwitchView) onSwitchView('grid', hint)
                 }}
-                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs border hover:opacity-90 cursor-pointer ${insightTone(i.tone)}`}
+                className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 py-1 rounded-md text-[11px] sm:text-xs border active:scale-95 transition-transform cursor-pointer ${insightTone(i.tone)}`}
               >
-                <i className={`ti ${i.icon} text-sm`} />
+                <i className={`ti ${i.icon} text-sm flex-shrink-0`} />
                 {i.text}
               </button>
             ))}
@@ -261,22 +261,28 @@ export default function TodayView({ onOpenTask, onSwitchView, onOpenSettings }) 
         </div>
       )}
 
-      {/* This week by PIC — chip click opens a quick peek modal. */}
+      {/* This week by PIC — chip click opens a quick peek modal.
+          On phone the chip strip is horizontal-scroll so 10+ people
+          don't eat 4 rows of vertical space. */}
       {weekByPic.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-4">
-          <div className="flex items-baseline justify-between mb-3">
+        <div className="bg-surface border border-border rounded-xl p-3 sm:p-4">
+          <div className="flex items-baseline justify-between mb-2 sm:mb-3 gap-2">
             <h2 className="text-sm font-medium">This week by PIC</h2>
-            <span className="text-[11px] text-text-3">
-              {weekByPic.reduce((sum, r) => sum + r.count, 0)} tasks due in the
-              next 7 days
+            <span className="text-[10px] sm:text-[11px] text-text-3 text-right">
+              <span className="hidden sm:inline">
+                {weekByPic.reduce((sum, r) => sum + r.count, 0)} tasks due in the next 7 days
+              </span>
+              <span className="sm:hidden">
+                {weekByPic.reduce((sum, r) => sum + r.count, 0)} this week
+              </span>
             </span>
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex sm:flex-wrap gap-1 sm:gap-1.5 -mx-3 px-3 sm:mx-0 sm:px-0 overflow-x-auto sm:overflow-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {weekByPic.map(({ person, count }) => (
               <button
                 key={person.id}
                 onClick={() => setPickedPic(person)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs border border-border hover:border-border-strong hover:bg-surface-2 text-text-2 hover:text-text"
+                className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-md text-[11px] sm:text-xs border border-border hover:border-border-strong hover:bg-surface-2 active:bg-surface-2 text-text-2 hover:text-text flex-shrink-0 whitespace-nowrap"
               >
                 <span className={`w-2 h-2 rounded-full ${picDot(person.color)}`} />
                 {person.name.split(' ')[0]}
@@ -320,16 +326,16 @@ function HeroBand({ today, counts, heatmap, maxHeat, totalActive }) {
   const inProgressCount = counts.inProgress.length
 
   return (
-    <div className="bg-surface border border-border rounded-xl p-4 sm:p-5">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <div className="text-[11px] uppercase tracking-wider text-text-3 font-medium">
+    <div className="bg-surface border border-border rounded-xl p-3 sm:p-5">
+      <div className="flex items-start justify-between gap-3 sm:gap-4 flex-wrap">
+        <div className="min-w-0">
+          <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-text-3 font-medium">
             {dayName}
           </div>
-          <div className="text-2xl font-medium tracking-tight mt-0.5">
+          <div className="text-xl sm:text-2xl font-medium tracking-tight mt-0.5">
             {dateLine}
           </div>
-          <div className="text-xs text-text-2 mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+          <div className="text-[11px] sm:text-xs text-text-2 mt-1 sm:mt-1.5 flex flex-wrap items-center gap-x-1.5 sm:gap-x-2 gap-y-0.5">
             <span>{totalActive} active</span>
             {attentionCount > 0 && (
               <>
@@ -348,12 +354,13 @@ function HeroBand({ today, counts, heatmap, maxHeat, totalActive }) {
           </div>
         </div>
 
-        {/* Heatmap */}
-        <div>
-          <div className="text-[10px] uppercase tracking-wider text-text-3 mb-1.5 text-right">
+        {/* Heatmap — narrower cells on phone (24×32) so all 7 days fit
+            next to the date on a 360px viewport without wrapping. */}
+        <div className="flex-shrink-0">
+          <div className="text-[10px] uppercase tracking-wider text-text-3 mb-1 sm:mb-1.5 text-right">
             Next 7 days
           </div>
-          <div className="flex items-end gap-1">
+          <div className="flex items-end gap-0.5 sm:gap-1">
             {heatmap.map((cell, idx) => (
               <HeatCell
                 key={cell.iso}
@@ -379,7 +386,7 @@ function HeatCell({ cell, maxHeat, isToday }) {
   return (
     <div
       title={`${cell.date.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })} — ${cell.count} task${cell.count === 1 ? '' : 's'}`}
-      className={`w-7 h-10 rounded text-[10px] flex flex-col items-center justify-end p-0.5 border ${
+      className={`w-6 h-9 sm:w-7 sm:h-10 rounded text-[10px] flex flex-col items-center justify-end p-0.5 border ${
         isToday ? 'border-info' : 'border-border'
       }`}
       style={{
@@ -417,7 +424,7 @@ function ZoneCard({
 
   return (
     <div className="bg-surface border border-border rounded-xl overflow-hidden flex flex-col">
-      <div className="px-4 py-3 border-b border-border">
+      <div className="px-3 sm:px-4 py-2.5 sm:py-3 border-b border-border">
         <div className="flex items-center gap-2.5">
           <IconSquare icon={icon} tone={tone} />
           <h2 className="text-sm font-medium">{title}</h2>
@@ -425,15 +432,15 @@ function ZoneCard({
             <span className="text-[11px] text-text-3">· {tasks.length}</span>
           )}
         </div>
-        <div className="text-[11px] text-text-3 mt-1 ml-9">{subtitle}</div>
+        <div className="text-[11px] text-text-3 mt-0.5 sm:mt-1 ml-9">{subtitle}</div>
       </div>
       {tasks.length === 0 ? (
-        <div className="flex-1 px-4 py-8 text-center text-xs text-text-3">
+        <div className="flex-1 px-3 sm:px-4 py-6 sm:py-8 text-center text-xs text-text-3">
           {emptyMsg}
         </div>
       ) : (
         <>
-          <div className="px-4 flex-1">
+          <div className="px-3 sm:px-4 flex-1">
             {visible.map((t) => (
               <ZoneRow key={t.id} task={t} onClick={() => onOpenTask(t.id)} />
             ))}
@@ -442,7 +449,7 @@ function ZoneCard({
             <button
               onClick={onMore ?? undefined}
               disabled={!onMore}
-              className="border-t border-border px-4 py-2 text-[11px] text-text-3 hover:text-text hover:bg-surface-2 disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-text-3"
+              className="border-t border-border px-3 sm:px-4 py-2 text-[11px] text-text-3 hover:text-text hover:bg-surface-2 active:bg-surface-2 transition-colors disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-text-3"
             >
               {remaining > 0
                 ? `+${remaining} more${onMore ? ' →' : ''}`
@@ -463,7 +470,7 @@ function ZoneRow({ task, onClick }) {
   return (
     <div
       onClick={onClick}
-      className="py-2.5 border-b border-border last:border-b-0 cursor-pointer hover:bg-surface-2 -mx-4 px-4 transition-colors"
+      className="py-2 sm:py-2.5 border-b border-border last:border-b-0 cursor-pointer hover:bg-surface-2 active:bg-surface-2 -mx-3 sm:-mx-4 px-3 sm:px-4 transition-colors"
     >
       <div className="text-sm line-clamp-2">{task.title}</div>
       <div className="text-[11px] text-text-2 flex items-center gap-1.5 mt-1 flex-wrap">
