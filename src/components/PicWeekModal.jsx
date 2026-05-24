@@ -92,7 +92,12 @@ export default function PicWeekModal({
       onClick={(e) => e.target === e.currentTarget && onClose()}
       className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-2 sm:p-10 overflow-y-auto tickd-modal-backdrop"
     >
-      <div className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh] tickd-modal-content">
+      {/* Grid layout (3 rows: header · body · footer) rather than flex
+          because `flex-1 min-h-0` collapses to 0 when the container is
+          auto-sized (content shorter than max-h). Grid's `1fr` in a
+          row track fills remaining space without that gotcha — works
+          whether the modal is full-height or content-fit. */}
+      <div className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-md overflow-hidden grid grid-rows-[auto_auto_minmax(0,1fr)_auto] max-h-[85vh] tickd-modal-content">
         <ModalHeader
           title={`${person.name} · this week`}
           onClose={onClose}
@@ -110,12 +115,9 @@ export default function PicWeekModal({
           </span>
         </div>
 
-        {/* `min-h-0` is the magic — flex children default to
-            min-height: auto which prevents `overflow-y: auto` from
-            ever clipping. Without it the inner content forces the
-            flex parent past its max-h cap, pushing the footer below
-            the modal. */}
-        <div className="flex-1 min-h-0 overflow-y-auto">
+        {/* Grid row 3 — body. minmax(0, 1fr) on the row track lets
+            this scroll properly; no min-h-0 dance needed. */}
+        <div className="overflow-y-auto">
           {grouped.length === 0 ? (
             <div className="px-5 py-10 text-center text-xs text-text-3">
               Nothing in {person.name.split(' ')[0]}'s week.
