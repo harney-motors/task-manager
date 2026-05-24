@@ -36,7 +36,7 @@ export default function TaskGroupSection({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 text-left bg-surface-2/40 hover:bg-surface-2 border-b border-border"
+        className="sticky top-0 z-10 w-full flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 text-left bg-surface-2/95 backdrop-blur-sm hover:bg-surface-2 border-b border-border"
       >
         <i
           className={`ti ${open ? 'ti-chevron-down' : 'ti-chevron-right'} text-xs text-text-3`}

@@ -322,6 +322,36 @@ button, label, [role="button"] {
   }
 }
 
+/* Snackbar toast — bottom-anchored, clears the BottomNav on mobile
+   and the safe-area home indicator. Slides up with iOS spring ease. */
+.tickd-snackbar-stack {
+  bottom: calc(76px + env(safe-area-inset-bottom));
+}
+@media (min-width: 640px) {
+  .tickd-snackbar-stack {
+    bottom: 1rem;
+  }
+}
+
+@keyframes tickd-snackbar-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.tickd-snackbar-in {
+  animation: tickd-snackbar-in 240ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tickd-snackbar-in {
+    animation: none;
+  }
+}
+
 /* Popover entrance — distinct from modals so it doesn't get the
    bottom-sheet treatment on mobile. Used by MobileMoreMenu and any
    small anchored dropdowns. */

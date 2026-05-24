@@ -47,11 +47,14 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={showToast}>
       {children}
-      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center gap-2 pointer-events-none px-4 max-w-full">
+      {/* Snackbar stack. On mobile sits above the BottomNav + safe-area
+          via .tickd-snackbar-stack; desktop falls back to 16px from
+          the bottom. Each toast slides up for native snackbar feel. */}
+      <div className="tickd-snackbar-stack fixed left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center gap-2 pointer-events-none px-4 max-w-full">
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`px-4 py-2 rounded-full text-white text-xs font-medium shadow-lg pointer-events-auto max-w-full flex items-center gap-3 ${
+            className={`px-4 py-2 rounded-full text-white text-xs font-medium shadow-lg pointer-events-auto max-w-full flex items-center gap-3 tickd-snackbar-in ${
               t.type === 'error' ? 'bg-danger-text' : 'bg-text'
             }`}
           >
