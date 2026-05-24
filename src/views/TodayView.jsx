@@ -13,6 +13,7 @@ import Avatar from '../components/Avatar'
 import NudgesBanner from '../components/NudgesBanner'
 import EmptyWorkspaceGuide from '../components/EmptyWorkspaceGuide'
 import PicWeekModal from '../components/PicWeekModal'
+import Skeleton from '../components/Skeleton'
 
 // Three-zone informational dashboard. Designed to feel less like an
 // inbox and more like a control room: at-a-glance state, then drill-in
@@ -155,8 +156,22 @@ export default function TodayView({ onOpenTask, onSwitchView, onOpenSettings }) 
 
   if (isLoading) {
     return (
-      <div className="bg-surface border border-border rounded-xl p-12 text-center text-xs text-text-3">
-        Loading…
+      <div className="space-y-3">
+        <div className="bg-surface border border-border rounded-2xl p-4 sm:p-6 space-y-2">
+          <Skeleton.Block className="h-6 w-32 rounded" />
+          <Skeleton.Block className="h-3 w-48 rounded" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="bg-surface border border-border rounded-xl p-4"
+            >
+              <Skeleton.Block className="h-4 w-24 rounded mb-3" />
+              <Skeleton.TaskRows rows={3} />
+            </div>
+          ))}
+        </div>
       </div>
     )
   }

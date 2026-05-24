@@ -7,7 +7,7 @@ import {
   startOfToday,
 } from '../lib/dates'
 import { statusPill } from '../lib/colors'
-import Avatar from './Avatar'
+import Avatar, { AvatarStack } from './Avatar'
 
 // `inWrapper` — true when this row is rendered inside a SelectableTaskRow
 // (or anything that owns its own hover/edge layout). In that case we
@@ -87,15 +87,15 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
           )}
           {(task.watchers?.length ?? 0) > 0 && (
             <span
-              className="text-text-3 text-[10px] hidden sm:inline-flex items-center gap-0.5"
+              className="hidden sm:inline-flex items-center"
               title={
                 task.watchers
                   .map((w) => w.name?.split(' ')[0])
                   .filter(Boolean)
-                  .join(', ')
+                  .join(', ') + ' watching'
               }
             >
-              +{task.watchers.length} watching
+              <AvatarStack people={task.watchers} size="xs" max={3} />
             </span>
           )}
           {(task.note_count ?? 0) > 0 && (

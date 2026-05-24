@@ -485,6 +485,39 @@ header.sticky,
   }
 }
 
+/* Shimmer skeleton — gradient sweeps left-to-right over the base
+   bg-surface-2 underlay. Used to communicate "content loading" with
+   the same idiom Linear / Notion / ClickUp employ; replaces the
+   plain opacity pulse from Tailwind's animate-pulse. */
+@keyframes tickd-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.tickd-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: tickd-shimmer 1.4s infinite linear;
+}
+[data-theme='dark'] .tickd-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0,
+    rgba(255, 255, 255, 0.06) 50%,
+    transparent 100%
+  );
+}
+@media (prefers-reduced-motion: reduce) {
+  .tickd-shimmer {
+    animation: none;
+  }
+}
+
 /* Sticky "just below the topbar". Group/section headers use this so
    they slot under the global topbar (sticky top-0 z-30) instead of
    getting swallowed by it. Mobile topbar is ~56px + safe-area inset;

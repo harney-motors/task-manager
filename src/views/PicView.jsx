@@ -20,6 +20,7 @@ import {
 import { isOverdue } from '../lib/dates'
 import { picDot, picPill } from '../lib/colors'
 import Avatar from '../components/Avatar'
+import Skeleton from '../components/Skeleton'
 import { addWatcher } from '../api/watchers'
 import { exportTasksToCsv } from '../lib/exportCsv'
 import { bulkDeleteWithUndo } from '../lib/deferredBulkDelete'
@@ -371,8 +372,8 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
       {/* Task list — driven by URL group/sort via applyTaskGrouping. */}
       <div>
         {isLoading ? (
-          <div className="py-10 px-4 text-center text-xs text-text-3">
-            Loading…
+          <div className="px-3 sm:px-4">
+            <Skeleton.TaskRows rows={6} />
           </div>
         ) : picTasks.length === 0 ? (
           <div className="py-10 px-4 text-center text-xs text-text-3">
