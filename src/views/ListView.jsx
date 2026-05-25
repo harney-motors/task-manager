@@ -15,6 +15,12 @@ import { bulkDeleteWithUndo } from '../lib/deferredBulkDelete'
 import BulkActionBar from '../components/BulkActionBar'
 import ShareModal from '../components/ShareModal'
 import TaskRow from '../components/TaskRow'
+import TaskFilterBar from '../components/TaskFilterBar'
+import {
+  applyTaskFilters,
+  readFiltersFromParams,
+} from '../lib/applyTaskFilters'
+import { useSearchParams } from 'react-router-dom'
 
 export default function ListView({ onOpenTask }) {
   const { workspace } = useAuth()
@@ -34,9 +40,19 @@ export default function ListView({ onOpenTask }) {
   const today = startOfToday()
   const sevenOut = addDays(today, 7)
 
+  // Pull filter state from URL (shared contract with Grid / PIC /
+  // Calendar). Pre-filter the task pool before the two-panel split so
+  // any active filters narrow BOTH "Today & overdue" and "Upcoming".
+  const [searchParams] = useSearchParams()
+  const filters = readFiltersFromParams(searchParams)
+  const filteredTasks = useMemo(
+    () => applyTaskFilters(tasks, filters),
+    [tasks, filters],
+  )
+
   const todayAndOverdue = useMemo(
     () =>
-      tasks
+      filteredTasks
         .filter((t) => {
           if (t.status === 'Done') return false
           if (!t.due_date) return true
@@ -47,12 +63,12 @@ export default function ListView({ onOpenTask }) {
           const bd = b.due_date ? parseDate(b.due_date).getTime() : Infinity
           return ad - bd
         }),
-    [tasks, today],
+    [filteredTasks, today],
   )
 
   const upcoming = useMemo(
     () =>
-      tasks
+      filteredTasks
         .filter((t) => {
           if (t.status === 'Done' || !t.due_date) return false
           const d = parseDate(t.due_date)
@@ -60,7 +76,7 @@ export default function ListView({ onOpenTask }) {
         })
         .sort((a, b) => parseDate(a.due_date) - parseDate(b.due_date))
         .slice(0, 6),
-    [tasks, today, sevenOut],
+    [filteredTasks, today, sevenOut],
   )
 
   // Pool of selectable tasks across both panels — bulk ops act on
@@ -221,6 +237,14 @@ export default function ListView({ onOpenTask }) {
 
   return (
     <div className="space-y-3">
+      {/* Sticky filter bar — same pattern as Grid / PIC / Calendar.
+          On desktop this is the new "sticky chrome" since the topbar
+          moved into the sidebar. Wrapped as a card so it visually
+          sits with the rest of the surfaces. */}
+      <div className="bg-surface border border-border rounded-xl overflow-hidden tickd-stick-below-topbar">
+        <TaskFilterBar hide={['group', 'sort']} />
+      </div>
+
       {selectedIds.size > 0 && (
         <BulkActionBar
           count={selectedIds.size}

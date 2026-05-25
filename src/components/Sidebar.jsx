@@ -20,6 +20,7 @@ const VIEWS = [
   { id: 'today',    label: 'Today',    icon: 'ti-sun' },
   { id: 'list',     label: 'List',     icon: 'ti-list' },
   { id: 'grid',     label: 'Grid',     icon: 'ti-table' },
+  { id: 'kanban',   label: 'Kanban',   icon: 'ti-layout-kanban' },
   { id: 'pic',      label: 'By PIC',   icon: 'ti-users' },
   { id: 'calendar', label: 'Calendar', icon: 'ti-calendar' },
 ]
@@ -34,6 +35,7 @@ export default function Sidebar({
   onOpenMeeting,
   onOpenStandup,
   onOpenPulse,
+  onOpenQuickAdd,
   isPicRole,
 }) {
   const { user, signOut } = useAuth()
@@ -59,6 +61,18 @@ export default function Sidebar({
       {/* Workspace */}
       <div className="px-3 pb-3">
         <WorkspaceSwitcher />
+      </div>
+
+      {/* Primary CTA: New task — the ClickUp/Linear top-of-sidebar
+          pattern. One click from anywhere to capture a task. */}
+      <div className="px-3 pb-2">
+        <button
+          onClick={onOpenQuickAdd}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold bg-info text-white shadow-sm hover:opacity-90 active:scale-[0.98] transition-all"
+        >
+          <i className="ti ti-plus text-base" />
+          New task
+        </button>
       </div>
 
       {/* Search button — opens the Cmd+K palette */}

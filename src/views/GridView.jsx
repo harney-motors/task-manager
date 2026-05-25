@@ -221,12 +221,15 @@ export default function GridView({ onOpenTask, aiFilter, onFiltersChange }) {
   }
 
   return (
-    <div className="bg-surface border border-border rounded-xl overflow-hidden">
-      {/* Saved-filters bar — temporarily disabled while the underlying
-          schema only knows pic/dept/status (no priority/tag). Wire
-          back once useSavedFilters spec includes the new fields. */}
-      <TaskFilterBar defaultGroup="status" defaultSort="due" />
+    <div className="space-y-3">
+      {/* Filter bar in its own sticky card so it stays put while the
+          long grid scrolls underneath. The new "sticky chrome" since
+          the topbar moved to the sidebar. */}
+      <div className="bg-surface border border-border rounded-xl overflow-hidden tickd-stick-below-topbar">
+        <TaskFilterBar defaultGroup="status" defaultSort="due" />
+      </div>
 
+      <div className="bg-surface border border-border rounded-xl overflow-hidden">
       {selectedIds.size > 0 && (
         <BulkActionBar
           count={selectedIds.size}
@@ -307,6 +310,7 @@ export default function GridView({ onOpenTask, aiFilter, onFiltersChange }) {
             ))
           )}
         </div>
+      </div>
       </div>
     </div>
   )

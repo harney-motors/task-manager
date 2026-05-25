@@ -33,6 +33,7 @@ import { useIsSuperadmin } from '../lib/queries'
 const GridView = lazy(() => import('./GridView'))
 const PicView = lazy(() => import('./PicView'))
 const CalendarView = lazy(() => import('./CalendarView'))
+const KanbanView = lazy(() => import('./KanbanView'))
 const SettingsView = lazy(() => import('./SettingsView'))
 const SuperAdminView = lazy(() => import('./SuperAdminView'))
 const PulseView = lazy(() => import('./PulseView'))
@@ -453,6 +454,7 @@ export default function Home() {
         onOpenMeeting={() => setShowExtract(true)}
         onOpenStandup={() => setShowStandup(true)}
         onOpenPulse={() => setShowPulse(true)}
+        onOpenQuickAdd={() => setShowQuickAdd(true)}
         isPicRole={isPicRole}
       />
 
@@ -587,6 +589,11 @@ export default function Home() {
               {view === 'calendar' && (
                 <Suspense fallback={<ViewFallback />}>
                   <CalendarView onOpenTask={setOpenTaskId} />
+                </Suspense>
+              )}
+              {view === 'kanban' && (
+                <Suspense fallback={<ViewFallback />}>
+                  <KanbanView onOpenTask={setOpenTaskId} />
                 </Suspense>
               )}
             </div>

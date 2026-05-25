@@ -246,9 +246,13 @@ export default function CalendarView({ onOpenTask }) {
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : null
 
   return (
-    <div className="bg-surface border border-border rounded-xl overflow-hidden">
-      {/* Calendar is laid out by date — group/sort don't apply. */}
-      <TaskFilterBar hide={['group', 'sort']} />
+    <div className="space-y-3">
+      {/* Sticky filter chrome — same pattern as List / Grid. */}
+      <div className="bg-surface border border-border rounded-xl overflow-hidden tickd-stick-below-topbar">
+        <TaskFilterBar hide={['group', 'sort']} />
+      </div>
+
+      <div className="bg-surface border border-border rounded-xl overflow-hidden">
       {/* Top bar — two rows on phone (nav row + range chips row) so
           neither has to wrap mid-control; one row on tablet+. */}
       <div className="border-b border-border">
@@ -434,6 +438,7 @@ export default function CalendarView({ onOpenTask }) {
           </DragOverlay>
         </DndContext>
       )}
+      </div>
     </div>
   )
 }
