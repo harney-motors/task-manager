@@ -73,7 +73,10 @@ export default function TaskModal({ task, onClose, onOpenTask }) {
         return
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        // Same path as the Save & close footer button — flush a
+        // pending title (only commits on blur) before closing.
         e.preventDefault()
+        handleTitleBlur()
         onClose()
         return
       }
@@ -89,7 +92,11 @@ export default function TaskModal({ task, onClose, onOpenTask }) {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [task, onClose])
+    // `title` is included so the Cmd+Enter handler captures the
+    // latest typed text — without it, the handler keeps a stale title
+    // from mount time and the title commit on Save/⌘↵ is a no-op.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task, onClose, title])
 
   // Save indicator — shows "Saving…" while any task mutation is in
   // flight, then briefly "Saved" after it lands. addWatcher and
@@ -253,6 +260,41 @@ export default function TaskModal({ task, onClose, onOpenTask }) {
               inputRef={journalInputRef}
               embedded
             />
+          </div>
+        )}
+
+        {/* Sticky footer with an explicit Save & close. Fields already
+            auto-save as you edit them (the SaveBadge in the header
+            reflects that), but the explicit button:
+              1. Flushes a pending title — title only commits on blur,
+                 so clicking Save without blurring first would lose it
+                 otherwise.
+              2. Closes the modal in one click rather than two
+                 (blur → close X).
+              3. Reassures users who don't notice the SaveBadge that
+                 their changes landed. */}
+        {!isTemp && (
+          <div className="sticky bottom-0 z-10 px-4 py-3 bg-surface-2 border-t border-border flex items-center justify-end gap-2">
+            <button
+              onClick={onClose}
+              className="text-xs px-3 py-1.5 rounded-md border border-border hover:bg-surface active:bg-surface-2 text-text-2 hover:text-text transition-colors"
+            >
+              Close
+            </button>
+            <button
+              onClick={() => {
+                // Commit any pending title (only persists on blur).
+                handleTitleBlur()
+                onClose()
+              }}
+              className="text-xs px-3.5 py-1.5 rounded-md bg-info text-white font-semibold hover:opacity-90 active:scale-[0.98] transition-all inline-flex items-center gap-1.5"
+            >
+              <i className="ti ti-check text-sm" />
+              Save &amp; close
+              <kbd className="hidden sm:inline text-[9px] text-white/70 border border-white/30 rounded px-1 ml-0.5">
+                ⌘↵
+              </kbd>
+            </button>
           </div>
         )}
       </div>
