@@ -72,9 +72,15 @@ export default function TaskModal({ task, onClose, onOpenTask }) {
         onClose()
         return
       }
+      if ((e.metaKey || e.ctrlKey) && (e.key === 's' || e.key === 'S')) {
+        // ⌘S — explicit Save (without close). Mirrors the Save
+        // button in the sticky footer; flushes any pending title.
+        e.preventDefault()
+        handleTitleBlur()
+        return
+      }
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        // Same path as the Save & close footer button — flush a
-        // pending title (only commits on blur) before closing.
+        // ⌘↵ — flush pending title then close in one stroke.
         e.preventDefault()
         handleTitleBlur()
         onClose()
@@ -263,36 +269,50 @@ export default function TaskModal({ task, onClose, onOpenTask }) {
           </div>
         )}
 
-        {/* Sticky footer with an explicit Save & close. Fields already
-            auto-save as you edit them (the SaveBadge in the header
-            reflects that), but the explicit button:
-              1. Flushes a pending title — title only commits on blur,
-                 so clicking Save without blurring first would lose it
-                 otherwise.
-              2. Closes the modal in one click rather than two
-                 (blur → close X).
-              3. Reassures users who don't notice the SaveBadge that
-                 their changes landed. */}
+        {/* Sticky footer — Save and Close are deliberately distinct
+            actions. Save flushes the pending title (which only auto-
+            commits on blur) and keeps you in the modal so you can
+            keep editing; Close dismisses. Solid bg + top shadow so
+            the bar reads cleanly as content scrolls under it rather
+            than blending with the modal body. */}
         {!isTemp && (
-          <div className="sticky bottom-0 z-10 px-4 py-3 bg-surface-2 border-t border-border flex items-center justify-end gap-2">
+          <div className="sticky bottom-0 z-10 px-4 py-3 bg-surface border-t border-border shadow-[0_-4px_12px_-6px_rgba(15,23,42,0.08)] flex items-center justify-end gap-2">
             <button
               onClick={onClose}
-              className="text-xs px-3 py-1.5 rounded-md border border-border hover:bg-surface active:bg-surface-2 text-text-2 hover:text-text transition-colors"
+              className="text-xs px-3 py-1.5 rounded-md border border-border hover:bg-surface-2 active:bg-surface-3 text-text-2 hover:text-text transition-colors"
             >
               Close
             </button>
             <button
               onClick={() => {
-                // Commit any pending title (only persists on blur).
+                // Commit any pending title — title only persists on blur,
+                // so clicking Save without first blurring would lose it.
+                // Stays in the modal so the user can keep editing.
                 handleTitleBlur()
-                onClose()
               }}
-              className="text-xs px-3.5 py-1.5 rounded-md bg-info text-white font-semibold hover:opacity-90 active:scale-[0.98] transition-all inline-flex items-center gap-1.5"
+              disabled={saveTone === 'saving'}
+              className={`text-xs px-3.5 py-1.5 rounded-md font-semibold transition-all inline-flex items-center gap-1.5 disabled:opacity-70 ${
+                saveTone === 'saved'
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-info text-white hover:opacity-90 active:scale-[0.98]'
+              }`}
             >
-              <i className="ti ti-check text-sm" />
-              Save &amp; close
+              <i
+                className={`ti ${
+                  saveTone === 'saving'
+                    ? 'ti-loader-2 animate-spin'
+                    : saveTone === 'saved'
+                      ? 'ti-check'
+                      : 'ti-device-floppy'
+                } text-sm`}
+              />
+              {saveTone === 'saving'
+                ? 'Saving…'
+                : saveTone === 'saved'
+                  ? 'Saved'
+                  : 'Save'}
               <kbd className="hidden sm:inline text-[9px] text-white/70 border border-white/30 rounded px-1 ml-0.5">
-                ⌘↵
+                ⌘S
               </kbd>
             </button>
           </div>
