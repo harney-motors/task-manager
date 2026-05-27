@@ -81,7 +81,11 @@ export async function fetchMyMentions(personId, limit = 50) {
     .order('created_at', { ascending: false })
     .limit(limit)
   if (error) throw error
-  const entries = data ?? []
+  // RLS scopes the journal_entries query to entries the caller can see
+  // via task membership. If a task was deleted (or RLS denies it), the
+  // join returns `task: null` — drop those rows so the inbox never
+  // shows orphans with no destination.
+  const entries = (data ?? []).filter((e) => e.task)
   if (entries.length === 0) return entries
 
   const authorIds = [

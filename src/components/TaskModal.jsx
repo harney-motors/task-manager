@@ -430,7 +430,7 @@ function DetailsTab({
           {presence.anyEditing && (
             <span className="ml-auto inline-flex items-center gap-1 text-warning-text font-semibold">
               <span className="relative inline-flex w-1.5 h-1.5">
-                <span className="absolute inset-0 rounded-full bg-warning-text opacity-60 animate-ping" />
+                <span className="absolute inset-0 rounded-full bg-warning-text opacity-60 motion-safe:animate-ping" />
                 <span className="relative w-1.5 h-1.5 rounded-full bg-warning-text" />
               </span>
               editing — your save may overwrite theirs

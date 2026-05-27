@@ -168,7 +168,10 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
           aria-label="Recently updated"
         >
           <span className="relative inline-flex">
-            <span className="absolute inset-0 rounded-full bg-info opacity-60 animate-ping" />
+            {/* `motion-safe:` so users with prefers-reduced-motion get a
+                solid dot, not a pulsing one. Accessibility win — the
+                animation can be distracting for some users. */}
+            <span className="absolute inset-0 rounded-full bg-info opacity-60 motion-safe:animate-ping" />
             <span className="relative w-1.5 h-1.5 rounded-full bg-info" />
           </span>
         </span>

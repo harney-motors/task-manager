@@ -288,7 +288,7 @@ export default function ExtractFromMeetingModal({ open, onClose }) {
                 </button>
               )}
               {showTemplatePicker && (
-                <div className="absolute top-full left-5 mt-1 w-72 max-h-80 overflow-y-auto bg-surface border border-border rounded-md shadow-lg z-10">
+                <div className="absolute top-full left-5 right-5 sm:right-auto mt-1 sm:w-72 max-w-[calc(100vw-3rem)] max-h-80 overflow-y-auto bg-surface border border-border rounded-md shadow-lg z-10">
                   <div className="px-3 py-2 text-[10px] uppercase tracking-wider text-text-3 border-b border-border">
                     Built-in
                   </div>
@@ -317,7 +317,7 @@ export default function ExtractFromMeetingModal({ open, onClose }) {
                 </div>
               )}
               {showSaveDialog && (
-                <div className="absolute top-full right-5 mt-1 w-72 bg-surface border border-border rounded-md shadow-lg z-10 p-3">
+                <div className="absolute top-full left-5 right-5 sm:left-auto sm:right-5 mt-1 sm:w-72 max-w-[calc(100vw-3rem)] bg-surface border border-border rounded-md shadow-lg z-10 p-3">
                   <div className="text-xs text-text-2 mb-2">
                     Save the current notes as a reusable agenda?
                   </div>

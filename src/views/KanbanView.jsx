@@ -233,7 +233,7 @@ function KanbanCard({ task, dragging = false }) {
           aria-label="Recently updated"
         >
           <span className="relative inline-flex">
-            <span className="absolute inset-0 rounded-full bg-info opacity-60 animate-ping" />
+            <span className="absolute inset-0 rounded-full bg-info opacity-60 motion-safe:animate-ping" />
             <span className="relative w-1.5 h-1.5 rounded-full bg-info" />
           </span>
         </span>

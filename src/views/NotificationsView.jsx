@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import {
   useAllNudges,
@@ -33,11 +33,63 @@ export default function NotificationsView({ onBack, onOpenTask }) {
   const dismiss = useDismissNudge()
   const restore = useRestoreNudge()
   // Primary tab: 'nudges' (the existing AI-nudge inbox) vs 'mentions'
-  // (journal entries that tagged me). Defaults to mentions when there
-  // are unseen ones so they don't get buried.
-  const [tab, setTab] = useState('nudges')
+  // (journal entries that tagged me). Defaults to 'mentions' when
+  // there are unseen mentions newer than the last visit so the user
+  // sees them on landing. Falls back to 'nudges' otherwise.
+  const [tab, setTab] = useState(() => {
+    try {
+      // We can't read `mentions` here (the query hasn't fired) — but
+      // the badge on the Mentions tab will alert the user post-load.
+      // Initial tab can stay 'nudges' deterministically. Effect below
+      // upgrades to 'mentions' once data lands AND something is new.
+      return 'nudges'
+    } catch {
+      return 'nudges'
+    }
+  })
+  // After the mentions query loads, switch tab to 'mentions' if there
+  // are unseen ones. Only on initial mount so we don't fight the
+  // user's manual tab choice.
+  const autoSwitchedRef = useRef(false)
+  useEffect(() => {
+    if (autoSwitchedRef.current) return
+    if (mentionsLoading) return
+    if (mentions.length === 0) {
+      autoSwitchedRef.current = true
+      return
+    }
+    let lastSeenAt = 0
+    try {
+      const raw = localStorage.getItem(MENTIONS_LAST_SEEN_KEY)
+      if (raw) lastSeenAt = new Date(raw).getTime() || 0
+    } catch {
+      /* ignore */
+    }
+    const hasUnseen = mentions.some(
+      (m) => new Date(m.created_at).getTime() > lastSeenAt,
+    )
+    if (hasUnseen) setTab('mentions')
+    autoSwitchedRef.current = true
+  }, [mentions, mentionsLoading])
   const [filter, setFilter] = useState('all') // all | active | dismissed (nudges sub-filter)
   const [search, setSearch] = useState('')
+
+  // Unseen-mentions count for the tab badge. Read on mount + when
+  // mentions change. We snapshot last-seen BEFORE updating it so the
+  // count survives the immediate "mark as seen" effect below.
+  const unseenMentions = useMemo(() => {
+    if (!mentions.length) return 0
+    let lastSeenAt = 0
+    try {
+      const raw = localStorage.getItem(MENTIONS_LAST_SEEN_KEY)
+      if (raw) lastSeenAt = new Date(raw).getTime() || 0
+    } catch {
+      /* ignore */
+    }
+    return mentions.filter(
+      (m) => new Date(m.created_at).getTime() > lastSeenAt,
+    ).length
+  }, [mentions])
 
   // Mark mentions as seen the moment the user clicks into the tab.
   useEffect(() => {
@@ -111,7 +163,15 @@ export default function NotificationsView({ onBack, onOpenTask }) {
               onClick={() => setTab('mentions')}
             >
               Mentions
-              <span className="text-[10px] text-text-3 ml-1">{mentions.length}</span>
+              {unseenMentions > 0 ? (
+                <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold">
+                  {unseenMentions > 9 ? '9+' : unseenMentions}
+                </span>
+              ) : (
+                <span className="text-[10px] text-text-3 ml-1">
+                  {mentions.length}
+                </span>
+              )}
             </PrimaryTab>
           </div>
 
