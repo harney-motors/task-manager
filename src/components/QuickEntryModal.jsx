@@ -23,7 +23,13 @@ export default function QuickEntryModal({ open, onClose }) {
       onClick={(e) => e.target === e.currentTarget && onClose()}
       className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-2 sm:p-10 overflow-y-auto tickd-modal-backdrop"
     >
-      <div className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-md overflow-hidden tickd-modal-content">
+      {/* No `overflow-hidden` here — the QuickEntry PIC picker
+          renders as `absolute top-full ...` and would get clipped to
+          the modal box otherwise (see the cropped-dropdown bug). The
+          rounded corners still look right because the only
+          edge-touching child is ModalHeader, which carries its own
+          bg-surface from the sticky-header rule and a border-b. */}
+      <div className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-md tickd-modal-content">
         <ModalHeader
           title="New task"
           icon="ti-sparkles"
