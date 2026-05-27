@@ -3,7 +3,7 @@ import { useAuth } from '../auth/AuthProvider'
 import { useToast } from '../components/Toast'
 import { createTask, fetchTasks, updateTask, deleteTask } from '../api/tasks'
 import { addWatcher, removeWatcher } from '../api/watchers'
-import { fetchJournalEntries, createJournalEntry } from '../api/journal'
+import { fetchJournalEntries, createJournalEntry, fetchMyMentions } from '../api/journal'
 import { fetchRecentActivity } from '../api/activity'
 import { notifyTaskEvent } from '../api/notify'
 import {
@@ -77,6 +77,7 @@ export const queryKeys = {
   savedCommands: (workspaceId) => ['savedCommands', workspaceId],
   taskDeps:      (taskId)      => ['taskDeps', taskId],
   workspaceBlockers: (workspaceId) => ['workspaceBlockers', workspaceId],
+  mentions:      (workspaceId, personId) => ['mentions', workspaceId, personId],
 }
 
 // ---------- Dependencies ----------
@@ -225,6 +226,21 @@ export function useAllNudges() {
     queryFn: () => fetchAllNudges(workspace.id),
     enabled: !!workspace,
     staleTime: 60 * 1000,
+  })
+}
+
+// All journal entries across the workspace that mention the given
+// personId. Used by the Mentions inbox tab — the user passes their
+// own linked personId (from `people.find(p => p.user_id === user.id)`).
+// Returns [] when there's no linked person (e.g. account isn't tied
+// to a workspace member yet).
+export function useMyMentions(personId) {
+  const { workspace } = useAuth()
+  return useQuery({
+    queryKey: queryKeys.mentions(workspace?.id, personId),
+    queryFn: () => fetchMyMentions(personId),
+    enabled: !!workspace && !!personId,
+    staleTime: 30 * 1000,
   })
 }
 

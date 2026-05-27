@@ -59,3 +59,47 @@ export async function createJournalEntry({
   if (error) throw error
   return data
 }
+
+// Fetch every journal entry across the user's workspace that mentions
+// the given personId. Used by the Mentions inbox to surface "where
+// were you tagged" without having to open every task.
+//
+// Returns entries enriched with task title + author name. RLS already
+// scopes this to entries the caller can see (members can read entries
+// on tasks in their workspace), so no extra workspace filter needed.
+export async function fetchMyMentions(personId, limit = 50) {
+  if (!personId) return []
+  const { data, error } = await supabase
+    .from('journal_entries')
+    .select(
+      `
+      id, body, mentions, author_id, task_id, created_at, entry_type, parent_id,
+      task:tasks(id, title, workspace_id)
+    `,
+    )
+    .contains('mentions', [personId])
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  const entries = data ?? []
+  if (entries.length === 0) return entries
+
+  const authorIds = [
+    ...new Set(entries.map((e) => e.author_id).filter(Boolean)),
+  ]
+  if (authorIds.length === 0) {
+    return entries.map((e) => ({ ...e, author_name: null }))
+  }
+  const { data: peopleData } = await supabase
+    .from('people')
+    .select('user_id, name')
+    .in('user_id', authorIds)
+  const nameByUser = {}
+  for (const p of peopleData ?? []) {
+    if (p.user_id && !nameByUser[p.user_id]) nameByUser[p.user_id] = p.name
+  }
+  return entries.map((e) => ({
+    ...e,
+    author_name: e.author_id ? nameByUser[e.author_id] ?? null : null,
+  }))
+}

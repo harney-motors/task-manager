@@ -1,9 +1,17 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useAuth } from '../auth/AuthProvider'
 import {
   useAllNudges,
   useDismissNudge,
+  useMyMentions,
+  usePeople,
   useRestoreNudge,
 } from '../lib/queries'
+import { formatTimeAgo } from '../lib/dates'
+
+// localStorage key for the "last time the user opened the mentions
+// tab" timestamp. Used to compute the unseen-mention count badge.
+const MENTIONS_LAST_SEEN_KEY = 'tickd:mentions-last-seen'
 
 // Full-page notifications inbox — accessible via the "See history" link
 // in the NotificationsModal, or directly from the sub-view chrome where
@@ -14,11 +22,32 @@ import {
 // Same sticky-header pattern as Settings/SuperAdmin/Pulse. Onback
 // returns to wherever the user came from (Home's view state).
 export default function NotificationsView({ onBack, onOpenTask }) {
+  const { user } = useAuth()
+  const { data: people = [] } = usePeople()
+  const me = useMemo(
+    () => people.find((p) => p.user_id === user?.id) ?? null,
+    [people, user?.id],
+  )
   const { data: nudges = [], isLoading } = useAllNudges()
+  const { data: mentions = [], isLoading: mentionsLoading } = useMyMentions(me?.id)
   const dismiss = useDismissNudge()
   const restore = useRestoreNudge()
-  const [filter, setFilter] = useState('all') // all | active | dismissed
+  // Primary tab: 'nudges' (the existing AI-nudge inbox) vs 'mentions'
+  // (journal entries that tagged me). Defaults to mentions when there
+  // are unseen ones so they don't get buried.
+  const [tab, setTab] = useState('nudges')
+  const [filter, setFilter] = useState('all') // all | active | dismissed (nudges sub-filter)
   const [search, setSearch] = useState('')
+
+  // Mark mentions as seen the moment the user clicks into the tab.
+  useEffect(() => {
+    if (tab !== 'mentions') return
+    try {
+      localStorage.setItem(MENTIONS_LAST_SEEN_KEY, new Date().toISOString())
+    } catch {
+      /* ignore — localStorage disabled */
+    }
+  }, [tab])
 
   const filtered = useMemo(() => {
     let rows = nudges
@@ -66,46 +95,84 @@ export default function NotificationsView({ onBack, onOpenTask }) {
             </h1>
           </div>
 
-          {/* Filter tabs + search row */}
-          <div className="flex items-center gap-2">
-            <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <div className="inline-flex items-center gap-0.5 p-0.5 bg-surface-2 rounded-md">
-                <FilterTab
-                  active={filter === 'all'}
-                  count={counts.all}
-                  onClick={() => setFilter('all')}
-                >
-                  All
-                </FilterTab>
-                <FilterTab
-                  active={filter === 'active'}
-                  count={counts.active}
-                  onClick={() => setFilter('active')}
-                >
-                  Active
-                </FilterTab>
-                <FilterTab
-                  active={filter === 'dismissed'}
-                  count={counts.dismissed}
-                  onClick={() => setFilter('dismissed')}
-                >
-                  Dismissed
-                </FilterTab>
+          {/* Primary tabs: Nudges (AI-generated) vs Mentions (human). */}
+          <div className="inline-flex items-center gap-0.5 p-0.5 bg-surface-2 rounded-md mb-2">
+            <PrimaryTab
+              active={tab === 'nudges'}
+              icon="ti-bulb"
+              onClick={() => setTab('nudges')}
+            >
+              Nudges
+              <span className="text-[10px] text-text-3 ml-1">{nudges.length}</span>
+            </PrimaryTab>
+            <PrimaryTab
+              active={tab === 'mentions'}
+              icon="ti-at"
+              onClick={() => setTab('mentions')}
+            >
+              Mentions
+              <span className="text-[10px] text-text-3 ml-1">{mentions.length}</span>
+            </PrimaryTab>
+          </div>
+
+          {/* Sub-controls — different content per primary tab. */}
+          {tab === 'nudges' ? (
+            <div className="flex items-center gap-2">
+              <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="inline-flex items-center gap-0.5 p-0.5 bg-surface-2 rounded-md">
+                  <FilterTab
+                    active={filter === 'all'}
+                    count={counts.all}
+                    onClick={() => setFilter('all')}
+                  >
+                    All
+                  </FilterTab>
+                  <FilterTab
+                    active={filter === 'active'}
+                    count={counts.active}
+                    onClick={() => setFilter('active')}
+                  >
+                    Active
+                  </FilterTab>
+                  <FilterTab
+                    active={filter === 'dismissed'}
+                    count={counts.dismissed}
+                    onClick={() => setFilter('dismissed')}
+                  >
+                    Dismissed
+                  </FilterTab>
+                </div>
               </div>
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search…"
+                className="flex-1 min-w-0 text-xs px-3 py-1.5 rounded-md border border-border bg-surface outline-none focus:border-info"
+              />
             </div>
+          ) : (
             <input
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search…"
-              className="flex-1 min-w-0 text-xs px-3 py-1.5 rounded-md border border-border bg-surface outline-none focus:border-info"
+              placeholder="Search comments…"
+              className="w-full text-xs px-3 py-1.5 rounded-md border border-border bg-surface outline-none focus:border-info"
             />
-          </div>
+          )}
         </div>
       </header>
 
       <div className="mx-auto max-w-3xl px-3 sm:px-6 py-4 sm:py-6">
-        {isLoading ? (
+        {tab === 'mentions' ? (
+          <MentionsList
+            mentions={mentions}
+            search={search}
+            loading={mentionsLoading}
+            hasLinkedPerson={!!me}
+            onOpenTask={onOpenTask}
+          />
+        ) : isLoading ? (
           <div className="bg-surface border border-border rounded-xl p-10 text-center text-xs text-text-3">
             Loading…
           </div>
@@ -136,6 +203,112 @@ export default function NotificationsView({ onBack, onOpenTask }) {
         )}
       </div>
     </div>
+  )
+}
+
+// Primary tab control — pair sits at the top of the header.
+function PrimaryTab({ active, icon, onClick, children }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`text-xs px-3 py-1.5 rounded inline-flex items-center gap-1.5 active:scale-95 transition-transform ${
+        active
+          ? 'bg-surface text-text font-semibold shadow-sm'
+          : 'text-text-2 hover:text-text'
+      }`}
+    >
+      <i className={`ti ${icon} text-sm`} />
+      {children}
+    </button>
+  )
+}
+
+// Mentions inbox body. Renders entries that tagged the current user
+// across the workspace. Each row is a link into the source task.
+function MentionsList({ mentions, search, loading, hasLinkedPerson, onOpenTask }) {
+  const filtered = useMemo(() => {
+    if (!search) return mentions
+    const q = search.trim().toLowerCase()
+    return mentions.filter(
+      (m) =>
+        m.body?.toLowerCase().includes(q) ||
+        m.task?.title?.toLowerCase().includes(q) ||
+        m.author_name?.toLowerCase().includes(q),
+    )
+  }, [mentions, search])
+
+  if (!hasLinkedPerson) {
+    return (
+      <div className="bg-surface border border-border rounded-xl p-10 text-center text-xs text-text-3">
+        Your account isn&rsquo;t linked to a workspace member yet — no one can
+        @mention you. Ask an admin to link you under Settings → People.
+      </div>
+    )
+  }
+  if (loading) {
+    return (
+      <div className="bg-surface border border-border rounded-xl p-10 text-center text-xs text-text-3">
+        Loading mentions…
+      </div>
+    )
+  }
+  if (filtered.length === 0) {
+    return (
+      <div className="bg-surface border border-border rounded-xl p-10 text-center text-xs text-text-3">
+        {search
+          ? 'No mentions match your search.'
+          : 'No one has @mentioned you yet. When a teammate tags you in a comment, it lands here.'}
+      </div>
+    )
+  }
+  return (
+    <ul className="bg-surface border border-border rounded-xl overflow-hidden divide-y divide-border">
+      {filtered.map((m) => (
+        <MentionRow key={m.id} mention={m} onOpenTask={onOpenTask} />
+      ))}
+    </ul>
+  )
+}
+
+function MentionRow({ mention, onOpenTask }) {
+  const taskTitle = mention.task?.title ?? '(deleted task)'
+  const author = mention.author_name ?? 'Someone'
+  const taskId = mention.task?.id
+  function handleClick() {
+    if (taskId && onOpenTask) onOpenTask(taskId)
+  }
+  return (
+    <li>
+      <div
+        onClick={handleClick}
+        className={`flex items-start gap-3 px-3 sm:px-4 py-3 transition-colors ${
+          taskId ? 'cursor-pointer hover:bg-surface-2 active:bg-surface-3' : ''
+        }`}
+      >
+        <span className="flex-shrink-0 w-7 h-7 rounded-lg inline-flex items-center justify-center bg-info-bg text-info-text">
+          <i className="ti ti-at text-sm" />
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm leading-snug">
+            <span className="font-medium">{author}</span>
+            <span className="text-text-2"> mentioned you in </span>
+            <span className="font-medium">{taskTitle}</span>
+          </div>
+          <div className="text-[11px] sm:text-xs text-text-2 mt-1 leading-snug line-clamp-2">
+            {mention.body}
+          </div>
+          <div className="text-[10px] text-text-3 mt-1 flex items-center gap-2 flex-wrap">
+            <span>{formatTimeAgo(mention.created_at)}</span>
+            {taskId && (
+              <span className="text-info inline-flex items-center gap-0.5">
+                <i className="ti ti-arrow-right text-[10px]" />
+                Open task
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </li>
   )
 }
 

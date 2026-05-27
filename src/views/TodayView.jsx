@@ -1,4 +1,5 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useAuth } from '../auth/AuthProvider'
 import { useTasks, usePeople } from '../lib/queries'
 import {
   addDays,
@@ -14,6 +15,12 @@ import NudgesBanner from '../components/NudgesBanner'
 import EmptyWorkspaceGuide from '../components/EmptyWorkspaceGuide'
 import Skeleton from '../components/Skeleton'
 
+// LocalStorage key for the Today scope ("mine" vs "team"). Per-user
+// preference, persists across refreshes. First-time users land on
+// "mine" so their own work is front-and-centre — the ClickUp Home /
+// Linear "My Issues" pattern.
+const SCOPE_STORAGE_KEY = 'tickd:today-scope'
+
 // Three-zone informational dashboard. Designed to feel less like an
 // inbox and more like a control room: at-a-glance state, then drill-in
 // where it matters.
@@ -27,15 +34,56 @@ import Skeleton from '../components/Skeleton'
 // `onSwitchView` lets cards drill into other views (e.g. clicking an
 // insight pre-filters the Grid).
 export default function TodayView({ onOpenTask, onSwitchView, onOpenSettings }) {
+  const { user } = useAuth()
   const { data: tasks = [], isLoading } = useTasks()
   const { data: people = [] } = usePeople()
 
   const today = startOfToday()
   const todayIso = formatIso(today)
 
+  // ----- Scope: "mine" vs "team" -----
+  // The dashboard defaults to "mine" so the first thing the user sees
+  // is their own work — the established SaaS pattern (Linear "My
+  // Issues", ClickUp "Home", Asana "My tasks").  Toggle is visible
+  // only when the user is actually linked to a person; otherwise
+  // there's no concept of "mine" to filter on.
+  const me = useMemo(
+    () => people.find((p) => p.user_id === user?.id) ?? null,
+    [people, user?.id],
+  )
+  const [scope, setScope] = useState(() => {
+    try {
+      return localStorage.getItem(SCOPE_STORAGE_KEY) || 'mine'
+    } catch {
+      return 'mine'
+    }
+  })
+  useEffect(() => {
+    try {
+      localStorage.setItem(SCOPE_STORAGE_KEY, scope)
+    } catch {
+      /* localStorage disabled — ignore */
+    }
+  }, [scope])
+
+  // When the user has no linked person, force scope to 'team' (the
+  // 'mine' filter would yield nothing).
+  const effectiveScope = me ? scope : 'team'
+
+  // Apply scope filter BEFORE bucketing so all three zones + heatmap
+  // + insights share the same task pool.
+  const scopedTasks = useMemo(() => {
+    if (effectiveScope === 'team' || !me) return tasks
+    return tasks.filter(
+      (t) =>
+        t.pic_id === me.id ||
+        (t.watchers ?? []).some((w) => w.id === me.id),
+    )
+  }, [tasks, effectiveScope, me])
+
   // ----- Categorisation -----
   const buckets = useMemo(() => {
-    const active = tasks.filter((t) => t.status !== 'Done')
+    const active = scopedTasks.filter((t) => t.status !== 'Done')
     return {
       needsAttention: active
         .filter(
@@ -51,7 +99,7 @@ export default function TodayView({ onOpenTask, onSwitchView, onOpenSettings }) 
         .filter((t) => t.status === 'Ongoing')
         .sort((a, b) => priorityRank(a) - priorityRank(b)),
     }
-  }, [tasks])
+  }, [scopedTasks])
 
   // ----- Heatmap -----
   // Next 7 days starting today: count active (non-Done) tasks due each day
@@ -60,19 +108,19 @@ export default function TodayView({ onOpenTask, onSwitchView, onOpenSettings }) 
     for (let i = 0; i < 7; i++) {
       const d = addDays(today, i)
       const iso = formatIso(d)
-      const count = tasks.filter(
+      const count = scopedTasks.filter(
         (t) => t.status !== 'Done' && t.due_date === iso,
       ).length
       cells.push({ date: d, iso, count })
     }
     return cells
-  }, [tasks, todayIso]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [scopedTasks, todayIso]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const maxHeat = Math.max(1, ...heatmap.map((c) => c.count))
 
   // ----- Smart insights (heuristic) -----
   const insights = useMemo(() => {
-    const active = tasks.filter((t) => t.status !== 'Done')
+    const active = scopedTasks.filter((t) => t.status !== 'Done')
     const thirtyDaysAgo = addDays(today, -30)
 
     const stale = active.filter((t) => {
@@ -126,10 +174,10 @@ export default function TodayView({ onOpenTask, onSwitchView, onOpenSettings }) 
       })
     }
     return items
-  }, [tasks, today])
+  }, [scopedTasks, today])
 
 
-  const totalActive = tasks.filter((t) => t.status !== 'Done').length
+  const totalActive = scopedTasks.filter((t) => t.status !== 'Done').length
 
   if (isLoading) {
     return (
@@ -182,13 +230,17 @@ export default function TodayView({ onOpenTask, onSwitchView, onOpenSettings }) 
       {/* AI nudges — sits above the hero so anything urgent lands first */}
       <NudgesBanner onOpenTask={onOpenTask} />
 
-      {/* Hero band */}
+      {/* Hero band — passes the scope toggle so the controls live in
+          the same visual block as the headline counts. */}
       <HeroBand
         today={today}
         counts={buckets}
         heatmap={heatmap}
         maxHeat={maxHeat}
         totalActive={totalActive}
+        scope={effectiveScope}
+        onChangeScope={me ? setScope : null}
+        meName={me?.name?.split(' ')[0] ?? 'me'}
       />
 
       {/* Three-zone main cards */}
@@ -265,7 +317,16 @@ export default function TodayView({ onOpenTask, onSwitchView, onOpenSettings }) 
 // Hero
 // ============================================================
 
-function HeroBand({ today, counts, heatmap, maxHeat, totalActive }) {
+function HeroBand({
+  today,
+  counts,
+  heatmap,
+  maxHeat,
+  totalActive,
+  scope = 'mine',
+  onChangeScope,
+  meName = 'me',
+}) {
   const dayName = today.toLocaleDateString(undefined, { weekday: 'long' })
   const dateLine = today.toLocaleDateString(undefined, {
     month: 'short',
@@ -277,6 +338,31 @@ function HeroBand({ today, counts, heatmap, maxHeat, totalActive }) {
 
   return (
     <div className="bg-surface border border-border rounded-xl p-3 sm:p-5">
+      {/* Scope toggle — only renders when the caller passed an
+          onChangeScope handler (i.e. user is linked to a person).
+          Sits above the headline so the scope label is the very
+          first thing you read on the page. */}
+      {onChangeScope && (
+        <div className="flex items-center gap-1.5 mb-3 sm:mb-4">
+          <ScopePill
+            active={scope === 'mine'}
+            onClick={() => onChangeScope('mine')}
+            icon="ti-user"
+            label="My tasks"
+          />
+          <ScopePill
+            active={scope === 'team'}
+            onClick={() => onChangeScope('team')}
+            icon="ti-users"
+            label="Whole team"
+          />
+          <span className="text-[10px] text-text-3 ml-1 hidden sm:inline">
+            {scope === 'mine'
+              ? `Tasks where ${meName} is PIC or watcher`
+              : 'All workspace tasks'}
+          </span>
+        </div>
+      )}
       <div className="flex items-start justify-between gap-3 sm:gap-4 flex-wrap">
         <div className="min-w-0">
           <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-text-3 font-medium">
@@ -323,6 +409,25 @@ function HeroBand({ today, counts, heatmap, maxHeat, totalActive }) {
         </div>
       </div>
     </div>
+  )
+}
+
+// Mine/Team segmented control inside the hero band.
+function ScopePill({ active, onClick, icon, label }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] sm:text-xs border transition-colors active:scale-95 ${
+        active
+          ? 'border-info bg-info text-white font-medium'
+          : 'border-border bg-surface text-text-2 hover:bg-surface-2'
+      }`}
+    >
+      <i className={`ti ${icon} text-sm`} />
+      {label}
+    </button>
   )
 }
 

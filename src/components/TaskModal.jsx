@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   useAddWatcher,
@@ -26,9 +26,11 @@ import SubtasksField from './SubtasksField'
 import DependenciesField from './DependenciesField'
 import ModalHeader from './ModalHeader'
 import { useTaskDependencies } from '../lib/queries'
+import useTaskPresence from '../lib/useTaskPresence'
+import { AvatarStack } from './Avatar'
 
 export default function TaskModal({ task, onClose, onOpenTask }) {
-  const { workspace } = useAuth()
+  const { user, workspace } = useAuth()
   const queryClient = useQueryClient()
   const showToast = useToast()
   const { data: people = [] } = usePeople()
@@ -37,6 +39,18 @@ export default function TaskModal({ task, onClose, onOpenTask }) {
   const updateTask = useUpdateTask()
   const addWatcher = useAddWatcher()
   const removeWatcher = useRemoveWatcher()
+
+  // Realtime presence — broadcasts "I'm viewing this task" + tracks
+  // others doing the same. Used to surface co-edit warnings (#16/#17).
+  const meIdentity = useMemo(() => {
+    const person = people.find((p) => p.user_id === user?.id)
+    return {
+      name: person?.name ?? user?.email ?? null,
+      color: person?.color ?? null,
+      initials: person?.initials ?? null,
+    }
+  }, [people, user?.id, user?.email])
+  const presence = useTaskPresence(task?.id, user, meIdentity)
 
   // Tab — 'details' default; 'journal' switches the body. Same on
   // desktop and mobile (the old side-by-side layout was nice but
@@ -389,13 +403,51 @@ function DetailsTab({
         </div>
       )}
 
+      {/* Presence banner — only visible when someone else also has
+          this task open. Avatar stack on the left, "editing" warning
+          on the right when any of them are typing. Goal is awareness,
+          not collision avoidance: it just nudges you to wait or talk
+          to them rather than fighting last-write-wins. */}
+      {presence.others.length > 0 && (
+        <div className="mx-5 mt-3 px-3 py-2 rounded-md border border-info-bg bg-info-bg/40 text-info-text text-xs flex items-center gap-2 flex-wrap">
+          <AvatarStack
+            people={presence.others.map((o) => ({
+              id: o.user_id,
+              name: o.name,
+              color: o.color,
+              initials: o.avatar_initials,
+            }))}
+            size="xs"
+            max={4}
+          />
+          <span className="font-medium">
+            {presence.others.length === 1
+              ? `${firstName(presence.others[0].name)} is also viewing this`
+              : `${presence.others.length} others are also viewing this`}
+          </span>
+          {presence.anyEditing && (
+            <span className="ml-auto inline-flex items-center gap-1 text-warning-text font-semibold">
+              <span className="relative inline-flex w-1.5 h-1.5">
+                <span className="absolute inset-0 rounded-full bg-warning-text opacity-60 animate-ping" />
+                <span className="relative w-1.5 h-1.5 rounded-full bg-warning-text" />
+              </span>
+              editing — your save may overwrite theirs
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Title + source — bigger, bolder heading; the modal's "page
           title" feel that Notion / Linear use. */}
       <div className="px-5 pt-4 pb-3">
         <textarea
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          onBlur={handleTitleBlur}
+          onFocus={() => presence.setEditing(true)}
+          onBlur={(e) => {
+            presence.setEditing(false)
+            handleTitleBlur(e)
+          }}
           rows={2}
           disabled={isTemp}
           placeholder="Untitled task"
@@ -779,4 +831,9 @@ function formatIso(d) {
   const mm = String(d.getMonth() + 1).padStart(2, '0')
   const dd = String(d.getDate()).padStart(2, '0')
   return `${yyyy}-${mm}-${dd}`
+}
+
+function firstName(full) {
+  if (!full) return 'Someone'
+  return full.split(' ')[0]
 }

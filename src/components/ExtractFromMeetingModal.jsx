@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { usePeople, useDepartments, useCreateTask } from '../lib/queries'
 import { useAuth } from '../auth/AuthProvider'
 import { useToast } from './Toast'
@@ -7,6 +7,12 @@ import { addWatcher } from '../api/watchers'
 import { useDictation } from '../lib/useDictation'
 import { picPill, statusPill } from '../lib/colors'
 import ModalHeader from './ModalHeader'
+import {
+  BUILTIN_TEMPLATES,
+  deleteUserTemplate,
+  loadUserTemplates,
+  saveUserTemplate,
+} from '../lib/meetingTemplates'
 
 const SAMPLE_PLACEHOLDER = `Paste meeting notes or transcript here. e.g.
 
@@ -30,6 +36,16 @@ export default function ExtractFromMeetingModal({ open, onClose }) {
   const [extracting, setExtracting] = useState(false)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState(null)
+  // Templates — workspace-scoped list of built-ins + user saves.
+  // Refreshes on open so a save in a previous session is visible.
+  const [userTemplates, setUserTemplates] = useState([])
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false)
+  const [showSaveDialog, setShowSaveDialog] = useState(false)
+  const [newTemplateName, setNewTemplateName] = useState('')
+  const allTemplates = useMemo(
+    () => [...BUILTIN_TEMPLATES, ...userTemplates],
+    [userTemplates],
+  )
 
   // Voice dictation for live meeting notes. Each final chunk appends
   // a newline so successive utterances land on separate lines —
@@ -52,10 +68,48 @@ export default function ExtractFromMeetingModal({ open, onClose }) {
       setError(null)
       setExtracting(false)
       setCreating(false)
+      setShowTemplatePicker(false)
+      setShowSaveDialog(false)
+      setNewTemplateName('')
       if (dict.listening) dict.stop()
+    } else {
+      // Re-read user templates each time we open so we pick up edits
+      // made in another tab / session.
+      setUserTemplates(loadUserTemplates(workspace?.id))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  }, [open, workspace?.id])
+
+  function applyTemplate(tmpl) {
+    if (!tmpl) return
+    // If the user already has text, confirm before overwrite (the
+    // template completely replaces what's there).
+    if (transcript.trim().length > 0) {
+      if (
+        !confirm(
+          `Replace your current notes with the "${tmpl.name}" template?`,
+        )
+      )
+        return
+    }
+    setTranscript(tmpl.body)
+    setShowTemplatePicker(false)
+  }
+
+  function handleSaveTemplate() {
+    const name = newTemplateName.trim()
+    if (!name || !transcript.trim()) return
+    saveUserTemplate(workspace?.id, { name, body: transcript })
+    setUserTemplates(loadUserTemplates(workspace?.id))
+    setNewTemplateName('')
+    setShowSaveDialog(false)
+    showToast(`Saved "${name}" as an agenda template`)
+  }
+
+  function handleDeleteTemplate(id) {
+    const next = deleteUserTemplate(workspace?.id, id)
+    setUserTemplates(next)
+  }
 
   useEffect(() => {
     if (!open) return
@@ -203,6 +257,101 @@ export default function ExtractFromMeetingModal({ open, onClose }) {
               action items, infer PICs by first name, and pre-fill dates,
               priority, and status. You review before anything saves.
             </div>
+
+            {/* Agenda template picker. Pre-fill a meeting skeleton from
+                a built-in or saved template, then fill in the blanks.
+                The dropdown sits between the helper text and the
+                textarea so it reads as "shape the page first, then
+                write into it" — the established Notion / Slack /
+                ClickUp template-picker pattern. */}
+            <div className="px-5 pt-3 pb-1 flex items-center gap-2 flex-wrap relative">
+              <button
+                type="button"
+                onClick={() => setShowTemplatePicker((x) => !x)}
+                className="text-xs px-2.5 py-1.5 rounded-md border border-border bg-surface hover:bg-surface-2 inline-flex items-center gap-1.5"
+                disabled={extracting}
+              >
+                <i className="ti ti-template text-sm" />
+                Use a template
+                <i className="ti ti-chevron-down text-xs text-text-3" />
+              </button>
+              {transcript.trim().length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowSaveDialog(true)}
+                  className="text-xs px-2.5 py-1.5 rounded-md border border-border text-text-2 hover:text-text hover:bg-surface-2 inline-flex items-center gap-1.5"
+                  disabled={extracting}
+                  title="Save current notes as a reusable template"
+                >
+                  <i className="ti ti-device-floppy text-sm" />
+                  Save as template
+                </button>
+              )}
+              {showTemplatePicker && (
+                <div className="absolute top-full left-5 mt-1 w-72 max-h-80 overflow-y-auto bg-surface border border-border rounded-md shadow-lg z-10">
+                  <div className="px-3 py-2 text-[10px] uppercase tracking-wider text-text-3 border-b border-border">
+                    Built-in
+                  </div>
+                  {BUILTIN_TEMPLATES.map((t) => (
+                    <TemplateRow
+                      key={t.id}
+                      tmpl={t}
+                      onPick={() => applyTemplate(t)}
+                    />
+                  ))}
+                  {userTemplates.length > 0 && (
+                    <>
+                      <div className="px-3 py-2 text-[10px] uppercase tracking-wider text-text-3 border-y border-border bg-surface-2/50">
+                        Saved
+                      </div>
+                      {userTemplates.map((t) => (
+                        <TemplateRow
+                          key={t.id}
+                          tmpl={t}
+                          onPick={() => applyTemplate(t)}
+                          onDelete={() => handleDeleteTemplate(t.id)}
+                        />
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
+              {showSaveDialog && (
+                <div className="absolute top-full right-5 mt-1 w-72 bg-surface border border-border rounded-md shadow-lg z-10 p-3">
+                  <div className="text-xs text-text-2 mb-2">
+                    Save the current notes as a reusable agenda?
+                  </div>
+                  <input
+                    type="text"
+                    value={newTemplateName}
+                    onChange={(e) => setNewTemplateName(e.target.value)}
+                    placeholder="Template name"
+                    className="w-full text-sm px-2 py-1 border border-border rounded bg-surface outline-none focus:border-info mb-2"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveTemplate()
+                      if (e.key === 'Escape') setShowSaveDialog(false)
+                    }}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setShowSaveDialog(false)}
+                      className="text-xs px-2.5 py-1 rounded text-text-3 hover:text-text"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveTemplate}
+                      disabled={!newTemplateName.trim()}
+                      className="text-xs px-2.5 py-1 rounded bg-info text-white font-medium disabled:opacity-50"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="relative flex-1 m-5 mt-3 mb-2 min-h-[260px] flex">
               <textarea
                 value={
@@ -408,6 +557,45 @@ export default function ExtractFromMeetingModal({ open, onClose }) {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// One row in the template picker dropdown. Built-ins show their
+// description; user templates show a delete (×) action on hover.
+function TemplateRow({ tmpl, onPick, onDelete }) {
+  return (
+    <div className="group flex items-start gap-2 px-3 py-2 hover:bg-surface-2 cursor-pointer border-b border-border last:border-b-0">
+      <button
+        type="button"
+        onClick={onPick}
+        className="flex-1 text-left flex items-start gap-2"
+      >
+        {tmpl.icon && (
+          <i className={`ti ${tmpl.icon} text-base text-info flex-shrink-0 mt-0.5`} />
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium truncate">{tmpl.name}</div>
+          {tmpl.description && (
+            <div className="text-[11px] text-text-3 line-clamp-2 leading-snug">
+              {tmpl.description}
+            </div>
+          )}
+        </div>
+      </button>
+      {onDelete && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            if (confirm(`Delete "${tmpl.name}" template?`)) onDelete()
+          }}
+          className="opacity-0 group-hover:opacity-100 text-text-3 hover:text-danger-text p-1"
+          aria-label="Delete template"
+        >
+          <i className="ti ti-x text-xs" />
+        </button>
+      )}
     </div>
   )
 }
