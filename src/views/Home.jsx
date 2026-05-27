@@ -15,6 +15,7 @@ import PicHomeView from './PicHomeView'
 import SearchPalette from '../components/SearchPalette'
 import CommandPreviewModal from '../components/CommandPreviewModal'
 import { onServiceWorkerMessage } from '../lib/registerSw'
+import ActivityFeed from '../components/ActivityFeed'
 import WorkspaceSwitcher from '../components/WorkspaceSwitcher'
 import NudgeBadge from '../components/NudgeBadge'
 import BottomNav from '../components/BottomNav'
@@ -592,6 +593,17 @@ export default function Home() {
               </Suspense>
             )}
           </div>
+
+          {/* Recent activity feed — at-a-glance "what changed" strip,
+              shown to everyone (the full audit log with restoration etc
+              lives in Settings → Activity for owners/admins). PICs only
+              see entries on tasks they can already see via RLS, so
+              there's nothing to hide. */}
+          {!isPicRole && (
+            <div className="mt-6">
+              <ActivityFeed onOpenTask={setOpenTaskId} compactLimit={5} />
+            </div>
+          )}
         </>
 
         <TaskModal

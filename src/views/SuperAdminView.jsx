@@ -1,14 +1,16 @@
 import { useState } from 'react'
 import WorkspacesPanel from './admin/WorkspacesPanel'
 import UsersPanel from './admin/UsersPanel'
-import ActivityPanel from './admin/ActivityPanel'
 import SystemPanel from './admin/SystemPanel'
 import NudgeBadge from '../components/NudgeBadge'
 
+// Activity tab moved out — the same backend activity log now lives in
+// Settings → Activity (gated to workspace owners + superadmins), where
+// it sits closer to the workspace it describes. Super admin keeps the
+// cross-tenant control plane only.
 const TABS = [
   { id: 'workspaces', label: 'Workspaces', icon: 'ti-building' },
   { id: 'users',      label: 'Users',      icon: 'ti-users' },
-  { id: 'activity',   label: 'Activity',   icon: 'ti-history' },
   { id: 'system',     label: 'System',     icon: 'ti-chart-bar' },
 ]
 
@@ -66,7 +68,6 @@ export default function SuperAdminView({ onBack }) {
 
         {tab === 'workspaces' && <WorkspacesPanel />}
         {tab === 'users'      && <UsersPanel />}
-        {tab === 'activity'   && <ActivityPanel />}
         {tab === 'system'     && <SystemPanel />}
       </div>
     </div>
