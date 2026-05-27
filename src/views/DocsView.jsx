@@ -24,11 +24,25 @@ import Skeleton from '../components/Skeleton'
 // button). Title edits in place. Preview can be toggled per-view.
 export default function DocsView() {
   const { workspace } = useAuth()
-  const { data: docs = [], isLoading } = useDocs()
+  const { data: docs = [], isLoading, error } = useDocs()
   const createDoc = useCreateDoc()
   const showToast = useToast()
   const [selectedId, setSelectedId] = useState(null)
   const [search, setSearch] = useState('')
+
+  // Detect the "table doesn't exist" error PostgREST returns when the
+  // phase-21 migration hasn't been run yet. Surface a setup guide
+  // instead of just bubbling the raw error through a toast — most
+  // common when someone deploys the app code before applying the SQL.
+  const needsMigration = !!(
+    error &&
+    (String(error?.message ?? '').includes("table 'public.docs'") ||
+      String(error?.code ?? '') === 'PGRST205' ||
+      String(error?.code ?? '') === '42P01')
+  )
+  if (needsMigration) {
+    return <DocsSetupGuide />
+  }
 
   // Auto-select the first doc on load. Triggers once per workspace
   // and respects the user's later manual selection.
@@ -214,6 +228,43 @@ function DocListRow({ doc, selected, onClick }) {
         {formatTimeAgo(doc.updated_at)}
       </div>
     </button>
+  )
+}
+
+// ============================================================
+// Migration-needed state — surfaced when the docs table doesn't exist
+// ============================================================
+
+function DocsSetupGuide() {
+  return (
+    <div className="bg-surface border border-border rounded-xl p-6 sm:p-10 max-w-2xl">
+      <div className="flex items-start gap-3">
+        <span className="flex-shrink-0 w-9 h-9 rounded-lg bg-warning-bg text-warning-text inline-flex items-center justify-center">
+          <i className="ti ti-database-off text-lg" />
+        </span>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-base font-medium">Docs needs a one-time setup</h2>
+          <p className="text-xs text-text-2 mt-1 leading-relaxed">
+            The <code>docs</code> table hasn&rsquo;t been created in this
+            Supabase project yet. Run the migration once and the Docs view
+            will be ready — your existing tasks, people, and history are
+            unaffected.
+          </p>
+          <ol className="mt-3 text-xs text-text-2 space-y-1.5 list-decimal pl-4 leading-relaxed">
+            <li>Open your Supabase project &rarr; SQL Editor.</li>
+            <li>
+              Paste the contents of{' '}
+              <code className="px-1 py-0.5 rounded bg-surface-2 border border-border font-mono text-[11px]">
+                supabase/2026-05-27-phase-21-docs.sql
+              </code>{' '}
+              from the repo.
+            </li>
+            <li>Click <span className="font-medium">Run</span>.</li>
+            <li>Refresh this page.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
   )
 }
 
