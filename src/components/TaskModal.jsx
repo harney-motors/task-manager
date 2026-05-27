@@ -281,6 +281,7 @@ export default function TaskModal({ task, onClose, onOpenTask }) {
             plus7Iso={plus7Iso}
             handleDelete={handleDelete}
             onOpenRelated={onOpenTask}
+            presence={presence}
           />
         ) : (
           <div className="border-b border-border">
@@ -371,6 +372,7 @@ function DetailsTab({
   plus7Iso,
   handleDelete,
   onOpenRelated,
+  presence,
 }) {
   const { data: deps = { blockedBy: [] } } = useTaskDependencies(task.id)
   const openBlockers = (deps.blockedBy ?? []).filter(
@@ -408,7 +410,7 @@ function DetailsTab({
           on the right when any of them are typing. Goal is awareness,
           not collision avoidance: it just nudges you to wait or talk
           to them rather than fighting last-write-wins. */}
-      {presence.others.length > 0 && (
+      {presence && presence.others.length > 0 && (
         <div className="mx-5 mt-3 px-3 py-2 rounded-md border border-info-bg bg-info-bg/40 text-info-text text-xs flex items-center gap-2 flex-wrap">
           <AvatarStack
             people={presence.others.map((o) => ({
@@ -443,9 +445,9 @@ function DetailsTab({
         <textarea
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          onFocus={() => presence.setEditing(true)}
+          onFocus={() => presence?.setEditing?.(true)}
           onBlur={(e) => {
-            presence.setEditing(false)
+            presence?.setEditing?.(false)
             handleTitleBlur(e)
           }}
           rows={2}
