@@ -29,6 +29,7 @@ const VIEWS = [
   { id: 'kanban',   label: 'Kanban',   icon: 'ti-layout-kanban', picOk: true },
   { id: 'pic',      label: 'By PIC',   icon: 'ti-users',         picOk: false },
   { id: 'calendar', label: 'Calendar', icon: 'ti-calendar',      picOk: true },
+  { id: 'docs',     label: 'Docs',     icon: 'ti-book-2',        picOk: true },
 ]
 
 export default function Sidebar({

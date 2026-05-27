@@ -34,6 +34,7 @@ const GridView = lazy(() => import('./GridView'))
 const PicView = lazy(() => import('./PicView'))
 const CalendarView = lazy(() => import('./CalendarView'))
 const KanbanView = lazy(() => import('./KanbanView'))
+const DocsView = lazy(() => import('./DocsView'))
 const SettingsView = lazy(() => import('./SettingsView'))
 const SuperAdminView = lazy(() => import('./SuperAdminView'))
 const PulseView = lazy(() => import('./PulseView'))
@@ -396,6 +397,12 @@ export default function Home() {
   // chrome variants can't drift out of sync.
   const overflowActions = [
     {
+      id: 'docs',
+      label: 'Docs',
+      icon: 'ti-book-2',
+      onClick: () => setView('docs'),
+    },
+    {
       id: 'meeting',
       label: 'Import from meeting',
       icon: 'ti-sparkles',
@@ -590,6 +597,11 @@ export default function Home() {
             {view === 'kanban' && (
               <Suspense fallback={<ViewFallback />}>
                 <KanbanView onOpenTask={setOpenTaskId} />
+              </Suspense>
+            )}
+            {view === 'docs' && (
+              <Suspense fallback={<ViewFallback />}>
+                <DocsView />
               </Suspense>
             )}
           </div>

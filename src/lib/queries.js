@@ -4,6 +4,13 @@ import { useToast } from '../components/Toast'
 import { createTask, fetchTasks, updateTask, deleteTask } from '../api/tasks'
 import { addWatcher, removeWatcher } from '../api/watchers'
 import { fetchJournalEntries, createJournalEntry, fetchMyMentions } from '../api/journal'
+import {
+  createDoc,
+  deleteDoc as deleteDocApi,
+  fetchDoc,
+  fetchDocs,
+  updateDoc as updateDocApi,
+} from '../api/docs'
 import { fetchRecentActivity } from '../api/activity'
 import { notifyTaskEvent } from '../api/notify'
 import {
@@ -78,6 +85,8 @@ export const queryKeys = {
   taskDeps:      (taskId)      => ['taskDeps', taskId],
   workspaceBlockers: (workspaceId) => ['workspaceBlockers', workspaceId],
   mentions:      (workspaceId, personId) => ['mentions', workspaceId, personId],
+  docs:          (workspaceId) => ['docs', workspaceId],
+  doc:           (id)          => ['doc', id],
 }
 
 // ---------- Dependencies ----------
@@ -959,4 +968,94 @@ export function subscribeJournalRealtime(taskId, qc) {
   return () => {
     supabase.removeChannel(channel)
   }
+}
+
+// ---------- Docs ----------
+
+// List of all docs in the active workspace, ordered by most-recently
+// updated. v1 keeps this simple — no pagination, no folders.
+export function useDocs() {
+  const { workspace } = useAuth()
+  return useQuery({
+    queryKey: queryKeys.docs(workspace?.id),
+    queryFn: () => fetchDocs(workspace.id),
+    enabled: !!workspace,
+    staleTime: 30 * 1000,
+  })
+}
+
+// Single doc by id. Used by DocEditor when the user opens an existing
+// doc. Falls back to undefined while loading.
+export function useDoc(id) {
+  return useQuery({
+    queryKey: queryKeys.doc(id),
+    queryFn: () => fetchDoc(id),
+    enabled: !!id,
+    staleTime: 30 * 1000,
+  })
+}
+
+export function useCreateDoc() {
+  const { workspace, user } = useAuth()
+  const showToast = useToast()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ title, body } = {}) =>
+      createDoc({
+        workspaceId: workspace.id,
+        userId: user?.id,
+        title: title ?? 'Untitled',
+        body: body ?? '',
+      }),
+    onSuccess: (doc) => {
+      qc.invalidateQueries({ queryKey: queryKeys.docs(workspace?.id) })
+      qc.setQueryData(queryKeys.doc(doc.id), doc)
+    },
+    onError: (err) => {
+      showToast(errMsg(err, 'Could not create doc'), { type: 'error' })
+    },
+  })
+}
+
+export function useUpdateDoc() {
+  const { workspace, user } = useAuth()
+  const showToast = useToast()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...fields }) =>
+      updateDocApi(id, { ...fields, userId: user?.id }),
+    // Optimistic — the editor is debounced so we don't want to flash
+    // the previous state between server round-trips.
+    onMutate: async ({ id, ...fields }) => {
+      await qc.cancelQueries({ queryKey: queryKeys.doc(id) })
+      const previous = qc.getQueryData(queryKeys.doc(id))
+      qc.setQueryData(queryKeys.doc(id), (old) =>
+        old ? { ...old, ...fields } : old,
+      )
+      return { previous }
+    },
+    onError: (err, { id }, ctx) => {
+      if (ctx?.previous) qc.setQueryData(queryKeys.doc(id), ctx.previous)
+      showToast(errMsg(err, 'Could not save doc'), { type: 'error' })
+    },
+    onSettled: (_data, _err, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.docs(workspace?.id) })
+      if (vars?.id) qc.invalidateQueries({ queryKey: queryKeys.doc(vars.id) })
+    },
+  })
+}
+
+export function useDeleteDoc() {
+  const { workspace } = useAuth()
+  const showToast = useToast()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id) => deleteDocApi(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.docs(workspace?.id) })
+    },
+    onError: (err) => {
+      showToast(errMsg(err, 'Could not delete doc'), { type: 'error' })
+    },
+  })
 }
