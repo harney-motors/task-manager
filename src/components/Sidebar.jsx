@@ -1,6 +1,7 @@
 import { useAuth } from '../auth/AuthProvider'
 import { TickdMark, TickdWordmark } from './TickdMark'
 import WorkspaceSwitcher from './WorkspaceSwitcher'
+import NudgeBadge from './NudgeBadge'
 import { useIsSuperadmin } from '../lib/queries'
 
 // Desktop-only left sidebar — replaces the top ViewTabs at sm+. The
@@ -80,11 +81,15 @@ export default function Sidebar({
         </button>
       </div>
 
-      {/* Search button — opens the Cmd+K palette */}
-      <div className="px-3 pb-2">
+      {/* Search button + notifications bell. Pair sits in the "header
+          utility row" — same vocabulary every established SaaS app
+          uses (Linear, ClickUp, Notion). The bell was previously only
+          mounted in the mobile topbar; without it here, desktop users
+          had no way to see nudges from any of the main views. */}
+      <div className="px-3 pb-2 flex items-stretch gap-1.5">
         <button
           onClick={onOpenSearch}
-          className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-text-2 hover:text-text hover:bg-surface-2 active:bg-surface-3 transition-colors border border-border/60"
+          className="flex-1 flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-text-2 hover:text-text hover:bg-surface-2 active:bg-surface-3 transition-colors border border-border/60"
         >
           <i className="ti ti-search text-base" />
           <span className="flex-1 text-left">Search</span>
@@ -92,6 +97,9 @@ export default function Sidebar({
             ⌘K
           </kbd>
         </button>
+        <div className="flex items-center">
+          <NudgeBadge />
+        </div>
       </div>
 
       {/* Primary view nav. PIC role gets a focused subset (Today,
