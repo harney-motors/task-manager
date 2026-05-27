@@ -122,7 +122,14 @@ export default function KanbanView({ onOpenTask }) {
 
         <DragOverlay>
           {activeTask ? (
-            <KanbanCard task={activeTask} dragging />
+            // Explicit width on the overlay so the ghost matches the
+            // card's column width — without this, the clone rendered
+            // at its intrinsic content size and dnd-kit positioned it
+            // wildly offset from the cursor (the "ghost ends up two
+            // columns over" bug).
+            <div style={{ width: '288px' }}>
+              <KanbanCard task={activeTask} dragging />
+            </div>
           ) : null}
         </DragOverlay>
       </DndContext>
@@ -213,7 +220,7 @@ function KanbanCard({ task, dragging = false }) {
         {task.due_date && (
           <span
             className={`text-[10px] ${
-              overdue ? 'text-red-600 font-medium' : 'text-text-3'
+              overdue ? 'text-danger-text font-semibold' : 'text-text-3'
             }`}
           >
             {formatShort(task.due_date)}
@@ -221,17 +228,17 @@ function KanbanCard({ task, dragging = false }) {
         )}
         {task.priority && task.priority !== 'Medium' && (
           <span
-            className={`text-[9px] px-1.5 py-px rounded ${
+            className={`text-[9px] px-1.5 py-px rounded font-medium ${
               task.priority === 'High'
-                ? 'bg-red-100 text-red-700'
-                : 'bg-text-3/20 text-text-2'
+                ? 'bg-danger-bg text-danger-text'
+                : 'bg-text-3/15 text-text-2'
             }`}
           >
             {task.priority}
           </span>
         )}
         {overdue && (
-          <span className="text-[9px] px-1.5 py-px rounded-full bg-red-600 text-white font-medium ml-auto">
+          <span className="text-[9px] px-1.5 py-px rounded-full bg-danger-bg text-danger-text font-medium ml-auto">
             Overdue
           </span>
         )}

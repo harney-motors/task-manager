@@ -121,12 +121,15 @@
    variants of their light counterparts; the text gets lighter so
    contrast lands comfortably (target ≥ 4.5:1 on body text). */
 [data-theme="dark"] {
-  --color-bg: #14120E;
-  --color-surface: #1C1A16;
-  --color-surface-2: #25231F;
-  --color-surface-3: #2F2D28;
-  --color-border: #2F2D28;
-  --color-border-strong: #48453F;
+  /* Backgrounds lifted out of the previous crushed near-black —
+     #14120E was reading as dim/heavy. New scale is still warm-dark
+     but airier, more like Linear's #0d0d0f or Notion's dark mode. */
+  --color-bg: #1B1916;
+  --color-surface: #232019;
+  --color-surface-2: #2C2924;
+  --color-surface-3: #3A3631;
+  --color-border: #36332E;
+  --color-border-strong: #514D47;
   --color-text: #F2F0EA;
   --color-text-2: #B0ADA4;
   --color-text-3: #7A7872;
