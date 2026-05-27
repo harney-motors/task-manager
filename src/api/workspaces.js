@@ -43,3 +43,43 @@ function normalizeHex(input) {
   if (/^#[0-9a-f]{6}$/i.test(s)) return s.toLowerCase()
   return null
 }
+
+// Approximate contrast ratio between a hex colour and white (#fff).
+// Used to warn the user when their pick will make white-on-brand
+// button text unreadable. Returns a number (1–21). WCAG AA for normal
+// text needs >= 4.5; AA for large/bold UI text needs >= 3.
+export function contrastWithWhite(hex) {
+  const rgb = hexToRgb(hex)
+  if (!rgb) return null
+  const l1 = relativeLuminance(rgb)
+  const l2 = 1 // pure white
+  return (l2 + 0.05) / (l1 + 0.05)
+}
+
+function hexToRgb(hex) {
+  if (!hex) return null
+  let s = String(hex).trim().replace(/^#/, '')
+  if (s.length === 3) {
+    s = s
+      .split('')
+      .map((c) => c + c)
+      .join('')
+  }
+  if (!/^[0-9a-f]{6}$/i.test(s)) return null
+  return {
+    r: parseInt(s.slice(0, 2), 16),
+    g: parseInt(s.slice(2, 4), 16),
+    b: parseInt(s.slice(4, 6), 16),
+  }
+}
+
+function relativeLuminance({ r, g, b }) {
+  const transform = (v) => {
+    const x = v / 255
+    return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4)
+  }
+  const R = transform(r)
+  const G = transform(g)
+  const B = transform(b)
+  return 0.2126 * R + 0.7152 * G + 0.0722 * B
+}

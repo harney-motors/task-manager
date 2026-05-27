@@ -1,8 +1,17 @@
+import { useMemo } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import { TickdMark, TickdWordmark } from './TickdMark'
 import WorkspaceSwitcher from './WorkspaceSwitcher'
 import NudgeBadge from './NudgeBadge'
-import { useIsSuperadmin } from '../lib/queries'
+import {
+  useIsSuperadmin,
+  useMyMentions,
+  usePeople,
+  useTasks,
+} from '../lib/queries'
+import { isOverdue, isToday } from '../lib/dates'
+
+const MENTIONS_LAST_SEEN_KEY = 'tickd:mentions-last-seen'
 
 // Desktop-only left sidebar — replaces the top ViewTabs at sm+. The
 // "established SaaS app" pattern shared by ClickUp, Linear, Notion,
@@ -48,6 +57,40 @@ export default function Sidebar({
 }) {
   const { user, signOut } = useAuth()
   const { data: isSuperadmin = false } = useIsSuperadmin()
+  // Sidebar-level Inbox badge — sum of:
+  //   - tasks that need attention (PIC=me, overdue or due today)
+  //   - unseen mentions (newer than the user's last visit to the tab)
+  // Cheap to compute; same data the Inbox itself uses.
+  const { data: people = [] } = usePeople()
+  const me = useMemo(
+    () => people.find((p) => p.user_id === user?.id) ?? null,
+    [people, user?.id],
+  )
+  const { data: tasks = [] } = useTasks()
+  const { data: mentions = [] } = useMyMentions(me?.id)
+  const inboxBadgeCount = useMemo(() => {
+    let count = 0
+    if (me) {
+      for (const t of tasks) {
+        if (t.pic_id !== me.id) continue
+        if (t.status === 'Done' || t.status === 'Ongoing') continue
+        if (t.due_date && (isOverdue(t.due_date) || isToday(t.due_date))) {
+          count++
+        }
+      }
+    }
+    let lastSeenAt = 0
+    try {
+      const raw = localStorage.getItem(MENTIONS_LAST_SEEN_KEY)
+      if (raw) lastSeenAt = new Date(raw).getTime() || 0
+    } catch {
+      /* ignore */
+    }
+    for (const m of mentions) {
+      if (new Date(m.created_at).getTime() > lastSeenAt) count++
+    }
+    return count
+  }, [tasks, me, mentions])
 
   return (
     <aside
@@ -112,12 +155,15 @@ export default function Sidebar({
           {/* Inbox sits above Today — primary surface for assigned
               tasks, mentions and AI nudges. Not a URL-backed view
               (it's a full-screen overlay in Home), so we wire it via
-              an explicit prop rather than threading through onChange. */}
+              an explicit prop rather than threading through onChange.
+              Badge counts "needs attention" assignments + unseen
+              mentions so users see at a glance when something's new. */}
           {onOpenInbox && (
             <li>
               <NavItem
                 icon="ti-inbox"
                 label="Inbox"
+                badge={inboxBadgeCount > 0 ? inboxBadgeCount : null}
                 onClick={onOpenInbox}
               />
             </li>
@@ -215,7 +261,7 @@ export default function Sidebar({
   )
 }
 
-function NavItem({ icon, label, active = false, onClick, accent }) {
+function NavItem({ icon, label, active = false, onClick, accent, badge }) {
   const accentText =
     accent === 'info' ? 'text-info' : active ? 'text-text' : 'text-text-2'
   return (
@@ -231,6 +277,11 @@ function NavItem({ icon, label, active = false, onClick, accent }) {
         className={`ti ${icon} text-base ${active ? 'text-info' : ''}`}
       />
       <span className="flex-1 text-left">{label}</span>
+      {badge != null && (
+        <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold">
+          {badge > 9 ? '9+' : badge}
+        </span>
+      )}
     </button>
   )
 }

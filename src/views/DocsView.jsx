@@ -29,6 +29,10 @@ export default function DocsView() {
   const showToast = useToast()
   const [selectedId, setSelectedId] = useState(null)
   const [search, setSearch] = useState('')
+  // RLS gates writes to editor + owner roles; PICs are read-only.
+  // Threading the gate through the UI prevents the "click create →
+  // get a red error toast" confusion that would otherwise happen.
+  const canWrite = workspace?.role === 'editor' || workspace?.role === 'owner'
 
   // Detect the "table doesn't exist" error PostgREST returns when the
   // phase-21 migration hasn't been run yet. Surface a setup guide
@@ -107,6 +111,7 @@ export default function DocsView() {
           isLoading={isLoading}
           search={search}
           setSearch={setSearch}
+          canWrite={canWrite}
           // Hide the list on mobile when a doc is open — the editor
           // takes the full viewport; a back button returns to the list.
           hideOnMobile={!!selectedId}
@@ -116,9 +121,10 @@ export default function DocsView() {
             id={selectedId}
             onBack={() => setSelectedId(null)}
             onDeleted={() => setSelectedId(null)}
+            canWrite={canWrite}
           />
         ) : (
-          <DocEmpty onCreate={handleCreate} />
+          <DocEmpty onCreate={handleCreate} canWrite={canWrite} />
         )}
       </div>
     </div>
@@ -137,6 +143,7 @@ function DocList({
   isLoading,
   search,
   setSearch,
+  canWrite,
   hideOnMobile,
 }) {
   return (
@@ -149,14 +156,16 @@ function DocList({
         <h3 className="text-xs uppercase tracking-wider font-semibold text-text-2 flex-1">
           Docs
         </h3>
-        <button
-          onClick={onCreate}
-          className="w-7 h-7 rounded-md inline-flex items-center justify-center text-text-2 hover:text-text hover:bg-surface-2 active:bg-surface-3 transition-colors"
-          aria-label="New doc"
-          title="New doc"
-        >
-          <i className="ti ti-plus text-base" />
-        </button>
+        {canWrite && (
+          <button
+            onClick={onCreate}
+            className="w-7 h-7 rounded-md inline-flex items-center justify-center text-text-2 hover:text-text hover:bg-surface-2 active:bg-surface-3 transition-colors"
+            aria-label="New doc"
+            title="New doc"
+          >
+            <i className="ti ti-plus text-base" />
+          </button>
+        )}
       </div>
       <div className="px-2 pt-2">
         <input
@@ -272,24 +281,26 @@ function DocsSetupGuide() {
 // Empty state — shown when no doc is selected
 // ============================================================
 
-function DocEmpty({ onCreate }) {
+function DocEmpty({ onCreate, canWrite }) {
   return (
     <div className="hidden lg:flex flex-1 bg-surface border border-border rounded-xl items-center justify-center p-10">
       <div className="text-center max-w-md">
         <i className="ti ti-book-2 text-4xl text-text-3" />
-        <h2 className="text-base font-medium mt-3">Docs for {''}your team</h2>
+        <h2 className="text-base font-medium mt-3">Docs for your team</h2>
         <p className="text-xs text-text-2 mt-1">
-          Capture meeting summaries, decisions, processes — anything that
-          would otherwise live in a scattered email thread. Markdown
-          supported.
+          {canWrite
+            ? 'Capture meeting summaries, decisions, processes — anything that would otherwise live in a scattered email thread. Markdown supported.'
+            : 'Your team’s shared markdown docs land here. Pick one from the list to read; ask an admin if you need to create or edit one.'}
         </p>
-        <button
-          onClick={onCreate}
-          className="mt-4 text-xs px-3 py-1.5 rounded bg-info text-white font-medium hover:opacity-90 inline-flex items-center gap-1.5"
-        >
-          <i className="ti ti-plus text-sm" />
-          New doc
-        </button>
+        {canWrite && (
+          <button
+            onClick={onCreate}
+            className="mt-4 text-xs px-3 py-1.5 rounded bg-info text-white font-medium hover:opacity-90 inline-flex items-center gap-1.5"
+          >
+            <i className="ti ti-plus text-sm" />
+            New doc
+          </button>
+        )}
       </div>
     </div>
   )
@@ -299,7 +310,7 @@ function DocEmpty({ onCreate }) {
 // Editor — title + body textarea with live preview toggle
 // ============================================================
 
-function DocEditor({ id, onBack, onDeleted }) {
+function DocEditor({ id, onBack, onDeleted, canWrite }) {
   const { data: doc, isLoading } = useDoc(id)
   const update = useUpdateDoc()
   const remove = useDeleteDoc()
@@ -311,7 +322,9 @@ function DocEditor({ id, onBack, onDeleted }) {
   // that auto-save still feels live).
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
-  const [previewMode, setPreviewMode] = useState('split') // 'split' | 'edit' | 'preview'
+  // Default mode depends on canWrite — read-only users see Preview
+  // immediately (no edit affordance to confuse).
+  const [previewMode, setPreviewMode] = useState(canWrite ? 'split' : 'preview')
   const [saveTone, setSaveTone] = useState('idle') // 'idle' | 'saving' | 'saved'
 
   // Reset locals when the doc id changes.
@@ -325,8 +338,11 @@ function DocEditor({ id, onBack, onDeleted }) {
 
   // Debounced auto-save. We only push when the local values actually
   // differ from the cached doc (avoids loop with the onMutate update).
+  // Read-only users (PICs) never hit this — the input is disabled, so
+  // title/body never diverge from `doc`.
   useEffect(() => {
     if (!doc) return
+    if (!canWrite) return
     if (title === (doc.title ?? '') && body === (doc.body ?? '')) return
     setSaveTone('saving')
     const handle = setTimeout(() => {
@@ -344,6 +360,34 @@ function DocEditor({ id, onBack, onDeleted }) {
     return () => clearTimeout(handle)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, body, doc?.id])
+
+  // Cmd+S / Ctrl+S — force-flush the save instead of waiting for the
+  // 600ms debounce. Doesn't close the doc; matches the "fast save"
+  // muscle memory from desktop editors.
+  useEffect(() => {
+    if (!canWrite) return
+    function onKey(e) {
+      const cmd = e.metaKey || e.ctrlKey
+      if (!cmd || e.key.toLowerCase() !== 's') return
+      if (!doc) return
+      e.preventDefault()
+      if (title === (doc.title ?? '') && body === (doc.body ?? '')) return
+      setSaveTone('saving')
+      update.mutate(
+        { id: doc.id, title, body },
+        {
+          onSuccess: () => {
+            setSaveTone('saved')
+            setTimeout(() => setSaveTone('idle'), 1500)
+          },
+          onError: () => setSaveTone('idle'),
+        },
+      )
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc?.id, title, body, canWrite])
 
   function handleDelete() {
     if (!doc) return
@@ -387,41 +431,52 @@ function DocEditor({ id, onBack, onDeleted }) {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Untitled"
-          className="flex-1 min-w-0 text-base sm:text-lg font-semibold bg-transparent outline-none placeholder:text-text-3"
+          disabled={!canWrite}
+          className="flex-1 min-w-0 text-base sm:text-lg font-semibold bg-transparent outline-none placeholder:text-text-3 disabled:opacity-80"
         />
+        {!canWrite && (
+          <span className="text-[10px] uppercase tracking-wider text-text-3 bg-surface-2 px-1.5 py-0.5 rounded">
+            Read only
+          </span>
+        )}
         <SaveBadge tone={saveTone} />
-        {/* Preview mode segmented control. Three states: edit-only,
-            split (default), preview-only. Mobile collapses to edit/preview
-            toggle only since split would cramp. */}
-        <div className="inline-flex p-0.5 bg-surface-2 rounded-md">
-          <ModeButton
-            active={previewMode === 'edit'}
-            icon="ti-pencil"
-            label="Edit"
-            onClick={() => setPreviewMode('edit')}
-          />
-          <ModeButton
-            active={previewMode === 'split'}
-            icon="ti-layout-columns"
-            label="Split"
-            onClick={() => setPreviewMode('split')}
-            hideOnMobile
-          />
-          <ModeButton
-            active={previewMode === 'preview'}
-            icon="ti-eye"
-            label="Preview"
-            onClick={() => setPreviewMode('preview')}
-          />
-        </div>
-        <button
-          onClick={handleDelete}
-          className="w-9 h-9 rounded-full inline-flex items-center justify-center text-text-3 hover:text-danger-text hover:bg-danger-bg active:bg-danger-bg transition-colors flex-shrink-0"
-          aria-label="Delete doc"
-          title="Delete"
-        >
-          <i className="ti ti-trash text-base" />
-        </button>
+        {/* Preview mode segmented control. Hidden for read-only users
+            since there's nothing to edit. */}
+        {canWrite && (
+          <div className="inline-flex p-0.5 bg-surface-2 rounded-md">
+            <ModeButton
+              active={previewMode === 'edit'}
+              icon="ti-pencil"
+              label="Edit"
+              onClick={() => setPreviewMode('edit')}
+            />
+            <ModeButton
+              active={previewMode === 'split'}
+              icon="ti-layout-columns"
+              label="Split"
+              onClick={() => setPreviewMode('split')}
+              hideOnMobile
+            />
+            <ModeButton
+              active={previewMode === 'preview'}
+              icon="ti-eye"
+              label="Preview"
+              onClick={() => setPreviewMode('preview')}
+            />
+          </div>
+        )}
+        {/* Owner-only delete. Workspace RLS already enforces this, but
+            hiding the button avoids a confusing red toast. */}
+        {canWrite && (
+          <button
+            onClick={handleDelete}
+            className="w-9 h-9 rounded-full inline-flex items-center justify-center text-text-3 hover:text-danger-text hover:bg-danger-bg active:bg-danger-bg transition-colors flex-shrink-0"
+            aria-label="Delete doc"
+            title="Delete"
+          >
+            <i className="ti ti-trash text-base" />
+          </button>
+        )}
       </div>
 
       <div

@@ -22,7 +22,7 @@ import PushSettings from '../components/PushSettings'
 import NudgeBadge from '../components/NudgeBadge'
 import Skeleton from '../components/Skeleton'
 import ActivityFeed from '../components/ActivityFeed'
-import { setBrandColor } from '../api/workspaces'
+import { contrastWithWhite, setBrandColor } from '../api/workspaces'
 import {
   calendarFeedUrl,
   createCalendarToken,
@@ -1022,6 +1022,36 @@ function BrandingSetting() {
           </button>
         )}
       </div>
+      <ContrastHint hex={current} />
+    </div>
+  )
+}
+
+// Small warning chip when the picked colour will make white-on-brand
+// button text fail readability. We use WCAG AA for large text (3:1)
+// as the bar since most brand-tinted UI here is button labels (14px+
+// semibold), not body text. Below 3:1 → red warning, 3–4.5 → yellow
+// caution, above 4.5 → no chip (looks fine).
+function ContrastHint({ hex }) {
+  if (!hex) return null
+  const ratio = contrastWithWhite(hex)
+  if (ratio == null) return null
+  if (ratio >= 4.5) return null
+  const failing = ratio < 3
+  return (
+    <div
+      className={`mt-2 inline-flex items-start gap-1.5 text-[11px] px-2 py-1 rounded-md ${
+        failing
+          ? 'bg-danger-bg text-danger-text'
+          : 'bg-warning-bg text-warning-text'
+      }`}
+    >
+      <i className="ti ti-alert-circle text-sm mt-0.5 flex-shrink-0" />
+      <span>
+        {failing
+          ? 'Low contrast — white text on this colour is hard to read. Pick a darker shade.'
+          : 'Borderline contrast — usable, but a slightly darker shade reads more cleanly.'}
+      </span>
     </div>
   )
 }

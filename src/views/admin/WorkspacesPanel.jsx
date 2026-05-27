@@ -8,7 +8,7 @@ import {
   useAdminWorkspaces,
 } from '../../lib/queries'
 import { useToast } from '../../components/Toast'
-import { setBrandColor } from '../../api/workspaces'
+import { contrastWithWhite, setBrandColor } from '../../api/workspaces'
 import { useAuth } from '../../auth/AuthProvider'
 
 function fmtDate(iso) {
@@ -192,6 +192,12 @@ function BrandColorPicker({ workspace: w }) {
     }
   }
 
+  // Surface a small caution icon when the picked colour fails
+  // white-on-brand readability. Tooltip explains.
+  const contrast = current ? contrastWithWhite(current) : null
+  const lowContrast = contrast != null && contrast < 4.5
+  const failing = contrast != null && contrast < 3
+
   return (
     <div className="inline-flex items-center gap-1.5">
       <label
@@ -217,6 +223,18 @@ function BrandColorPicker({ workspace: w }) {
           {current || '—'}
         </span>
       </label>
+      {lowContrast && (
+        <span
+          className={failing ? 'text-danger-text' : 'text-warning-text'}
+          title={
+            failing
+              ? `Low contrast (${contrast.toFixed(1)}:1) — white text reads poorly on this colour.`
+              : `Borderline contrast (${contrast.toFixed(1)}:1) — usable but not crisp.`
+          }
+        >
+          <i className="ti ti-alert-circle text-xs" />
+        </span>
+      )}
       {current && (
         <button
           type="button"
