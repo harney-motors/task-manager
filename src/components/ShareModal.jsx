@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from '../auth/AuthProvider'
 import { formatSelectionMessage, formatWhatsAppMessage } from '../lib/share'
 import { logActivity } from '../api/activity'
@@ -51,7 +52,12 @@ export default function ShareModal({ pic, tasks, selectionTitle, onClose }) {
     }
   }
 
-  return (
+  // Portal to <body> so `fixed inset-0` resolves against the viewport
+  // rather than any ancestor stacking context. Without this, the
+  // sticky filter bars (`tickd-stick-below-topbar` with z-20 + the
+  // backdrop-blur class) trap the modal inside them and the PIC chips
+  // / filter row render in front of the backdrop.
+  return createPortal(
     <div
       onClick={(e) => e.target === e.currentTarget && onClose()}
       className="fixed inset-0 bg-black/40 z-50 flex items-start sm:items-center justify-center p-2 sm:p-6 overflow-y-auto tickd-modal-backdrop"
@@ -115,6 +121,7 @@ export default function ShareModal({ pic, tasks, selectionTitle, onClose }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
