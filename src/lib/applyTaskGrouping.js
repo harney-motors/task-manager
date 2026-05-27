@@ -144,10 +144,19 @@ function makeComparator(sort, { people }) {
     case 'updated':
       return (a, b) =>
         new Date(b.updated_at || 0) - new Date(a.updated_at || 0)
+    case 'start':
+      return (a, b) => startAsc(a, b) || dueAsc(a, b)
     case 'due':
     default:
       return (a, b) => dueAsc(a, b) || priorityRank(a) - priorityRank(b)
   }
+}
+
+function startAsc(a, b) {
+  if (!a.start_date && !b.start_date) return 0
+  if (!a.start_date) return 1
+  if (!b.start_date) return -1
+  return a.start_date.localeCompare(b.start_date)
 }
 
 function priorityRank(t) {

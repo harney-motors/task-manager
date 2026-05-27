@@ -462,6 +462,27 @@ function DetailsTab({
           </span>
         </FieldRow>
 
+        <FieldRow label="Start date" icon="ti-calendar-plus">
+          <input
+            type="date"
+            value={task.start_date ?? ''}
+            max={task.due_date ?? undefined}
+            onChange={(e) =>
+              updateField('start_date', e.target.value || null)
+            }
+            disabled={isTemp}
+            className="text-sm bg-surface border border-border rounded px-2 py-1 hover:bg-surface-2 cursor-pointer disabled:opacity-60"
+          />
+          <span className="text-[11px] text-text-3">
+            when work begins (optional)
+          </span>
+          {task.start_date && task.due_date && task.start_date > task.due_date && (
+            <span className="text-[10px] text-danger-text">
+              after due date
+            </span>
+          )}
+        </FieldRow>
+
         <FieldRow label="Due" icon="ti-calendar-due">
           <input
             type="date"

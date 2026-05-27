@@ -23,6 +23,7 @@ import {
 } from '../lib/applyTaskFilters'
 import TaskFilterBar from '../components/TaskFilterBar'
 import Avatar from '../components/Avatar'
+import SubtaskProgress from '../components/SubtaskProgress'
 import { useToast } from '../components/Toast'
 
 // Kanban view — status columns with drag-drop. Trello / Linear /
@@ -270,6 +271,11 @@ function KanbanCard({ task, dragging = false }) {
           </span>
         )}
       </div>
+      {(task.subtasks?.length ?? 0) > 0 && (
+        <div className="mt-2">
+          <SubtaskProgress subtasks={task.subtasks} tone="auto" />
+        </div>
+      )}
     </div>
   )
 }

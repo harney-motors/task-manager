@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import SubtaskProgress from './SubtaskProgress'
 
 // In-place subtasks list. The full array lives on tasks.subtasks (JSONB).
 // Every mutation (add / toggle / edit / delete) calls the parent with
@@ -7,7 +8,6 @@ import { useState } from 'react'
 export default function SubtasksField({ subtasks = [], onChange, disabled }) {
   const [adding, setAdding] = useState('')
 
-  const done = subtasks.filter((s) => s.done).length
   const total = subtasks.length
 
   function add() {
@@ -40,13 +40,11 @@ export default function SubtasksField({ subtasks = [], onChange, disabled }) {
 
   return (
     <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-2 mb-1.5">
-        {total > 0 && (
-          <span className="text-[11px] text-text-3">
-            {done}/{total} done
-          </span>
-        )}
-      </div>
+      {total > 0 && (
+        <div className="flex items-center gap-2 mb-2">
+          <SubtaskProgress subtasks={subtasks} size="md" tone="auto" />
+        </div>
+      )}
       {total > 0 && (
         <ul className="space-y-1 mb-2">
           {subtasks.map((s) => (

@@ -13,22 +13,33 @@ const NAV = [
   // rather than a filled-glyph swap — Tabler's free set doesn't ship a
   // filled variant for every icon we use here (list, users), so the
   // colour-only approach keeps the row visually consistent.
-  { id: 'today',    label: 'Today',  icon: 'ti-sun' },
-  { id: 'list',     label: 'List',   icon: 'ti-list' },
-  { id: 'grid',     label: 'Grid',   icon: 'ti-table' },
-  { id: 'pic',      label: 'PIC',    icon: 'ti-users' },
-  { id: 'calendar', label: 'Cal',    icon: 'ti-calendar' },
+  //
+  // picOk: true — view shows up in the PIC-role bar (RLS already
+  // restricts data to their own tasks, so Grid + By-PIC are noise).
+  { id: 'today',    label: 'Today',  icon: 'ti-sun',           picOk: true  },
+  { id: 'list',     label: 'List',   icon: 'ti-list',          picOk: true  },
+  { id: 'grid',     label: 'Grid',   icon: 'ti-table',         picOk: false },
+  { id: 'kanban',   label: 'Board',  icon: 'ti-layout-kanban', picOk: true  },
+  { id: 'pic',      label: 'PIC',    icon: 'ti-users',         picOk: false },
+  { id: 'calendar', label: 'Cal',    icon: 'ti-calendar',      picOk: true  },
 ]
 
-export default function BottomNav({ active, onChange }) {
+export default function BottomNav({ active, onChange, picRole = false }) {
+  // PIC role gets a focused 4-tab bar; everyone else gets the 5-tab
+  // bar (dropping the Kanban tab on mobile keeps room for thumb reach;
+  // it's still available from the desktop sidebar and the URL).
+  const items = picRole
+    ? NAV.filter((n) => n.picOk)
+    : NAV.filter((n) => n.id !== 'kanban')
+  const cols = items.length === 4 ? 'grid-cols-4' : 'grid-cols-5'
   return (
     <nav
       className="sm:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border bg-surface/85 backdrop-blur-xl"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       aria-label="Main views"
     >
-      <ul className="grid grid-cols-5">
-        {NAV.map((item) => {
+      <ul className={`grid ${cols}`}>
+        {items.map((item) => {
           const isActive = active === item.id
           return (
             <li key={item.id} className="flex">

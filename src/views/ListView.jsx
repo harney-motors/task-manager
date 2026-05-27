@@ -22,6 +22,47 @@ import {
 } from '../lib/applyTaskFilters'
 import { useSearchParams } from 'react-router-dom'
 
+// ListView — rebuilt as a single-column structured list with smart
+// date-bucket sections. The old design was a 2-panel inbox-style split
+// (Today & overdue | Up next capped at 6); it felt cramped on mobile
+// and the cap meant tasks "disappeared" past the 7-day window.
+//
+// New shape:
+//   • Sticky filter bar at the top (same chrome as Grid/Kanban/Cal)
+//   • Status filter chips (Open / In progress / Ongoing / Done) — quick
+//     scopes that compose with TaskFilterBar's filters
+//   • Sections by due bucket, in calendar order:
+//       - Overdue
+//       - Today
+//       - Tomorrow
+//       - This week
+//       - Next week
+//       - Later
+//       - No due date
+//     Each section is sticky-headered with a count + collapsible.
+//     Sections with no items are hidden unless filters are wide open.
+//
+// Keyboard nav (j/k/e/x/Esc) preserved.
+// Bulk select + bulk action bar preserved.
+
+const BUCKETS = [
+  { id: 'overdue',  label: 'Overdue',     defaultOpen: true,  emphasis: 'danger' },
+  { id: 'today',    label: 'Today',       defaultOpen: true },
+  { id: 'tomorrow', label: 'Tomorrow',    defaultOpen: true },
+  { id: 'week',     label: 'This week',   defaultOpen: true },
+  { id: 'next',     label: 'Next week',   defaultOpen: false },
+  { id: 'later',    label: 'Later',       defaultOpen: false },
+  { id: 'none',     label: 'No due date', defaultOpen: false },
+]
+
+const STATUS_OPTIONS = [
+  { id: 'all',         label: 'All',     icon: 'ti-stack' },
+  { id: 'Open',        label: 'Open',    icon: 'ti-circle' },
+  { id: 'In progress', label: 'Active',  icon: 'ti-progress' },
+  { id: 'Ongoing',     label: 'Ongoing', icon: 'ti-rotate-clockwise' },
+  { id: 'Done',        label: 'Done',    icon: 'ti-check' },
+]
+
 export default function ListView({ onOpenTask }) {
   const { workspace } = useAuth()
   const { data: tasks = [], isLoading } = useTasks()
@@ -34,56 +75,55 @@ export default function ListView({ onOpenTask }) {
   const [selectedIds, setSelectedIds] = useState(() => new Set())
   const [shareOpen, setShareOpen] = useState(false)
   const [focusedId, setFocusedId] = useState(null)
-  // Refs so j/k can scroll the focused row into view.
   const rowRefs = useRef(new Map())
 
   const today = startOfToday()
+  const tomorrow = addDays(today, 1)
   const sevenOut = addDays(today, 7)
+  const fourteenOut = addDays(today, 14)
 
-  // Pull filter state from URL (shared contract with Grid / PIC /
-  // Calendar). Pre-filter the task pool before the two-panel split so
-  // any active filters narrow BOTH "Today & overdue" and "Upcoming".
   const [searchParams] = useSearchParams()
   const filters = readFiltersFromParams(searchParams)
-  const filteredTasks = useMemo(
-    () => applyTaskFilters(tasks, filters),
-    [tasks, filters],
-  )
+  // Status quick-scope is local UI state (not URL'd) — it's the "filter
+  // mode" of the list itself rather than a portable share-target.
+  // Default 'open-ish' (everything but Done) so the list reads as
+  // "what's actionable right now".
+  const [statusScope, setStatusScope] = useState('open-ish')
 
-  const todayAndOverdue = useMemo(
-    () =>
-      filteredTasks
-        .filter((t) => {
-          if (t.status === 'Done') return false
-          if (!t.due_date) return true
-          return parseDate(t.due_date) <= today
-        })
-        .sort((a, b) => {
-          const ad = a.due_date ? parseDate(a.due_date).getTime() : Infinity
-          const bd = b.due_date ? parseDate(b.due_date).getTime() : Infinity
-          return ad - bd
-        }),
-    [filteredTasks, today],
-  )
+  const filteredTasks = useMemo(() => {
+    let pool = applyTaskFilters(tasks, filters)
+    if (statusScope === 'open-ish') {
+      pool = pool.filter((t) => t.status !== 'Done')
+    } else if (statusScope !== 'all') {
+      pool = pool.filter((t) => t.status === statusScope)
+    }
+    return pool
+  }, [tasks, filters, statusScope])
 
-  const upcoming = useMemo(
-    () =>
-      filteredTasks
-        .filter((t) => {
-          if (t.status === 'Done' || !t.due_date) return false
-          const d = parseDate(t.due_date)
-          return d > today && d <= sevenOut
-        })
-        .sort((a, b) => parseDate(a.due_date) - parseDate(b.due_date))
-        .slice(0, 6),
-    [filteredTasks, today, sevenOut],
-  )
+  // Bucket each task by due-bucket → sort within bucket by due asc then
+  // priority. Tasks without a due date go to 'none' (regardless of status).
+  const buckets = useMemo(() => {
+    const out = {}
+    for (const b of BUCKETS) out[b.id] = []
+    for (const t of filteredTasks) {
+      const id = bucketFor(t, { today, tomorrow, sevenOut, fourteenOut })
+      out[id].push(t)
+    }
+    for (const id of Object.keys(out)) {
+      out[id].sort((a, b) => {
+        const ad = a.due_date ? parseDate(a.due_date).getTime() : Infinity
+        const bd = b.due_date ? parseDate(b.due_date).getTime() : Infinity
+        if (ad !== bd) return ad - bd
+        return priorityRank(a) - priorityRank(b)
+      })
+    }
+    return out
+  }, [filteredTasks, today, tomorrow, sevenOut, fourteenOut])
 
-  // Pool of selectable tasks across both panels — bulk ops act on
-  // the union, so a select-all picks up rows from both columns.
+  // Flattened ordering for j/k navigation across all sections.
   const allVisible = useMemo(
-    () => [...todayAndOverdue, ...upcoming],
-    [todayAndOverdue, upcoming],
+    () => BUCKETS.flatMap((b) => buckets[b.id] ?? []),
+    [buckets],
   )
 
   function toggle(taskId) {
@@ -94,7 +134,6 @@ export default function ListView({ onOpenTask }) {
       return next
     })
   }
-
   function clearSelection() {
     setSelectedIds(new Set())
   }
@@ -173,10 +212,7 @@ export default function ListView({ onOpenTask }) {
     clearSelection()
   }
 
-  // ---- Keyboard nav (j/k/e/x/Esc) -----------------------------
-  // Only active when the user is not typing in a field and no
-  // overlay (modal / search) is in the foreground. We detect
-  // overlay via a quick DOM query rather than threading props.
+  // ---- Keyboard nav (j/k/e/x/Esc) — unchanged behavior ---------
   useEffect(() => {
     function isInField(target) {
       const tag = target?.tagName
@@ -188,7 +224,6 @@ export default function ListView({ onOpenTask }) {
       )
     }
     function isOverlayOpen() {
-      // Any of our z-50 modals are open?
       return !!document.querySelector('.fixed.inset-0.bg-black\\/40')
     }
     function move(delta) {
@@ -204,7 +239,6 @@ export default function ListView({ onOpenTask }) {
           : (idx + delta + allVisible.length) % allVisible.length
       const target = allVisible[next]
       setFocusedId(target.id)
-      // scroll into view if possible
       const el = rowRefs.current.get(target.id)
       el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
     }
@@ -235,14 +269,38 @@ export default function ListView({ onOpenTask }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusedId, allVisible.map((t) => t.id).join(','), selectedIds.size, onOpenTask])
 
+  const totalVisible = allVisible.length
+
   return (
     <div className="space-y-3">
-      {/* Sticky filter bar — same pattern as Grid / PIC / Calendar.
-          On desktop this is the new "sticky chrome" since the topbar
-          moved into the sidebar. Wrapped as a card so it visually
-          sits with the rest of the surfaces. */}
+      {/* Sticky filter bar — same pattern as Grid / PIC / Calendar. */}
       <div className="bg-surface border border-border rounded-xl overflow-hidden tickd-stick-below-topbar">
         <TaskFilterBar hide={['group', 'sort']} />
+        {/* Status quick-scope row — sits inside the same chrome so it
+            doesn't compete for vertical space. */}
+        <div className="flex items-center gap-1.5 px-2 sm:px-3 py-2 border-t border-border overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {[
+            { id: 'open-ish', label: 'Active', icon: 'ti-bolt' },
+            ...STATUS_OPTIONS,
+          ].map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setStatusScope(s.id)}
+              className={`text-[11px] sm:text-xs px-2 py-1 rounded-full inline-flex items-center gap-1 flex-shrink-0 transition-colors ${
+                statusScope === s.id
+                  ? 'bg-info text-white font-medium'
+                  : 'text-text-2 hover:text-text hover:bg-surface-2 border border-border'
+              }`}
+            >
+              <i className={`ti ${s.icon} text-sm`} />
+              {s.label}
+            </button>
+          ))}
+          <div className="flex-1" />
+          <span className="text-[10px] text-text-3 font-medium hidden sm:inline-flex">
+            {totalVisible} {totalVisible === 1 ? 'task' : 'tasks'}
+          </span>
+        </div>
       </div>
 
       {selectedIds.size > 0 && (
@@ -283,66 +341,126 @@ export default function ListView({ onOpenTask }) {
           onClose={() => setShareOpen(false)}
         />
       )}
-      <div className="grid md:grid-cols-[1.5fr_1fr] gap-4">
-        <Panel
-          title="Today & overdue"
-          count={todayAndOverdue.length}
-          allTasks={todayAndOverdue}
-          selectedIds={selectedIds}
-          setSelectedIds={setSelectedIds}
-        >
-          {isLoading ? (
-            <Skeleton />
-          ) : todayAndOverdue.length === 0 ? (
-            <Empty msg="Nothing due today or overdue" />
-          ) : (
-            todayAndOverdue.map((t) => (
-              <SelectableTaskRow
-                key={t.id}
-                task={t}
-                selected={selectedIds.has(t.id)}
-                onToggleSelect={() => toggle(t.id)}
-                onClick={() => onOpenTask(t.id)}
-                anySelected={selectedIds.size > 0}
-                focused={focusedId === t.id}
-                rowRef={(el) => {
-                  if (el) rowRefs.current.set(t.id, el)
-                  else rowRefs.current.delete(t.id)
-                }}
+
+      <div className="bg-surface border border-border rounded-xl overflow-hidden">
+        {isLoading ? (
+          <div className="py-6 px-4">
+            <SkeletonRows />
+          </div>
+        ) : totalVisible === 0 ? (
+          <div className="py-16 text-center text-xs text-text-3">
+            Nothing matches the current filters.
+          </div>
+        ) : (
+          BUCKETS.map((b) => {
+            const items = buckets[b.id] ?? []
+            if (items.length === 0) return null
+            return (
+              <BucketSection
+                key={b.id}
+                bucket={b}
+                tasks={items}
+                selectedIds={selectedIds}
+                setSelectedIds={setSelectedIds}
+                onOpenTask={onOpenTask}
+                onToggleSelect={toggle}
+                focusedId={focusedId}
+                rowRefs={rowRefs}
               />
-            ))
-          )}
-        </Panel>
-        <Panel
-          title="Up next"
-          count={upcoming.length}
-          allTasks={upcoming}
-          selectedIds={selectedIds}
-          setSelectedIds={setSelectedIds}
-        >
-          {isLoading ? (
-            <Skeleton />
-          ) : upcoming.length === 0 ? (
-            <Empty msg="Nothing in the next 7 days" />
-          ) : (
-            upcoming.map((t) => (
-              <SelectableTaskRow
-                key={t.id}
-                task={t}
-                selected={selectedIds.has(t.id)}
-                onToggleSelect={() => toggle(t.id)}
-                onClick={() => onOpenTask(t.id)}
-                anySelected={selectedIds.size > 0}
-                focused={focusedId === t.id}
-                rowRef={(el) => {
-                  if (el) rowRefs.current.set(t.id, el)
-                  else rowRefs.current.delete(t.id)
-                }}
-              />
-            ))
-          )}
-        </Panel>
+            )
+          })
+        )}
       </div>
+    </div>
+  )
+}
+
+// One date-bucket section. Sticky header with name + count + collapse
+// chevron. Each task renders via SelectableTaskRow for bulk select.
+function BucketSection({
+  bucket,
+  tasks,
+  selectedIds,
+  setSelectedIds,
+  onOpenTask,
+  onToggleSelect,
+  focusedId,
+  rowRefs,
+}) {
+  const [open, setOpen] = useState(bucket.defaultOpen)
+
+  const allSelected =
+    tasks.length > 0 && tasks.every((t) => selectedIds.has(t.id))
+  const someSelected =
+    !allSelected && tasks.some((t) => selectedIds.has(t.id))
+
+  function toggleAll(e) {
+    e.stopPropagation()
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (allSelected) {
+        for (const t of tasks) next.delete(t.id)
+      } else {
+        for (const t of tasks) next.add(t.id)
+      }
+      return next
+    })
+  }
+
+  const isDanger = bucket.emphasis === 'danger'
+
+  return (
+    <div className="border-b border-border last:border-b-0">
+      <div
+        className={`tickd-stick-below-topbar flex items-center gap-2 px-3 sm:px-4 py-2 cursor-pointer transition-colors bg-surface/95 backdrop-blur-md hover:bg-surface-2 ${
+          isDanger ? 'text-danger-text' : ''
+        }`}
+        onClick={() => setOpen((x) => !x)}
+      >
+        <i
+          className={`ti ${open ? 'ti-chevron-down' : 'ti-chevron-right'} text-sm flex-shrink-0 text-text-3`}
+        />
+        <input
+          type="checkbox"
+          ref={(el) => {
+            if (el) el.indeterminate = someSelected
+          }}
+          checked={allSelected}
+          onChange={() => {}}
+          onClick={toggleAll}
+          aria-label={`Select all in ${bucket.label}`}
+          className="cursor-pointer flex-shrink-0"
+        />
+        <h2
+          className={`text-[11px] uppercase tracking-wider font-semibold ${
+            isDanger ? 'text-danger-text' : 'text-text-2'
+          }`}
+        >
+          {bucket.label}
+        </h2>
+        <span className="text-[11px] text-text-3 font-medium">
+          {tasks.length}
+        </span>
+      </div>
+      {open && (
+        <div className="px-3 sm:px-4">
+          {tasks.map((t) => (
+            <SelectableTaskRow
+              key={t.id}
+              task={t}
+              selected={selectedIds.has(t.id)}
+              onToggleSelect={() => onToggleSelect(t.id)}
+              onClick={() => onOpenTask(t.id)}
+              anySelected={selectedIds.size > 0}
+              focused={focusedId === t.id}
+              rowRef={(el) => {
+                if (el) rowRefs.current.set(t.id, el)
+                else rowRefs.current.delete(t.id)
+              }}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -360,11 +478,6 @@ function SelectableTaskRow({
   rowRef,
 }) {
   const isTemp = String(task.id).startsWith('temp-')
-  // We own the hover background + edge extension here (-mx-4 px-4) so
-  // the inner TaskRow can render in "no-margin" mode (inWrapper). That
-  // keeps the checkbox cleanly to the left of TaskRow's content
-  // without the rounded-corner clip we'd get from nested negative
-  // margins.
   return (
     <div
       ref={rowRef}
@@ -384,8 +497,7 @@ function SelectableTaskRow({
         className={`flex-shrink-0 cursor-pointer transition-opacity ${
           selected || anySelected
             ? 'opacity-100'
-            : // Always visible on phone; hover-reveal on tablet+.
-              'opacity-60 sm:opacity-0 sm:group-hover:opacity-100'
+            : 'opacity-60 sm:opacity-0 sm:group-hover:opacity-100'
         }`}
       />
       <div className="flex-1 min-w-0">
@@ -395,73 +507,37 @@ function SelectableTaskRow({
   )
 }
 
-function Panel({
-  title,
-  count,
-  allTasks,
-  selectedIds,
-  setSelectedIds,
-  children,
-}) {
-  const allSelected =
-    allTasks.length > 0 && allTasks.every((t) => selectedIds.has(t.id))
-  const someSelected =
-    !allSelected && allTasks.some((t) => selectedIds.has(t.id))
-
-  function toggleAll() {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (allSelected) {
-        for (const t of allTasks) next.delete(t.id)
-      } else {
-        for (const t of allTasks) next.add(t.id)
-      }
-      return next
-    })
-  }
-
+function SkeletonRows() {
   return (
-    <div className="bg-surface border border-border rounded-xl overflow-hidden">
-      {/* Panel header sticks just below the global topbar as you scroll
-          so you always know which group you're inside. Translucent bg
-          + backdrop-blur gives it depth against the rows passing
-          underneath — the Notion/Linear pattern. */}
-      <div className="tickd-stick-below-topbar px-3 py-2 sm:px-4 sm:py-3 border-b border-border flex items-center gap-2 bg-surface/95 backdrop-blur-md">
-        {allTasks.length > 0 && (
-          <input
-            type="checkbox"
-            ref={(el) => {
-              if (el) el.indeterminate = someSelected
-            }}
-            checked={allSelected}
-            onChange={toggleAll}
-            title="Select all in this panel"
-            aria-label="Select all"
-            className="cursor-pointer"
-          />
-        )}
-        <h2 className="text-sm font-semibold">{title}</h2>
-        {count > 0 && (
-          <span className="text-[11px] text-text-3 font-medium">· {count}</span>
-        )}
-      </div>
-      <div className="px-3 sm:px-4">{children}</div>
-    </div>
-  )
-}
-
-function Empty({ msg }) {
-  return <div className="py-10 text-center text-xs text-text-3">{msg}</div>
-}
-
-function Skeleton() {
-  return (
-    <div className="py-4 space-y-3">
-      {[0, 1, 2].map((i) => (
+    <div className="space-y-3">
+      {[0, 1, 2, 3].map((i) => (
         <div key={i} className="h-12 rounded-md bg-surface-2 animate-pulse" />
       ))}
     </div>
   )
 }
 
-// (Bulk action bar moved to shared src/components/BulkActionBar.jsx.)
+// ---- helpers ----------------------------------------------------
+
+function priorityRank(t) {
+  return { High: 0, Medium: 1, Low: 2 }[t.priority] ?? 99
+}
+
+// Place a task into one of the date buckets. `today` / `tomorrow` /
+// `sevenOut` / `fourteenOut` are calendar-Date objects (midnight).
+function bucketFor(task, { today, tomorrow, sevenOut, fourteenOut }) {
+  if (!task.due_date) return 'none'
+  const d = parseDate(task.due_date)
+  if (!d) return 'none'
+  // Overdue trumps everything when task isn't Done.
+  if (d < today && task.status !== 'Done') return 'overdue'
+  if (sameDay(d, today)) return 'today'
+  if (sameDay(d, tomorrow)) return 'tomorrow'
+  if (d <= sevenOut) return 'week'
+  if (d <= fourteenOut) return 'next'
+  return 'later'
+}
+
+function sameDay(a, b) {
+  return a.getTime() === b.getTime()
+}

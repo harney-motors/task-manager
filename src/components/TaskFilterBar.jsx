@@ -229,6 +229,7 @@ export default function TaskFilterBar({
               active={sort !== defaultSort}
             >
               <option value="due">Due</option>
+              <option value="start">Start date</option>
               <option value="priority">Priority</option>
               <option value="status">Status</option>
               <option value="pic">PIC name</option>

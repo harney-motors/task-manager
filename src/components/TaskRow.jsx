@@ -11,6 +11,7 @@ import {
 } from '../lib/dates'
 import { statusPill } from '../lib/colors'
 import Avatar, { AvatarStack } from './Avatar'
+import SubtaskProgress from './SubtaskProgress'
 
 // `inWrapper` — true when this row is rendered inside a SelectableTaskRow
 // (or anything that owns its own hover/edge layout). In that case we
@@ -135,13 +136,8 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
             </span>
           )}
           {(task.subtasks?.length ?? 0) > 0 && (
-            <span
-              className="text-text-3 text-[10px] hidden sm:inline-flex items-center gap-0.5"
-              title={`${task.subtasks.filter((s) => s.done).length} of ${task.subtasks.length} subtasks done`}
-            >
-              <i className="ti ti-list-check text-[11px]" />
-              {task.subtasks.filter((s) => s.done).length}/
-              {task.subtasks.length}
+            <span className="hidden sm:inline-flex items-center">
+              <SubtaskProgress subtasks={task.subtasks} tone="auto" />
             </span>
           )}
           {/* Compact mobile-only "+N" pill that collapses watcher + note counts. */}

@@ -501,37 +501,32 @@ export default function Home() {
 
       <div className="mx-auto max-w-6xl px-4 sm:px-6 py-4 sm:py-6">
 
-        {isPicRole ? (
-          <>
-            {/* PIC mode — simplified focused experience. Quick-entry stays
-                visible on tablet+ (still a primary affordance there);
-                on phone it's accessed via the FAB to free up real estate. */}
-            <Greeting tasks={tasks} />
-            <div className="hidden sm:block">
-              <QuickEntry />
-            </div>
-            <div className="mt-4">
-              <PicHomeView onOpenTask={setOpenTaskId} />
-            </div>
-          </>
-        ) : (
-          <>
-            <Greeting tasks={tasks} />
-            {/* Phone gets the FAB instead — QuickEntry would eat the top
-                third of the screen on small viewports. */}
-            <div className="hidden sm:block">
-              <QuickEntry />
-            </div>
+        <>
+          <Greeting tasks={tasks} />
+          {/* Phone gets the FAB instead — QuickEntry would eat the top
+              third of the screen on small viewports. */}
+          <div className="hidden sm:block">
+            <QuickEntry />
+          </div>
 
-            {/* ViewTabs removed at sm+ — the desktop Sidebar handles
-                view switching. BottomNav still owns it on phone. */}
-            <div className="mt-4 mb-4 sm:mt-0 sm:mb-2" />
+          {/* ViewTabs removed at sm+ — the desktop Sidebar handles
+              view switching. BottomNav still owns it on phone. */}
+          <div className="mt-4 mb-4 sm:mt-0 sm:mb-2" />
 
-            {/* Wrapping the active view in a keyed container makes React
-                discard + remount on tab change, which replays the
-                tickd-view-in CSS animation each time. */}
-            <div key={view} className="tickd-view-in">
-              {view === 'today'    && (
+          {/* Wrapping the active view in a keyed container makes React
+              discard + remount on tab change, which replays the
+              tickd-view-in CSS animation each time.
+
+              PIC role: same view switcher as everyone else, but the
+              Today view becomes PicHomeView (the focused landing).
+              Grid + PIC views aren't surfaced in the PIC sidebar nav,
+              so they shouldn't normally land here — guard anyway in
+              case a URL is pasted. */}
+          <div key={view} className="tickd-view-in">
+            {view === 'today'    && (
+              isPicRole ? (
+                <PicHomeView onOpenTask={setOpenTaskId} />
+              ) : (
                 <TodayView
                   onOpenTask={setOpenTaskId}
                   onOpenSettings={() => setShowSettings(true)}
@@ -558,46 +553,46 @@ export default function Home() {
                     }
                   }}
                 />
-              )}
-              {view === 'list'     && <ListView     onOpenTask={setOpenTaskId} />}
-              {view === 'grid'     && (
-                <Suspense fallback={<ViewFallback />}>
-                <GridView
+              )
+            )}
+            {view === 'list'     && <ListView     onOpenTask={setOpenTaskId} />}
+            {view === 'grid'     && !isPicRole && (
+              <Suspense fallback={<ViewFallback />}>
+              <GridView
+                onOpenTask={setOpenTaskId}
+                aiFilter={gridFilterSignal}
+                onFiltersChange={(next) => {
+                  // Strip default-all values; setGridFilterSignal handles the null case.
+                  const allDefault =
+                    next.picId === 'all' &&
+                    next.deptId === 'all' &&
+                    next.status === 'all'
+                  setGridFilterSignal(allDefault ? null : next)
+                }}
+              />
+              </Suspense>
+            )}
+            {view === 'pic'      && !isPicRole && (
+              <Suspense fallback={<ViewFallback />}>
+                <PicView
                   onOpenTask={setOpenTaskId}
-                  aiFilter={gridFilterSignal}
-                  onFiltersChange={(next) => {
-                    // Strip default-all values; setGridFilterSignal handles the null case.
-                    const allDefault =
-                      next.picId === 'all' &&
-                      next.deptId === 'all' &&
-                      next.status === 'all'
-                    setGridFilterSignal(allDefault ? null : next)
-                  }}
+                  selectedPicId={picViewSelectedId ?? undefined}
+                  onSelectPic={setPicViewSelectedId}
                 />
-                </Suspense>
-              )}
-              {view === 'pic'      && (
-                <Suspense fallback={<ViewFallback />}>
-                  <PicView
-                    onOpenTask={setOpenTaskId}
-                    selectedPicId={picViewSelectedId ?? undefined}
-                    onSelectPic={setPicViewSelectedId}
-                  />
-                </Suspense>
-              )}
-              {view === 'calendar' && (
-                <Suspense fallback={<ViewFallback />}>
-                  <CalendarView onOpenTask={setOpenTaskId} />
-                </Suspense>
-              )}
-              {view === 'kanban' && (
-                <Suspense fallback={<ViewFallback />}>
-                  <KanbanView onOpenTask={setOpenTaskId} />
-                </Suspense>
-              )}
-            </div>
-          </>
-        )}
+              </Suspense>
+            )}
+            {view === 'calendar' && (
+              <Suspense fallback={<ViewFallback />}>
+                <CalendarView onOpenTask={setOpenTaskId} />
+              </Suspense>
+            )}
+            {view === 'kanban' && (
+              <Suspense fallback={<ViewFallback />}>
+                <KanbanView onOpenTask={setOpenTaskId} />
+              </Suspense>
+            )}
+          </div>
+        </>
 
         <TaskModal
           task={openTask}
@@ -652,9 +647,10 @@ export default function Home() {
           opens a sheet with the existing QuickEntry form inside. */}
       <FAB onClick={() => setShowQuickAdd(true)} label="Add task" />
 
-      {/* Mobile-only bottom nav. PIC-mode users see no tabs since
-          PicHomeView is a single-page experience. */}
-      {!isPicRole && <BottomNav active={view} onChange={setView} />}
+      {/* Mobile-only bottom nav. Same view set as the sidebar — PICs
+          get the focused subset (Today/List/Kanban/Calendar) via the
+          picRole prop. */}
+      <BottomNav active={view} onChange={setView} picRole={isPicRole} />
     </div>
   )
 }

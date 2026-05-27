@@ -16,13 +16,18 @@ import { useIsSuperadmin } from '../lib/queries'
 //      Sign out
 //
 // Hidden on phone (`hidden sm:flex`) — BottomNav owns that surface.
+// `picOk: true` — view is available to PIC-role users. The PIC role
+// is RLS-scoped to their own tasks, so views that show "all PICs"
+// (Grid columns, By-PIC chip selector) aren't useful for them. We
+// keep the focused subset (Today/List/Kanban/Calendar) so PICs can
+// still re-shape their workload across the formats that make sense.
 const VIEWS = [
-  { id: 'today',    label: 'Today',    icon: 'ti-sun' },
-  { id: 'list',     label: 'List',     icon: 'ti-list' },
-  { id: 'grid',     label: 'Grid',     icon: 'ti-table' },
-  { id: 'kanban',   label: 'Kanban',   icon: 'ti-layout-kanban' },
-  { id: 'pic',      label: 'By PIC',   icon: 'ti-users' },
-  { id: 'calendar', label: 'Calendar', icon: 'ti-calendar' },
+  { id: 'today',    label: 'Today',    icon: 'ti-sun',           picOk: true },
+  { id: 'list',     label: 'List',     icon: 'ti-list',          picOk: true },
+  { id: 'grid',     label: 'Grid',     icon: 'ti-table',         picOk: false },
+  { id: 'kanban',   label: 'Kanban',   icon: 'ti-layout-kanban', picOk: true },
+  { id: 'pic',      label: 'By PIC',   icon: 'ti-users',         picOk: false },
+  { id: 'calendar', label: 'Calendar', icon: 'ti-calendar',      picOk: true },
 ]
 
 export default function Sidebar({
@@ -89,23 +94,23 @@ export default function Sidebar({
         </button>
       </div>
 
-      {/* Primary view nav */}
-      {!isPicRole && (
-        <nav className="px-2 pb-3">
-          <ul className="space-y-0.5">
-            {VIEWS.map((v) => (
-              <li key={v.id}>
-                <NavItem
-                  icon={v.icon}
-                  label={v.label}
-                  active={view === v.id}
-                  onClick={() => onChange(v.id)}
-                />
-              </li>
-            ))}
-          </ul>
-        </nav>
-      )}
+      {/* Primary view nav. PIC role gets a focused subset (Today,
+          List, Kanban, Calendar) — Grid + By-PIC don't add value
+          when RLS already pins data to their own tasks. */}
+      <nav className="px-2 pb-3">
+        <ul className="space-y-0.5">
+          {VIEWS.filter((v) => (isPicRole ? v.picOk : true)).map((v) => (
+            <li key={v.id}>
+              <NavItem
+                icon={v.icon}
+                label={v.label}
+                active={view === v.id}
+                onClick={() => onChange(v.id)}
+              />
+            </li>
+          ))}
+        </ul>
+      </nav>
 
       {/* Secondary actions */}
       <div className="px-2 pb-3 border-t border-border/60 pt-3">
