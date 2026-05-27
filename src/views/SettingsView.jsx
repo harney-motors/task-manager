@@ -21,6 +21,7 @@ import LinkPersonModal from '../components/LinkPersonModal'
 import PushSettings from '../components/PushSettings'
 import NudgeBadge from '../components/NudgeBadge'
 import Skeleton from '../components/Skeleton'
+import ActivityFeed from '../components/ActivityFeed'
 import {
   calendarFeedUrl,
   createCalendarToken,
@@ -33,20 +34,29 @@ import {
 const TABS = [
   { id: 'people',      label: 'People',      icon: 'ti-users',    minRole: 'editor' },
   { id: 'departments', label: 'Departments', icon: 'ti-building', minRole: 'editor' },
+  { id: 'activity',    label: 'Activity',    icon: 'ti-history',  minRole: 'owner' },
   { id: 'calendar',    label: 'Calendar',    icon: 'ti-calendar' },
   { id: 'profile',     label: 'My profile',  icon: 'ti-user' },
 ]
 
-// PICs (read-mostly users) shouldn't see workspace-admin tabs. We
-// gate by the active workspace's role — non-PIC roles see everything.
-function tabsForRole(role) {
-  if (role === 'pic') return TABS.filter((t) => !t.minRole)
-  return TABS
+// Tabs are gated by the active workspace's role.
+//   - PICs (read-mostly) see only non-admin tabs.
+//   - 'editor' min-role tabs are visible to editor + owner roles.
+//   - 'owner' min-role tabs are visible only to owners — or to a
+//     superadmin (system-wide admin) regardless of workspace role.
+function tabsForRole(role, isSuperadmin) {
+  return TABS.filter((t) => {
+    if (!t.minRole) return true
+    if (t.minRole === 'editor') return role !== 'pic'
+    if (t.minRole === 'owner') return role === 'owner' || isSuperadmin
+    return true
+  })
 }
 
 export default function SettingsView({ onBack }) {
   const { workspace } = useAuth()
-  const tabs = tabsForRole(workspace?.role)
+  const { data: isSuperadmin = false } = useIsSuperadmin()
+  const tabs = tabsForRole(workspace?.role, isSuperadmin)
   const [tab, setTab] = useState(tabs[0]?.id ?? 'profile')
 
   return (
@@ -96,6 +106,7 @@ export default function SettingsView({ onBack }) {
       <div className="mx-auto max-w-4xl px-3 sm:px-6 py-4 sm:py-6">
         {tab === 'people' && <PeoplePanel />}
         {tab === 'departments' && <DepartmentsPanel />}
+        {tab === 'activity' && <ActivityPanel />}
         {tab === 'calendar' && <CalendarSyncPanel />}
         {tab === 'profile' && <ProfilePanel />}
       </div>
@@ -627,6 +638,39 @@ function DepartmentsPanel() {
           onClose={() => setEditing(null)}
         />
       )}
+    </div>
+  )
+}
+
+// ============================================================
+// Activity (owners + superadmins only)
+// ============================================================
+//
+// Moved here from Home — it used to sit below every view, which
+// meant editors saw a constant stream of changes they didn't own
+// and PICs saw activity for tasks they couldn't open. Settings is
+// the natural home: an audit-style log for workspace admins.
+function ActivityPanel() {
+  // Settings is its own top-level view and doesn't render TaskModal.
+  // Dispatch the shared `tickd:open-task` event — Home.jsx listens
+  // for it, drops out of Settings, and pops the modal in place.
+  function openTask(id) {
+    window.dispatchEvent(
+      new CustomEvent('tickd:open-task', { detail: { taskId: id } }),
+    )
+  }
+  return (
+    <div className="bg-surface border border-border rounded-xl overflow-hidden">
+      <div className="px-4 py-4 border-b border-border">
+        <h2 className="text-sm font-medium">Workspace activity</h2>
+        <p className="text-xs text-text-2 mt-0.5">
+          A live log of who created, edited, and shared tasks. Only
+          owners and super admins see this.
+        </p>
+      </div>
+      <div className="p-3 sm:p-4">
+        <ActivityFeed compactLimit={30} chromeless onOpenTask={openTask} />
+      </div>
     </div>
   )
 }

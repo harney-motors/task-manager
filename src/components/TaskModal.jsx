@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   useAddWatcher,
-  useDeleteTask,
   useDepartments,
   useJournalEntries,
   usePeople,
   useRemoveWatcher,
   useUpdateTask,
 } from '../lib/queries'
+import { bulkDeleteWithUndo } from '../lib/deferredBulkDelete'
+import { useToast } from './Toast'
 import { picPill, statusPill } from '../lib/colors'
 import Avatar from './Avatar'
 import {
@@ -27,11 +29,12 @@ import { useTaskDependencies } from '../lib/queries'
 
 export default function TaskModal({ task, onClose, onOpenTask }) {
   const { workspace } = useAuth()
+  const queryClient = useQueryClient()
+  const showToast = useToast()
   const { data: people = [] } = usePeople()
   const { data: departments = [] } = useDepartments()
   const { data: journalEntries = [] } = useJournalEntries(task?.id)
   const updateTask = useUpdateTask()
-  const deleteTask = useDeleteTask()
   const addWatcher = useAddWatcher()
   const removeWatcher = useRemoveWatcher()
 
@@ -167,9 +170,16 @@ export default function TaskModal({ task, onClose, onOpenTask }) {
   }
 
   function handleDelete() {
-    if (!confirm(`Delete "${task.title}"? This cannot be undone.`)) return
-    deleteTask.mutate(task.id)
+    // Gmail-style soft delete: close the modal and show an undo toast.
+    // The real server delete fires after the toast window — clicking
+    // Undo within the window restores the cache without any DB round-trip.
     onClose()
+    bulkDeleteWithUndo({
+      tasks: [task],
+      queryClient,
+      workspaceId: workspace?.id,
+      showToast,
+    })
   }
 
   // ----- Quick-snooze helpers -----

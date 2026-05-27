@@ -1,6 +1,12 @@
 import { supabase } from '../lib/supabase'
 
-export async function generateStandup(workspaceId) {
+// `options` is the pre-flight selection from the modal:
+//   scope:  'mine' | 'team'
+//   period: 'today' | 'yesterday-today'
+//   tone:   'brief' | 'detailed'
+//   format: 'markdown' | 'plain'
+// All optional — server falls back to ('mine' / 'today' / 'brief' / 'markdown').
+export async function generateStandup(workspaceId, options = {}) {
   const {
     data: { session },
   } = await supabase.auth.getSession()
@@ -13,7 +19,13 @@ export async function generateStandup(workspaceId) {
       'content-type': 'application/json',
       Authorization: `Bearer ${session.access_token}`,
     },
-    body: JSON.stringify({ workspace_id: workspaceId }),
+    body: JSON.stringify({
+      workspace_id: workspaceId,
+      scope: options.scope,
+      period: options.period,
+      tone: options.tone,
+      format: options.format,
+    }),
   })
   if (!res.ok) {
     let msg = `Standup failed (${res.status})`

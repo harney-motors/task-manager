@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useAuth } from '../auth/AuthProvider'
 import { useDepartments, usePeople, useTasks } from '../lib/queries'
 import {
   isAnyFilterActive,
@@ -23,6 +24,7 @@ export default function TaskFilterBar({
   defaultSort = 'due',
 }) {
   const [searchParams, setSearchParams] = useSearchParams()
+  const { user } = useAuth()
   const { data: people = [] } = usePeople()
   const { data: departments = [] } = useDepartments()
   const { data: tasks = [] } = useTasks()
@@ -32,6 +34,20 @@ export default function TaskFilterBar({
     defaultGroup,
     defaultSort,
   })
+
+  // "Mine" toggle — quick chip that maps to picId === my linked person.
+  // Tasks have pic_id (FK to people), and a user is linked to a person
+  // via people.user_id. If the current account isn't linked to any
+  // person in this workspace, the chip is hidden (would have no effect).
+  const myPersonId = useMemo(
+    () => people.find((p) => p.user_id === user?.id)?.id ?? null,
+    [people, user?.id],
+  )
+  const mineActive = myPersonId && filters.picId === myPersonId
+  function toggleMine() {
+    if (!myPersonId) return
+    update({ picId: mineActive ? null : myPersonId })
+  }
   const tagOptions = useMemo(() => {
     const s = new Set()
     for (const t of tasks) for (const tag of t.tags ?? []) s.add(tag)
@@ -68,6 +84,25 @@ export default function TaskFilterBar({
     // so desktop users still get one-glance access to every filter.
     <div className="border-b border-border">
       <div className="flex items-center gap-1.5 p-2 sm:p-3 sm:gap-2 sm:flex-wrap overflow-x-auto sm:overflow-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* "Mine" chip — quick toggle for the most common picId filter.
+            Hidden when the account isn't linked to a person, since the
+            filter wouldn't have a target. Sits before the PIC dropdown
+            because it's a frequent shortcut, not a per-PIC drilldown. */}
+        {showPic && myPersonId && (
+          <button
+            onClick={toggleMine}
+            aria-pressed={mineActive}
+            className={`text-[11px] sm:text-xs border rounded px-1.5 py-0.5 sm:px-2 sm:py-1 inline-flex items-center gap-1 flex-shrink-0 transition-colors ${
+              mineActive
+                ? 'border-info bg-info-bg text-info-text font-medium'
+                : 'border-border bg-surface hover:bg-surface-2 text-text-2'
+            }`}
+            title="Show only tasks where you're the PIC"
+          >
+            <i className="ti ti-user text-[12px] sm:text-sm" />
+            Mine
+          </button>
+        )}
         {showPic && (
           <FilterSelect
             value={filters.picId}

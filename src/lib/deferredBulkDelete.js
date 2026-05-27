@@ -43,7 +43,7 @@ if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', flushAll)
 }
 
-// Run a bulk delete with an Undo toast.
+// Run a delete (single or bulk) with an Undo toast.
 //
 //   tasks       — full task rows being deleted (used to restore the
 //                 cache on undo)
@@ -53,12 +53,14 @@ if (typeof window !== 'undefined') {
 //   onComplete  — optional callback fired AFTER actual delete or after
 //                 undo, with { delivered, cancelled } counts. Use for
 //                 follow-up cache invalidation if needed.
+//   message     — optional custom toast message (defaults to count-based)
 export function bulkDeleteWithUndo({
   tasks,
   queryClient,
   workspaceId,
   showToast,
   onComplete,
+  message,
 }) {
   if (!tasks?.length) return
   const ids = tasks.map((t) => t.id)
@@ -70,8 +72,12 @@ export function bulkDeleteWithUndo({
   // Optimistic UI: remove right away.
   queryClient.setQueryData(key, (old) => (old ?? []).filter((t) => !ids.includes(t.id)))
 
+  const defaultMsg =
+    ids.length === 1
+      ? `Deleted "${truncate(tasks[0]?.title ?? 'task', 32)}"`
+      : `Deleted ${ids.length} tasks`
   const toastId = showToast(
-    `Deleted ${ids.length} task${ids.length === 1 ? '' : 's'}`,
+    message ?? defaultMsg,
     {
       action: {
         label: 'Undo',
@@ -104,4 +110,9 @@ export function bulkDeleteWithUndo({
   }, UNDO_WINDOW_MS)
 
   pending.set(toastId, { ids, timer, cancelled: false })
+}
+
+function truncate(s, n) {
+  if (!s) return ''
+  return s.length > n ? s.slice(0, n - 1) + '…' : s
 }

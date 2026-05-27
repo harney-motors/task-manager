@@ -17,19 +17,35 @@ const SUPABASE_ANON_KEY =
   process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
 
-const SYSTEM_PROMPT = `You are an executive standup writer for Tickd.
+function buildSystemPrompt({ tone, format, scope }) {
+  const styleNote =
+    tone === 'detailed'
+      ? 'Include a sentence of context for each item — what shifted or what comes next.'
+      : 'Keep each line terse — title only, plus PIC if it isn\'t me.'
+  const formatNote =
+    format === 'plain'
+      ? `Format as plain text, NO Markdown headings (#), NO bullet asterisks. Use simple lines like "Done today:" followed by indented dashes. Emojis are fine.`
+      : `Format strictly as Markdown.`
+  const speakerNote =
+    scope === 'team'
+      ? `Speak in third person about the whole team — "Anna closed", "James is working on…", "We have 3 items due tomorrow."`
+      : `Speak in first person — "I closed", "I noted", "Errol's task is now…".`
 
-You are given a single user's workspace state plus a structured digest of what changed today. Produce a short, friendly Markdown standup the user can paste straight into Slack / WhatsApp / email.
+  return `You are an executive standup writer for Tickd.
 
-Format strictly as Markdown. Sections, each optional (skip if empty):
+You are given a single user's workspace state plus a structured digest of what changed today. Produce a short, friendly standup the user can paste straight into Slack / WhatsApp / email.
 
-✅ Done today
+${formatNote}
+
+Sections, each optional (skip if empty):
+
+✅ Done${scope === 'team' ? '' : ' today'}
 - Title — (PIC if not me)
 
 🔄 In progress
 - Title
 
-📝 Notes I added
+📝 Notes added
 - "First line of the note" — Task title
 
 👀 Updates I'm watching
@@ -40,9 +56,11 @@ Format strictly as Markdown. Sections, each optional (skip if empty):
 
 Rules:
 - Keep titles short; truncate at ~70 chars with "…" if needed.
-- If nothing happened today, return a single-line "Quiet day — nothing to report." (no headings).
-- Speak in first person; "I closed", "I noted", "Errol's task is now…".
+- If nothing happened, return a single-line "Quiet day — nothing to report." (no headings).
+- ${speakerNote}
+- ${styleNote}
 - Do NOT invent activity. If the digest is empty for a section, omit it.`
+}
 
 export default async (req) => {
   if (req.method !== 'POST') {
@@ -72,6 +90,16 @@ export default async (req) => {
   const workspaceId = String(body?.workspace_id ?? '').trim()
   if (!workspaceId) return jsonError(400, 'workspace_id is required')
 
+  // Pre-flight options (all optional, all have defaults).
+  //   scope:   'mine' (default) | 'team'      — whose activity to include
+  //   period:  'today' (default) | 'yesterday-today' — for Monday-style standups
+  //   tone:    'brief' (default) | 'detailed' — verbosity of each bullet
+  //   format:  'markdown' (default) | 'plain' — output format
+  const scope = body?.scope === 'team' ? 'team' : 'mine'
+  const period = body?.period === 'yesterday-today' ? 'yesterday-today' : 'today'
+  const tone = body?.tone === 'detailed' ? 'detailed' : 'brief'
+  const format = body?.format === 'plain' ? 'plain' : 'markdown'
+
   // Membership gate
   const { data: membership } = await supabase
     .from('workspace_members')
@@ -93,6 +121,17 @@ export default async (req) => {
   const tomorrowIso = new Date(Date.now() + 24 * 60 * 60 * 1000)
     .toISOString()
     .slice(0, 10)
+  const yesterdayIso = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10)
+
+  // "Period" controls how far back we look for completed work + notes.
+  // For Monday standups, weekend changes go missing without yesterday-today.
+  const periodStartIso = period === 'yesterday-today' ? yesterdayIso : todayIso
+  function inPeriod(ts) {
+    if (!ts) return false
+    return ts.slice(0, 10) >= periodStartIso
+  }
 
   // Pull tasks once with watchers + journal date hints
   const { data: tasks } = await supabase
@@ -112,13 +151,20 @@ export default async (req) => {
   function isWatchedByMe(t) {
     return (t.task_watchers ?? []).some((tw) => tw.person?.user_id === user.id)
   }
+  // Scope filter — 'mine' keeps the original "my owned + watched" lens;
+  // 'team' broadens to the whole workspace so team leads can produce a
+  // single roll-up for the group.
+  function inScope(t) {
+    if (scope === 'team') return true
+    return isMine(t) || isWatchedByMe(t)
+  }
 
   const doneToday = (tasks ?? [])
     .filter(
       (t) =>
         t.status === 'Done' &&
-        t.updated_at?.startsWith(todayIso) &&
-        (isMine(t) || isWatchedByMe(t)),
+        inPeriod(t.updated_at) &&
+        inScope(t),
     )
     .map((t) => ({
       title: t.title,
@@ -127,49 +173,73 @@ export default async (req) => {
     }))
 
   const inProgress = (tasks ?? [])
-    .filter((t) => t.status === 'In progress' && isMine(t))
-    .map((t) => ({ title: t.title, due_date: t.due_date }))
+    .filter((t) =>
+      t.status === 'In progress' && (scope === 'team' ? true : isMine(t)),
+    )
+    .map((t) => ({
+      title: t.title,
+      due_date: t.due_date,
+      pic: t.pic?.name ?? null,
+      mine: isMine(t),
+    }))
 
   const dueTomorrow = (tasks ?? [])
-    .filter((t) => t.status !== 'Done' && t.due_date === tomorrowIso)
+    .filter(
+      (t) =>
+        t.status !== 'Done' &&
+        t.due_date === tomorrowIso &&
+        (scope === 'team' ? true : isMine(t) || isWatchedByMe(t)),
+    )
     .map((t) => ({
       title: t.title,
       pic: t.pic?.name ?? null,
       mine: isMine(t),
     }))
 
-  // Today's journal entries by me
-  const { data: myNotes } = await supabase
+  // Journal entries within the period. In 'team' scope we pull everyone's
+  // notes for the workspace; in 'mine' scope we pull only the caller's.
+  const notesQuery = supabase
     .from('journal_entries')
-    .select('body, created_at, task:tasks(id, title, workspace_id)')
-    .eq('author_id', user.id)
-    .gte('created_at', `${todayIso}T00:00:00`)
+    .select('body, created_at, author_id, task:tasks(id, title, workspace_id)')
+    .gte('created_at', `${periodStartIso}T00:00:00`)
     .order('created_at', { ascending: true })
+  if (scope !== 'team') notesQuery.eq('author_id', user.id)
+  const { data: rawNotes } = await notesQuery
 
-  const notes = (myNotes ?? [])
+  const notes = (rawNotes ?? [])
     .filter((n) => n.task?.workspace_id === workspaceId)
     .map((n) => ({
       first_line: String(n.body ?? '').split(/\r?\n/)[0].slice(0, 120),
       task_title: n.task?.title ?? null,
+      mine: n.author_id === user.id,
     }))
 
-  // Watched updates today: tasks I watch (not mine) updated today.
-  const watchedUpdates = (tasks ?? [])
-    .filter(
-      (t) =>
-        isWatchedByMe(t) &&
-        !isMine(t) &&
-        t.updated_at?.startsWith(todayIso) &&
-        t.status !== 'Done', // 'Done' lands in doneToday above when relevant
-    )
-    .map((t) => ({
-      title: t.title,
-      pic: t.pic?.name ?? null,
-      status: t.status,
-    }))
+  // Watched updates within the period: tasks I watch (not mine) updated
+  // in the window, still active. Not relevant in 'team' scope (the whole
+  // team already shows up in doneToday / inProgress).
+  const watchedUpdates =
+    scope === 'team'
+      ? []
+      : (tasks ?? [])
+          .filter(
+            (t) =>
+              isWatchedByMe(t) &&
+              !isMine(t) &&
+              inPeriod(t.updated_at) &&
+              t.status !== 'Done', // 'Done' lands in doneToday above when relevant
+          )
+          .map((t) => ({
+            title: t.title,
+            pic: t.pic?.name ?? null,
+            status: t.status,
+          }))
 
   const digest = {
     date: todayIso,
+    period,
+    scope,
+    tone,
+    format,
     user_name: meRow?.name ?? user.email?.split('@')[0] ?? 'I',
     done_today: doneToday,
     in_progress: inProgress,
@@ -198,12 +268,12 @@ export default async (req) => {
   try {
     response = await anthropic.messages.create({
       model: 'claude-opus-4-7',
-      max_tokens: 800,
-      system: SYSTEM_PROMPT,
+      max_tokens: tone === 'detailed' ? 1200 : 800,
+      system: buildSystemPrompt({ tone, format, scope }),
       messages: [
         {
           role: 'user',
-          content: `Compose the standup for ${digest.user_name} (date ${digest.date}). Digest JSON:\n\n${JSON.stringify(
+          content: `Compose the standup for ${digest.user_name} (date ${digest.date}, scope=${scope}, period=${period}, tone=${tone}, format=${format}). Digest JSON:\n\n${JSON.stringify(
             digest,
             null,
             2,

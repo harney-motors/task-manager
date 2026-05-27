@@ -1,20 +1,19 @@
 import { useMemo, useState } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import { usePeople, useRecentActivity } from '../lib/queries'
+import { formatTimeAgo } from '../lib/dates'
 
-function formatRelative(iso) {
-  const diff = Date.now() - new Date(iso).getTime()
-  const m = Math.floor(diff / 60_000)
-  if (m < 1) return 'just now'
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  const d = Math.floor(h / 24)
-  if (d < 7) return `${d}d ago`
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
-
-export default function ActivityFeed({ onOpenTask, compactLimit = 5 }) {
+// ActivityFeed renders the workspace's recent action log. Two
+// surfaces use it:
+//   - Settings → Activity (owners/superadmins) — a dedicated panel.
+//     Pass `chromeless` so it skips its own wrapper styling.
+//   - (previously) Home, below the active view — removed in favor
+//     of the dedicated Settings tab.
+export default function ActivityFeed({
+  onOpenTask,
+  compactLimit = 5,
+  chromeless = false,
+}) {
   const { data: activity = [], isLoading } = useRecentActivity({ limit: 30 })
   const { data: people = [] } = usePeople()
   const { user } = useAuth()
@@ -34,10 +33,50 @@ export default function ActivityFeed({ onOpenTask, compactLimit = 5 }) {
     return actorMap.get(actorId) ?? 'Someone'
   }
 
-  if (isLoading || activity.length === 0) return null
+  if (isLoading) {
+    return chromeless ? (
+      <div className="text-xs text-text-3 text-center py-8">Loading activity…</div>
+    ) : null
+  }
+
+  if (activity.length === 0) {
+    return chromeless ? (
+      <div className="text-xs text-text-3 text-center py-10">
+        No recent activity yet. Once people start creating and editing
+        tasks, you&rsquo;ll see a live log here.
+      </div>
+    ) : null
+  }
 
   const visible = expanded ? activity : activity.slice(0, compactLimit)
   const hasMore = activity.length > compactLimit
+
+  // Chromeless mode skips the bordered card + heading because the
+  // parent panel already provides them.
+  const rows = (
+    <div className="space-y-1">
+      {visible.map((entry) => (
+        <ActivityRow
+          key={entry.id}
+          entry={entry}
+          actorName={actorName(entry.actor_id)}
+          onOpenTask={onOpenTask}
+        />
+      ))}
+      {hasMore && chromeless && (
+        <div className="pt-2 mt-1 border-t border-border">
+          <button
+            onClick={() => setExpanded((x) => !x)}
+            className="text-[11px] text-text-3 hover:text-text underline"
+          >
+            {expanded ? 'Show less' : `Show all ${activity.length}`}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+
+  if (chromeless) return rows
 
   return (
     <div className="bg-surface-2 rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 mb-4">
@@ -55,16 +94,7 @@ export default function ActivityFeed({ onOpenTask, compactLimit = 5 }) {
           </button>
         )}
       </div>
-      <div className="space-y-1">
-        {visible.map((entry) => (
-          <ActivityRow
-            key={entry.id}
-            entry={entry}
-            actorName={actorName(entry.actor_id)}
-            onOpenTask={onOpenTask}
-          />
-        ))}
-      </div>
+      {rows}
     </div>
   )
 }
@@ -121,7 +151,7 @@ function ActivityRow({ entry, actorName, onOpenTask }) {
       <span className="font-medium text-text whitespace-nowrap">{actorName}</span>
       <span className="flex-1 min-w-0">{body}</span>
       <span className="text-text-3 text-[10px] whitespace-nowrap">
-        {formatRelative(entry.created_at)}
+        {formatTimeAgo(entry.created_at)}
       </span>
     </div>
   )

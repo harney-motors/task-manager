@@ -15,7 +15,7 @@ import {
   useTasks,
   useUpdateTask,
 } from '../lib/queries'
-import { isOverdue } from '../lib/dates'
+import { isOverdue, isRecentlyUpdated, formatTimeAgo } from '../lib/dates'
 import { picPill, statusPill } from '../lib/colors'
 import {
   applyTaskFilters,
@@ -80,10 +80,24 @@ export default function KanbanView({ onOpenTask }) {
     const targetStatus = String(e.over.id).replace('col-', '')
     const task = tasks.find((t) => t.id === e.active.id)
     if (!task || task.status === targetStatus) return
+    const previousStatus = task.status
     updateTask.mutate(
       { id: task.id, status: targetStatus },
       {
-        onSuccess: () => showToast(`Moved to "${targetStatus}"`),
+        onSuccess: () => {
+          // Universal-undo wiring: drag-drop is the easiest action to
+          // misfire (mis-targeted column, glanced wrong, etc), so we
+          // give every move an undo. Clicking Undo fires a second
+          // update that restores the original status.
+          showToast(`Moved to "${targetStatus}"`, {
+            action: {
+              label: 'Undo',
+              onClick: () => {
+                updateTask.mutate({ id: task.id, status: previousStatus })
+              },
+            },
+          })
+        },
       },
     )
   }
@@ -203,13 +217,26 @@ function DraggableKanbanCard({ task, onOpenTask }) {
 function KanbanCard({ task, dragging = false }) {
   const overdue = isOverdue(task.due_date) && task.status !== 'Done'
   const displayStatus = overdue ? 'Overdue' : task.status
+  const recent = isRecentlyUpdated(task.updated_at)
 
   return (
     <div
-      className={`bg-surface border border-border rounded-lg p-2.5 hover:border-border-strong active:bg-surface-2 transition-colors shadow-sm ${
+      className={`relative bg-surface border border-border rounded-lg p-2.5 hover:border-border-strong active:bg-surface-2 transition-colors shadow-sm ${
         dragging ? 'shadow-lg rotate-1 ring-2 ring-info' : ''
       }`}
     >
+      {recent && (
+        <span
+          className="absolute top-1.5 right-1.5 inline-flex"
+          title={`Updated ${formatTimeAgo(task.updated_at)}`}
+          aria-label="Recently updated"
+        >
+          <span className="relative inline-flex">
+            <span className="absolute inset-0 rounded-full bg-info opacity-60 animate-ping" />
+            <span className="relative w-1.5 h-1.5 rounded-full bg-info" />
+          </span>
+        </span>
+      )}
       <div className="text-sm font-medium line-clamp-2">{task.title}</div>
       <div className="mt-2 flex items-center gap-1.5 flex-wrap">
         {task.pic ? (

@@ -1,9 +1,12 @@
 import { useUpdateTask } from '../lib/queries'
+import { useToast } from './Toast'
 import {
   addDays,
   formatRelative,
   formatShortDate,
+  formatTimeAgo,
   isOverdue,
+  isRecentlyUpdated,
   startOfToday,
 } from '../lib/dates'
 import { statusPill } from '../lib/colors'
@@ -14,16 +17,40 @@ import Avatar, { AvatarStack } from './Avatar'
 // drop the row's negative margin so it doesn't fight the wrapper.
 export default function TaskRow({ task, onClick, inWrapper = false }) {
   const updateTask = useUpdateTask()
+  const showToast = useToast()
   const overdue = isOverdue(task.due_date) && task.status !== 'Done'
   const done = task.status === 'Done'
   const displayStatus = overdue ? 'Overdue' : task.status
+  // Subtle "this changed recently" cue — a small pulsing dot before
+  // the status pill. Helps users notice what shifted without making
+  // them remember timestamps. Threshold is 4h: catches a typical work
+  // morning of activity without lighting up everything from yesterday.
+  const recent = isRecentlyUpdated(task.updated_at)
 
   function toggleDone(e) {
     e.stopPropagation()
-    updateTask.mutate({
-      id: task.id,
-      status: done ? 'Open' : 'Done',
-    })
+    const previousStatus = task.status
+    const nextStatus = done ? 'Open' : 'Done'
+    updateTask.mutate(
+      { id: task.id, status: nextStatus },
+      {
+        onSuccess: () => {
+          // Misclick guard — completion checkbox is sometimes hit when
+          // aiming for the row. One-tap undo restores the prior status.
+          showToast(
+            nextStatus === 'Done' ? 'Marked done' : 'Reopened',
+            {
+              action: {
+                label: 'Undo',
+                onClick: () => {
+                  updateTask.mutate({ id: task.id, status: previousStatus })
+                },
+              },
+            },
+          )
+        },
+      },
+    )
   }
 
   function snoozeBy(days, e) {
@@ -138,6 +165,18 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
         />
       </div>
 
+      {recent && (
+        <span
+          className="flex-shrink-0 inline-flex items-center"
+          title={`Updated ${formatTimeAgo(task.updated_at)}`}
+          aria-label="Recently updated"
+        >
+          <span className="relative inline-flex">
+            <span className="absolute inset-0 rounded-full bg-info opacity-60 animate-ping" />
+            <span className="relative w-1.5 h-1.5 rounded-full bg-info" />
+          </span>
+        </span>
+      )}
       <span
         className={`text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${statusPill(displayStatus)}`}
       >
