@@ -39,22 +39,22 @@
   --color-text-2: #3A3A3C;    /* iOS secondaryLabel */
   --color-text-3: #8E8E93;    /* iOS tertiaryLabel */
 
-  /* Semantic — refreshed to modern indigo as the primary tone.
-     Tickd's old #185FA5 read "corporate blue"; the indigo family is
-     the established SaaS-app primary (Linear, Stripe, Vercel, Notion
-     accents) and pairs nicely with the existing PIC palette. */
-  --color-info: #4F46E5;        /* indigo-600 */
+  /* Semantic — pastel pass. Primary lifted to indigo-500 (a touch
+     softer than the previous indigo-600), and dark "text on
+     coloured bg" pulled back from near-black to the 700-range so
+     pills read as soft tags instead of slab-dark labels. */
+  --color-info: #6366F1;        /* indigo-500 */
   --color-info-bg: #EEF2FF;     /* indigo-50  */
-  --color-info-text: #312E81;   /* indigo-900 */
-  --color-success: #1D9E75;
-  --color-success-bg: #E1F5EE;
-  --color-success-text: #085041;
-  --color-danger-bg: #FCEBEB;
-  --color-danger-text: #791F1F;
-  --color-warning-bg: #FAEEDA;
-  --color-warning-text: #633806;
+  --color-info-text: #4338CA;   /* indigo-700 */
+  --color-success: #10B981;     /* emerald-500 */
+  --color-success-bg: #ECFDF5;  /* emerald-50 */
+  --color-success-text: #047857; /* emerald-700 */
+  --color-danger-bg: #FEF2F2;   /* red-50 — softer than before */
+  --color-danger-text: #B91C1C; /* red-700 */
+  --color-warning-bg: #FEF3C7;  /* amber-100 */
+  --color-warning-text: #92400E; /* amber-800 */
   --color-in-progress-bg: #EEF2FF;
-  --color-in-progress-text: #312E81;
+  --color-in-progress-text: #4338CA;
 
   /* PIC palette — purple */
   --color-pic-purple-bg: #EEEDFE;
@@ -131,21 +131,21 @@
   --color-text-2: #B0ADA4;
   --color-text-3: #7A7872;
 
-  /* Indigo for dark mode: brighter primary, deep-violet bg, soft
-     lavender text — keeps contrast comfortable on the warm dark
-     surface without losing the brand colour. */
-  --color-info: #818CF8;        /* indigo-400 */
-  --color-info-bg: #1E1B4B;     /* indigo-950 */
-  --color-info-text: #C7D2FE;   /* indigo-200 */
-  --color-success: #3FB58F;
-  --color-success-bg: #0E2E26;
-  --color-success-text: #A6E5CD;
-  --color-danger-bg: #3A1414;
-  --color-danger-text: #F0B5B5;
-  --color-warning-bg: #3A2810;
-  --color-warning-text: #F0CB95;
-  --color-in-progress-bg: #1E1B4B;
-  --color-in-progress-text: #C7D2FE;
+  /* Dark mode pastel pass — lifted backgrounds out of the crushed
+     near-black ranges and softened text to match. Same hues, lower
+     saturation, higher value. Still warm-dark, just airier. */
+  --color-info: #A5B4FC;        /* indigo-300 — pastel lavender */
+  --color-info-bg: #312E81;     /* indigo-900 — softer than indigo-950 */
+  --color-info-text: #E0E7FF;   /* indigo-100 */
+  --color-success: #6EE7B7;     /* emerald-300 — pastel mint */
+  --color-success-bg: #064E3B;  /* emerald-900 */
+  --color-success-text: #D1FAE5;
+  --color-danger-bg: #4C1D1D;
+  --color-danger-text: #FCA5A5; /* red-300 */
+  --color-warning-bg: #422006;
+  --color-warning-text: #FCD34D; /* amber-300 */
+  --color-in-progress-bg: #312E81;
+  --color-in-progress-text: #E0E7FF;
 
   /* PIC palette — same dot color so identities stay stable, but
      darker bg and lighter text for chip legibility on dark surface. */
@@ -526,10 +526,12 @@ header.sticky,
   }
 }
 
-/* Sticky "just below the topbar". Group/section headers use this so
-   they slot under the global topbar (sticky top-0 z-30) instead of
-   getting swallowed by it. Mobile topbar is ~56px + safe-area inset;
-   desktop is ~64px. iOS PWA users get the notch handled via env(). */
+/* Sticky "just below the topbar". Group/section headers + filter bars
+   use this so they slot under the global topbar (sticky top-0 z-30)
+   instead of getting swallowed by it. Mobile topbar is ~56px +
+   safe-area inset; desktop topbar is hidden — the sidebar replaces
+   it — so on sm+ we stick to the top edge of the content column with
+   no offset. iOS PWA users get the notch handled via env(). */
 .tickd-stick-below-topbar {
   position: sticky;
   top: calc(3.25rem + env(safe-area-inset-top));
@@ -537,8 +539,23 @@ header.sticky,
 }
 @media (min-width: 640px) {
   .tickd-stick-below-topbar {
-    top: 3.5rem;
+    /* No desktop topbar to clear — sit flush with the top of the
+       scroll viewport. Visual offset comes from the parent's padding. */
+    top: 0;
   }
+}
+
+/* Sticky-active state — once the element has actually stuck (i.e. the
+   user has scrolled past its natural position), give it a subtle
+   bottom shadow + a backdrop blur so it reads as an elevated layer
+   instead of floating awkwardly between content above and below.
+   The trick: a tiny sentinel inside the sticky element triggers the
+   shadow only when stuck (via an IntersectionObserver-ish CSS-only
+   pattern). For now we always apply the soft elevation styling —
+   `position: sticky` + this style reads cleanly whether stuck or not. */
+.tickd-stick-below-topbar {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 /* View transition — fades + slightly slides the active view in. Apply

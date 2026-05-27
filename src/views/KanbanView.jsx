@@ -3,6 +3,7 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  pointerWithin,
   useDraggable,
   useDroppable,
   useSensor,
@@ -96,6 +97,11 @@ export default function KanbanView({ onOpenTask }) {
 
       <DndContext
         sensors={sensors}
+        // `pointerWithin` makes the column under the POINTER win, not
+        // the column under the card's rect center. Without this, wide
+        // cards slid through one or two columns past where the user
+        // actually pointed — the "jumps two boards over" bug.
+        collisionDetection={pointerWithin}
         onDragStart={(e) => setActiveId(e.active.id)}
         onDragEnd={handleDragEnd}
         onDragCancel={() => setActiveId(null)}

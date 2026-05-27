@@ -466,7 +466,7 @@ export default function Home() {
         className="sm:hidden sticky top-0 z-30 bg-bg/85 backdrop-blur-xl border-b border-border/60"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 py-2 sm:py-3">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-2 sm:py-3">
           {/* ===== MOBILE TOPBAR (phone only) =====
               Slim chrome: logo · workspace · nudges · search · overflow.
               Everything secondary lives in the kebab menu so the bar
@@ -500,7 +500,7 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-5xl px-4 sm:px-6 py-4 sm:py-6">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-4 sm:py-6">
 
         {isPicRole ? (
           <>
