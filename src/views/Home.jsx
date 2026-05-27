@@ -397,6 +397,12 @@ export default function Home() {
   // chrome variants can't drift out of sync.
   const overflowActions = [
     {
+      id: 'inbox',
+      label: 'Inbox',
+      icon: 'ti-inbox',
+      onClick: () => setShowNotificationsPage(true),
+    },
+    {
       id: 'docs',
       label: 'Docs',
       icon: 'ti-book-2',
@@ -461,6 +467,7 @@ export default function Home() {
         onOpenMeeting={() => setShowExtract(true)}
         onOpenStandup={() => setShowStandup(true)}
         onOpenPulse={() => setShowPulse(true)}
+        onOpenInbox={() => setShowNotificationsPage(true)}
         onOpenQuickAdd={() => setShowQuickAdd(true)}
         isPicRole={isPicRole}
       />

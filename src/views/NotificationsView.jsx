@@ -6,20 +6,28 @@ import {
   useMyMentions,
   usePeople,
   useRestoreNudge,
+  useTasks,
 } from '../lib/queries'
-import { formatTimeAgo } from '../lib/dates'
+import {
+  formatShortDate,
+  formatTimeAgo,
+  isOverdue,
+  isToday,
+  parseDate,
+  startOfToday,
+} from '../lib/dates'
+import { statusPill } from '../lib/colors'
 
 // localStorage key for the "last time the user opened the mentions
 // tab" timestamp. Used to compute the unseen-mention count badge.
 const MENTIONS_LAST_SEEN_KEY = 'tickd:mentions-last-seen'
 
-// Full-page notifications inbox — accessible via the "See history" link
-// in the NotificationsModal, or directly from the sub-view chrome where
-// the Settings/SuperAdmin pattern lives. Shows active + dismissed
-// nudges so the user can scan recent AI activity and restore anything
-// they cleared by mistake.
+// Unified Inbox — three lenses on "what needs my attention":
+//   1. Assigned — tasks where I'm the PIC (the day-to-day workload)
+//   2. Mentions — journal entries / comments that tagged me
+//   3. Nudges   — AI-generated suggestions ("X is overdue", etc.)
 //
-// Same sticky-header pattern as Settings/SuperAdmin/Pulse. Onback
+// Same sticky-header pattern as Settings/SuperAdmin/Pulse. `onBack`
 // returns to wherever the user came from (Home's view state).
 export default function NotificationsView({ onBack, onOpenTask }) {
   const { user } = useAuth()
@@ -28,25 +36,53 @@ export default function NotificationsView({ onBack, onOpenTask }) {
     () => people.find((p) => p.user_id === user?.id) ?? null,
     [people, user?.id],
   )
+  const { data: tasks = [], isLoading: tasksLoading } = useTasks()
   const { data: nudges = [], isLoading } = useAllNudges()
   const { data: mentions = [], isLoading: mentionsLoading } = useMyMentions(me?.id)
+
+  // ===== Assigned tab data =====
+  // Tasks where the current user is the PIC. We expose three sub-views:
+  // 'attention' (default, overdue + due today/soon), 'all' (every
+  // active assignment), and 'watching' (PIC isn't me, but I'm a
+  // watcher — useful for tracking things I asked someone else to do).
+  const assignedAll = useMemo(() => {
+    if (!me) return []
+    return tasks.filter((t) => t.pic_id === me.id && t.status !== 'Done')
+  }, [tasks, me])
+  const watching = useMemo(() => {
+    if (!me) return []
+    return tasks.filter(
+      (t) =>
+        t.pic_id !== me.id &&
+        t.status !== 'Done' &&
+        (t.watchers ?? []).some((w) => w.id === me.id),
+    )
+  }, [tasks, me])
+  const today = startOfToday()
+  const assignedAttention = useMemo(() => {
+    return assignedAll
+      .filter((t) => {
+        if (t.status === 'Ongoing') return false
+        // Overdue or due today.
+        if (t.due_date && (isOverdue(t.due_date) || isToday(t.due_date))) {
+          return true
+        }
+        // Or recently assigned/created (last 7 days).
+        const updated = new Date(t.updated_at).getTime()
+        const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+        return updated > sevenDaysAgo
+      })
+      .sort(compareUrgency)
+  }, [assignedAll])
   const dismiss = useDismissNudge()
   const restore = useRestoreNudge()
-  // Primary tab: 'nudges' (the existing AI-nudge inbox) vs 'mentions'
-  // (journal entries that tagged me). Defaults to 'mentions' when
-  // there are unseen mentions newer than the last visit so the user
-  // sees them on landing. Falls back to 'nudges' otherwise.
-  const [tab, setTab] = useState(() => {
-    try {
-      // We can't read `mentions` here (the query hasn't fired) — but
-      // the badge on the Mentions tab will alert the user post-load.
-      // Initial tab can stay 'nudges' deterministically. Effect below
-      // upgrades to 'mentions' once data lands AND something is new.
-      return 'nudges'
-    } catch {
-      return 'nudges'
-    }
-  })
+  // Primary tab. Defaults to 'assigned' — the day-to-day "what's on my
+  // plate" lens. Effect below auto-jumps to 'mentions' if there are
+  // unseen mentions newer than the user's last visit.
+  const [tab, setTab] = useState('assigned')
+  // Assigned sub-filter — needs-attention is the default for workloads
+  // with dozens of open tasks. The user can flip to 'all' or 'watching'.
+  const [assignedView, setAssignedView] = useState('attention')
   // After the mentions query loads, switch tab to 'mentions' if there
   // are unseen ones. Only on initial mount so we don't fight the
   // user's manual tab choice.
@@ -141,21 +177,29 @@ export default function NotificationsView({ onBack, onOpenTask }) {
             >
               <i className="ti ti-arrow-left text-base" />
             </button>
-            <i className="ti ti-bell text-info text-lg flex-shrink-0" />
+            <i className="ti ti-inbox text-info text-lg flex-shrink-0" />
             <h1 className="text-base sm:text-xl font-medium tracking-tight flex-1 min-w-0">
-              Notifications
+              Inbox
             </h1>
           </div>
 
-          {/* Primary tabs: Nudges (AI-generated) vs Mentions (human). */}
-          <div className="inline-flex items-center gap-0.5 p-0.5 bg-surface-2 rounded-md mb-2">
+          {/* Primary tabs: Assigned (PIC=me) / Mentions (human) / Nudges (AI). */}
+          <div className="inline-flex items-center gap-0.5 p-0.5 bg-surface-2 rounded-md mb-2 max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <PrimaryTab
-              active={tab === 'nudges'}
-              icon="ti-bulb"
-              onClick={() => setTab('nudges')}
+              active={tab === 'assigned'}
+              icon="ti-user-check"
+              onClick={() => setTab('assigned')}
             >
-              Nudges
-              <span className="text-[10px] text-text-3 ml-1">{nudges.length}</span>
+              Assigned
+              {assignedAttention.length > 0 && tab !== 'assigned' ? (
+                <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold">
+                  {assignedAttention.length > 9 ? '9+' : assignedAttention.length}
+                </span>
+              ) : (
+                <span className="text-[10px] text-text-3 ml-1">
+                  {assignedAll.length}
+                </span>
+              )}
             </PrimaryTab>
             <PrimaryTab
               active={tab === 'mentions'}
@@ -173,10 +217,53 @@ export default function NotificationsView({ onBack, onOpenTask }) {
                 </span>
               )}
             </PrimaryTab>
+            <PrimaryTab
+              active={tab === 'nudges'}
+              icon="ti-bulb"
+              onClick={() => setTab('nudges')}
+            >
+              Nudges
+              <span className="text-[10px] text-text-3 ml-1">{nudges.length}</span>
+            </PrimaryTab>
           </div>
 
           {/* Sub-controls — different content per primary tab. */}
-          {tab === 'nudges' ? (
+          {tab === 'assigned' ? (
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="inline-flex items-center gap-0.5 p-0.5 bg-surface-2 rounded-md">
+                  <FilterTab
+                    active={assignedView === 'attention'}
+                    count={assignedAttention.length}
+                    onClick={() => setAssignedView('attention')}
+                  >
+                    Needs attention
+                  </FilterTab>
+                  <FilterTab
+                    active={assignedView === 'all'}
+                    count={assignedAll.length}
+                    onClick={() => setAssignedView('all')}
+                  >
+                    All active
+                  </FilterTab>
+                  <FilterTab
+                    active={assignedView === 'watching'}
+                    count={watching.length}
+                    onClick={() => setAssignedView('watching')}
+                  >
+                    Watching
+                  </FilterTab>
+                </div>
+              </div>
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search tasks…"
+                className="flex-1 min-w-[140px] text-xs px-3 py-1.5 rounded-md border border-border bg-surface outline-none focus:border-info"
+              />
+            </div>
+          ) : tab === 'nudges' ? (
             <div className="flex items-center gap-2">
               <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <div className="inline-flex items-center gap-0.5 p-0.5 bg-surface-2 rounded-md">
@@ -224,7 +311,22 @@ export default function NotificationsView({ onBack, onOpenTask }) {
       </header>
 
       <div className="mx-auto max-w-3xl px-3 sm:px-6 py-4 sm:py-6">
-        {tab === 'mentions' ? (
+        {tab === 'assigned' ? (
+          <AssignedList
+            tasks={
+              assignedView === 'attention'
+                ? assignedAttention
+                : assignedView === 'watching'
+                  ? watching
+                  : assignedAll
+            }
+            view={assignedView}
+            search={search}
+            loading={tasksLoading}
+            hasLinkedPerson={!!me}
+            onOpenTask={onOpenTask}
+          />
+        ) : tab === 'mentions' ? (
           <MentionsList
             mentions={mentions}
             search={search}
@@ -526,4 +628,153 @@ function formatAbsolute(iso) {
     hour: 'numeric',
     minute: '2-digit',
   })
+}
+
+// ============================================================
+// Assigned (tab #1) — tasks where PIC = me
+// ============================================================
+
+function AssignedList({
+  tasks,
+  view,
+  search,
+  loading,
+  hasLinkedPerson,
+  onOpenTask,
+}) {
+  const filtered = useMemo(() => {
+    if (!search) return tasks
+    const q = search.trim().toLowerCase()
+    return tasks.filter(
+      (t) =>
+        t.title?.toLowerCase().includes(q) ||
+        t.notes?.toLowerCase().includes(q) ||
+        (t.tags ?? []).some((tag) => tag.toLowerCase().includes(q)),
+    )
+  }, [tasks, search])
+
+  if (!hasLinkedPerson) {
+    return (
+      <div className="bg-surface border border-border rounded-xl p-10 text-center text-xs text-text-3">
+        Your account isn&rsquo;t linked to a workspace member yet, so no tasks
+        are assigned to you. Ask an admin to link you under Settings →
+        People.
+      </div>
+    )
+  }
+  if (loading) {
+    return (
+      <div className="bg-surface border border-border rounded-xl p-10 text-center text-xs text-text-3">
+        Loading…
+      </div>
+    )
+  }
+  if (filtered.length === 0) {
+    const copy =
+      search
+        ? 'No tasks match your search.'
+        : view === 'attention'
+          ? 'Inbox zero — nothing overdue or due today on your plate.'
+          : view === 'watching'
+            ? 'You aren’t watching any active tasks right now.'
+            : 'You have no active assignments. Enjoy the quiet.'
+    return (
+      <div className="bg-surface border border-border rounded-xl p-10 text-center">
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-surface-2 text-text-2 mb-3">
+          <i className="ti ti-checks text-2xl" />
+        </div>
+        <div className="text-sm font-medium">All clear</div>
+        <div className="text-xs text-text-2 mt-1">{copy}</div>
+      </div>
+    )
+  }
+  return (
+    <ul className="bg-surface border border-border rounded-xl overflow-hidden divide-y divide-border">
+      {filtered.map((t) => (
+        <AssignedRow key={t.id} task={t} onOpenTask={onOpenTask} />
+      ))}
+    </ul>
+  )
+}
+
+function AssignedRow({ task, onOpenTask }) {
+  const overdue = isOverdue(task.due_date) && task.status !== 'Done'
+  const dueToday = isToday(task.due_date)
+  const displayStatus = overdue ? 'Overdue' : task.status
+
+  function handleClick() {
+    if (onOpenTask) onOpenTask(task.id)
+  }
+
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={handleClick}
+        className="w-full text-left flex items-start gap-3 px-3 sm:px-4 py-3 transition-colors hover:bg-surface-2 active:bg-surface-3"
+      >
+        <span
+          className={`flex-shrink-0 w-7 h-7 rounded-lg inline-flex items-center justify-center ${
+            overdue
+              ? 'bg-danger-bg text-danger-text'
+              : dueToday
+                ? 'bg-warning-bg text-warning-text'
+                : 'bg-info-bg text-info-text'
+          }`}
+        >
+          <i
+            className={`ti ${
+              overdue
+                ? 'ti-alert-triangle'
+                : dueToday
+                  ? 'ti-clock'
+                  : 'ti-circle-dot'
+            } text-sm`}
+          />
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium leading-snug line-clamp-2">
+            {task.title}
+          </div>
+          <div className="text-[11px] text-text-3 mt-1 flex items-center gap-2 flex-wrap">
+            <span
+              className={`px-1.5 py-px rounded-full font-medium ${statusPill(displayStatus)}`}
+            >
+              {displayStatus}
+            </span>
+            {task.due_date && (
+              <span className={overdue ? 'text-danger-text font-medium' : ''}>
+                <i className="ti ti-calendar text-[10px] mr-0.5" />
+                {formatShortDate(task.due_date)}
+              </span>
+            )}
+            {task.priority && task.priority !== 'Medium' && (
+              <span className="text-text-2">{task.priority}</span>
+            )}
+            {(task.subtasks?.length ?? 0) > 0 && (
+              <span className="text-text-3 inline-flex items-center gap-0.5">
+                <i className="ti ti-list-check text-[10px]" />
+                {task.subtasks.filter((s) => s.done).length}/
+                {task.subtasks.length}
+              </span>
+            )}
+          </div>
+        </div>
+        <i className="ti ti-chevron-right text-text-3 text-base flex-shrink-0 mt-2" />
+      </button>
+    </li>
+  )
+}
+
+// Sort comparator for the Assigned tab. Overdue first, then due-soon,
+// then by priority. Tasks with no due date drift to the bottom.
+function compareUrgency(a, b) {
+  const ao = isOverdue(a.due_date) && a.status !== 'Done'
+  const bo = isOverdue(b.due_date) && b.status !== 'Done'
+  if (ao !== bo) return ao ? -1 : 1
+  const ad = a.due_date ? parseDate(a.due_date).getTime() : Infinity
+  const bd = b.due_date ? parseDate(b.due_date).getTime() : Infinity
+  if (ad !== bd) return ad - bd
+  const PR = { High: 0, Medium: 1, Low: 2 }
+  return (PR[a.priority] ?? 99) - (PR[b.priority] ?? 99)
 }

@@ -42,6 +42,7 @@ export default function Sidebar({
   onOpenMeeting,
   onOpenStandup,
   onOpenPulse,
+  onOpenInbox,
   onOpenQuickAdd,
   isPicRole,
 }) {
@@ -108,6 +109,19 @@ export default function Sidebar({
           when RLS already pins data to their own tasks. */}
       <nav className="px-2 pb-3">
         <ul className="space-y-0.5">
+          {/* Inbox sits above Today — primary surface for assigned
+              tasks, mentions and AI nudges. Not a URL-backed view
+              (it's a full-screen overlay in Home), so we wire it via
+              an explicit prop rather than threading through onChange. */}
+          {onOpenInbox && (
+            <li>
+              <NavItem
+                icon="ti-inbox"
+                label="Inbox"
+                onClick={onOpenInbox}
+              />
+            </li>
+          )}
           {VIEWS.filter((v) => (isPicRole ? v.picOk : true)).map((v) => (
             <li key={v.id}>
               <NavItem
