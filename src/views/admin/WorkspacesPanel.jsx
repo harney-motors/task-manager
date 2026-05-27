@@ -8,6 +8,8 @@ import {
   useAdminWorkspaces,
 } from '../../lib/queries'
 import { useToast } from '../../components/Toast'
+import { setBrandColor } from '../../api/workspaces'
+import { useAuth } from '../../auth/AuthProvider'
 
 function fmtDate(iso) {
   if (!iso) return '—'
@@ -55,6 +57,7 @@ export default function WorkspacesPanel() {
               <thead className="bg-surface-2 text-text-2">
                 <tr>
                   <Th>Name</Th>
+                  <Th>Brand</Th>
                   <Th>Created</Th>
                   <Th align="right">Members</Th>
                   <Th align="right">People</Th>
@@ -133,6 +136,9 @@ function WorkspaceRow({ workspace: w, onManageMembers }) {
   return (
     <tr className="border-b border-border last:border-b-0 hover:bg-surface-2">
       <td className="px-4 py-2 font-medium">{w.name}</td>
+      <td className="px-4 py-2">
+        <BrandColorPicker workspace={w} />
+      </td>
       <td className="px-4 py-2 text-text-2">{fmtDate(w.created_at)}</td>
       <td className="px-4 py-2 text-right">{w.member_count}</td>
       <td className="px-4 py-2 text-right">{w.people_count}</td>
@@ -156,6 +162,74 @@ function WorkspaceRow({ workspace: w, onManageMembers }) {
         </button>
       </td>
     </tr>
+  )
+}
+
+// Inline brand colour picker. Native <input type="color"> for the
+// chooser (works everywhere with zero plumbing) plus a small "reset"
+// affordance. Saves on change; mirrors back to AuthProvider so the
+// active workspace's UI re-tints instantly if it matches this row.
+function BrandColorPicker({ workspace: w }) {
+  const showToast = useToast()
+  const { patchWorkspace } = useAuth()
+  const [saving, setSaving] = useState(false)
+  const current = w.brand_color || ''
+  // useAdminWorkspaces returns its own copy of workspaces; we don't
+  // refetch on every keystroke, so optimistically update the parent
+  // workspace state and the local one isn't kept in sync. The reload
+  // path is cheap (small admin table) — we just refresh on next visit.
+
+  async function handleChange(hex) {
+    setSaving(true)
+    try {
+      const updated = await setBrandColor(w.id, hex)
+      patchWorkspace?.(w.id, { brand_color: updated.brand_color })
+      showToast('Brand colour saved')
+    } catch (err) {
+      showToast(err.message ?? 'Could not save brand colour', { type: 'error' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="inline-flex items-center gap-1.5">
+      <label
+        className="inline-flex items-center gap-1.5 cursor-pointer"
+        title={current ? `Brand colour: ${current}` : 'No brand colour set'}
+      >
+        <span
+          className="w-5 h-5 rounded-md border border-border inline-block"
+          style={{
+            background: current
+              ? current
+              : 'repeating-linear-gradient(45deg, var(--color-surface-2) 0 4px, transparent 4px 8px)',
+          }}
+        />
+        <input
+          type="color"
+          value={current || '#6366F1'}
+          onChange={(e) => handleChange(e.target.value)}
+          disabled={saving}
+          className="sr-only"
+        />
+        <span className="text-[11px] text-text-3 font-mono">
+          {current || '—'}
+        </span>
+      </label>
+      {current && (
+        <button
+          type="button"
+          onClick={() => handleChange(null)}
+          disabled={saving}
+          className="text-text-3 hover:text-text disabled:opacity-50"
+          title="Clear brand colour"
+          aria-label="Clear brand colour"
+        >
+          <i className="ti ti-x text-xs" />
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -186,7 +260,10 @@ function WorkspaceCard({ workspace: w, onManageMembers }) {
 
   return (
     <div className="px-3 py-3">
-      <div className="text-sm font-medium truncate">{w.name}</div>
+      <div className="flex items-center gap-2">
+        <div className="text-sm font-medium truncate flex-1">{w.name}</div>
+        <BrandColorPicker workspace={w} />
+      </div>
       {/* Stat chips — counts as compact pills so the row reads at a glance. */}
       <div className="mt-1.5 flex items-center gap-1.5 flex-wrap text-[11px]">
         <span className="px-1.5 py-0.5 rounded bg-surface-2 text-text-2">

@@ -22,6 +22,7 @@ import PushSettings from '../components/PushSettings'
 import NudgeBadge from '../components/NudgeBadge'
 import Skeleton from '../components/Skeleton'
 import ActivityFeed from '../components/ActivityFeed'
+import { setBrandColor } from '../api/workspaces'
 import {
   calendarFeedUrl,
   createCalendarToken,
@@ -928,6 +929,7 @@ function formatRelativeTime(iso) {
 
 function ProfilePanel() {
   const { user, workspace, signOut } = useAuth()
+  const isOwner = workspace?.role === 'owner'
   return (
     <div className="space-y-4">
       <div className="bg-surface border border-border rounded-xl p-5 space-y-5">
@@ -939,6 +941,7 @@ function ProfilePanel() {
           <div className="text-xs text-text-2 mb-1">Workspace</div>
           <div className="text-sm font-medium">{workspace?.name ?? '—'}</div>
         </div>
+        {isOwner && <BrandingSetting />}
         <ThemeSetting />
         <div className="pt-3 border-t border-border">
           <button
@@ -951,6 +954,74 @@ function ProfilePanel() {
         </div>
       </div>
       <PushSettings />
+    </div>
+  )
+}
+
+// Per-workspace brand colour picker — surfaced in Settings → Profile
+// for workspace owners (PICs/editors can't change it). Mirrors the
+// inline picker in the Super admin Workspaces panel.
+function BrandingSetting() {
+  const { workspace, patchWorkspace } = useAuth()
+  const showToast = useToast()
+  const [saving, setSaving] = useState(false)
+  const current = workspace?.brand_color || ''
+
+  async function handleChange(hex) {
+    if (!workspace) return
+    setSaving(true)
+    try {
+      const updated = await setBrandColor(workspace.id, hex)
+      patchWorkspace?.(workspace.id, { brand_color: updated.brand_color })
+      showToast(hex ? 'Brand colour saved' : 'Brand colour cleared')
+    } catch (err) {
+      showToast(err.message ?? 'Could not save', { type: 'error' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="pt-3 border-t border-border">
+      <div className="text-xs text-text-2 mb-2">Brand colour</div>
+      <p className="text-[11px] text-text-3 mb-2 leading-relaxed">
+        Tints primary actions (New task, focus rings, key chips) across the
+        workspace. Leave unset for the default indigo.
+      </p>
+      <div className="flex items-center gap-2 flex-wrap">
+        <label
+          className="inline-flex items-center gap-2 cursor-pointer text-xs"
+          title={current ? `Current: ${current}` : 'Pick a brand colour'}
+        >
+          <span
+            className="w-8 h-8 rounded-md border border-border inline-block"
+            style={{
+              background: current
+                ? current
+                : 'repeating-linear-gradient(45deg, var(--color-surface-2) 0 4px, transparent 4px 8px)',
+            }}
+          />
+          <input
+            type="color"
+            value={current || '#6366F1'}
+            onChange={(e) => handleChange(e.target.value)}
+            disabled={saving}
+            className="sr-only"
+          />
+          <span className="font-mono text-text-2">{current || 'unset'}</span>
+        </label>
+        {current && (
+          <button
+            type="button"
+            onClick={() => handleChange(null)}
+            disabled={saving}
+            className="text-xs text-text-3 hover:text-text px-2 py-1 rounded border border-border inline-flex items-center gap-1"
+          >
+            <i className="ti ti-restore text-xs" />
+            Reset
+          </button>
+        )}
+      </div>
     </div>
   )
 }

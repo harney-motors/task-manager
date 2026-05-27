@@ -43,7 +43,13 @@
      softer than the previous indigo-600), and dark "text on
      coloured bg" pulled back from near-black to the 700-range so
      pills read as soft tags instead of slab-dark labels. */
-  --color-info: #6366F1;        /* indigo-500 */
+  /* Primary accent — wraps `var(--brand-color)` so a workspace's
+     custom hex (set in App.jsx on workspace switch) flows through
+     every bg-info / text-info / border-info utility. Falls back to
+     indigo-500 when no brand colour is set. The companion bg/text
+     pastel tints stay fixed indigo for now — only the strong primary
+     swings with branding. */
+  --color-info: var(--brand-color, #6366F1);    /* indigo-500 default */
   --color-info-bg: #EEF2FF;     /* indigo-50  */
   --color-info-text: #4338CA;   /* indigo-700 */
   --color-success: #10B981;     /* emerald-500 */
@@ -137,7 +143,9 @@
   /* Dark mode pastel pass — lifted backgrounds out of the crushed
      near-black ranges and softened text to match. Same hues, lower
      saturation, higher value. Still warm-dark, just airier. */
-  --color-info: #A5B4FC;        /* indigo-300 — pastel lavender */
+  /* Dark-mode primary — same brand-color fallthrough as the light
+     mode, default lifted to a pastel lavender for the unbranded path. */
+  --color-info: var(--brand-color, #A5B4FC);  /* indigo-300 default */
   --color-info-bg: #312E81;     /* indigo-900 — softer than indigo-950 */
   --color-info-text: #E0E7FF;   /* indigo-100 */
   --color-success: #6EE7B7;     /* emerald-300 — pastel mint */

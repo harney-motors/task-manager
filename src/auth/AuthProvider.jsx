@@ -96,6 +96,16 @@ export function AuthProvider({ children }) {
 
   const signOut = () => supabase.auth.signOut()
 
+  // Patch a workspace's fields locally without re-fetching. Used by
+  // mutation flows (e.g. brand colour update) that already have the
+  // updated row from Supabase and just need to broadcast the change
+  // so the UI re-paints.
+  function patchWorkspace(id, fields) {
+    setWorkspaces((prev) =>
+      prev.map((w) => (w.id === id ? { ...w, ...fields } : w)),
+    )
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -106,6 +116,7 @@ export function AuthProvider({ children }) {
         activeWorkspaceId,
         setActiveWorkspace,
         workspaceLoading,
+        patchWorkspace,
         signOut,
       }}
     >
