@@ -75,6 +75,22 @@ export default async (req) => {
   } catch {
     return jsonError(400, 'Invalid JSON body')
   }
+
+  // `test_to_self: true` short-circuits the normal entry-driven flow
+  // and emails the caller with a sample mention. Used by the
+  // "Send test email" button in Settings so users can verify their
+  // delivery setup (SMTP, opt-out toggle, spam filtering) without
+  // having to coordinate with another teammate.
+  if (body?.test_to_self === true) {
+    const workspaceId = String(body?.workspace_id ?? '').trim()
+    if (!workspaceId) return jsonError(400, 'workspace_id is required')
+    return handleSelfTest({
+      caller,
+      userClient,
+      workspaceId,
+    })
+  }
+
   const entryId = String(body?.entry_id ?? '').trim()
   if (!entryId) return jsonError(400, 'entry_id is required')
 
@@ -264,6 +280,105 @@ export default async (req) => {
     status: 200,
     headers: { 'content-type': 'application/json' },
   })
+}
+
+// ============================================================
+// Self-test path — fires a sample mention email to the caller
+// ============================================================
+//
+// Used by Settings → "Send test email" so users can verify their
+// own mention-email delivery without coordinating with a teammate.
+// The body is fabricated, but the template, SMTP transport, and
+// recipient lookup are exactly what the real send uses, so a
+// successful test == a real mention would also arrive.
+async function handleSelfTest({ caller, userClient, workspaceId }) {
+  console.log(
+    `[notify-mention] SELF-TEST caller=${caller.id} workspace=${workspaceId}`,
+  )
+
+  // Membership check — caller must belong to the workspace they're
+  // claiming. Otherwise an outside user could spam the function.
+  const { data: membership } = await userClient
+    .from('workspace_members')
+    .select('workspace_id, email_mentions_enabled')
+    .eq('user_id', caller.id)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle()
+  if (!membership) {
+    console.warn('[notify-mention] self-test: caller not in workspace')
+    return jsonError(403, 'Not a member of that workspace')
+  }
+
+  // Workspace metadata for the template (name + brand color).
+  const { data: workspace } = await userClient
+    .from('workspaces')
+    .select('id, name, brand_color')
+    .eq('id', workspaceId)
+    .maybeSingle()
+  if (!workspace) return jsonError(404, 'Workspace not found')
+
+  // Caller's display name — same lookup path the real flow uses.
+  const { data: callerPerson } = await userClient
+    .from('people')
+    .select('name')
+    .eq('workspace_id', workspaceId)
+    .eq('user_id', caller.id)
+    .maybeSingle()
+  const recipientName =
+    callerPerson?.name ??
+    caller.user_metadata?.full_name ??
+    caller.email?.split('@')[0] ??
+    'there'
+
+  const recipientEmail = caller.email
+  if (!recipientEmail) {
+    console.warn('[notify-mention] self-test: no email on auth.users record')
+    return jsonError(500, 'No email on your account')
+  }
+
+  const firstName = recipientName.split(' ')[0]
+  const { subject, html, text } = renderMentionEmail({
+    recipientName,
+    mentionerName: 'Tickd (test)',
+    taskTitle: 'Sample task — try the BYD Shark stock check',
+    commentExcerpt: `Hey @${firstName} — this is a test message from your own Tickd workspace. If you’re reading this, your mention email delivery is working end-to-end. You can turn these off any time from Settings → Profile.`,
+    workspaceName: workspace.name,
+    workspaceBrandColor: workspace.brand_color,
+    taskUrl: `${APP_URL.replace(/\/$/, '')}/`,
+    appUrl: APP_URL,
+    unsubscribeUrl: `${APP_URL.replace(/\/$/, '')}/?view=today#email-prefs`,
+  })
+
+  const transporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_PORT === 465,
+    auth: { user: SMTP_USER, pass: SMTP_PASS },
+  })
+
+  try {
+    await transporter.sendMail({
+      from: SMTP_FROM,
+      to: recipientEmail,
+      subject,
+      html,
+      text,
+    })
+    console.log(`[notify-mention] self-test sent to ${recipientEmail}`)
+    return new Response(
+      JSON.stringify({ sent: 1, to: recipientEmail }),
+      {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      },
+    )
+  } catch (err) {
+    console.error(
+      `[notify-mention] self-test SMTP send FAILED to ${recipientEmail}:`,
+      err?.message ?? err,
+    )
+    return jsonError(500, `SMTP send failed: ${err?.message ?? err}`)
+  }
 }
 
 function jsonError(status, message) {

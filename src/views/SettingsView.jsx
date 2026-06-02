@@ -28,6 +28,7 @@ import {
   setEmailMentionPref,
 } from '../api/workspaces'
 import { renderMentionEmail } from '../lib/mentionEmailTemplate'
+import { sendTestMentionEmail } from '../api/notifyMention'
 import {
   calendarFeedUrl,
   createCalendarToken,
@@ -1009,6 +1010,20 @@ function MentionEmailSetting() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
+  const [sendingTest, setSendingTest] = useState(false)
+
+  async function handleSendTest() {
+    if (!workspace?.id || sendingTest) return
+    setSendingTest(true)
+    try {
+      const res = await sendTestMentionEmail(workspace.id)
+      showToast(`Test sent to ${res?.to ?? user?.email ?? 'your inbox'}`)
+    } catch (err) {
+      showToast(err?.message ?? 'Test send failed', { type: 'error' })
+    } finally {
+      setSendingTest(false)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -1089,16 +1104,30 @@ function MentionEmailSetting() {
           />
         </button>
       </div>
-      <button
-        type="button"
-        onClick={() => setShowPreview((x) => !x)}
-        className="mt-2 text-[11px] text-info hover:underline inline-flex items-center gap-1"
-      >
-        <i
-          className={`ti ${showPreview ? 'ti-eye-off' : 'ti-eye'} text-xs`}
-        />
-        {showPreview ? 'Hide preview' : 'Preview what they look like'}
-      </button>
+      <div className="mt-2 flex items-center gap-3 flex-wrap">
+        <button
+          type="button"
+          onClick={() => setShowPreview((x) => !x)}
+          className="text-[11px] text-info hover:underline inline-flex items-center gap-1"
+        >
+          <i
+            className={`ti ${showPreview ? 'ti-eye-off' : 'ti-eye'} text-xs`}
+          />
+          {showPreview ? 'Hide preview' : 'Preview what they look like'}
+        </button>
+        <button
+          type="button"
+          onClick={handleSendTest}
+          disabled={sendingTest || !workspace?.id}
+          className="text-[11px] text-info hover:underline inline-flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Send a sample mention email to your own address. Useful for verifying SMTP / delivery / spam filters."
+        >
+          <i
+            className={`ti ${sendingTest ? 'ti-loader-2 animate-spin' : 'ti-send'} text-xs`}
+          />
+          {sendingTest ? 'Sending…' : 'Send test email to me'}
+        </button>
+      </div>
       {showPreview && (
         <div className="mt-3 border border-border rounded-lg overflow-hidden">
           <div className="px-3 py-2 bg-surface-2 border-b border-border text-[10px] text-text-3 flex items-center justify-between gap-2 flex-wrap">
