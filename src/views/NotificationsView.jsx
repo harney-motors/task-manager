@@ -27,9 +27,11 @@ const MENTIONS_LAST_SEEN_KEY = 'tickd:mentions-last-seen'
 //   2. Mentions — journal entries / comments that tagged me
 //   3. Nudges   — AI-generated suggestions ("X is overdue", etc.)
 //
-// Same sticky-header pattern as Settings/SuperAdmin/Pulse. `onBack`
-// returns to wherever the user came from (Home's view state).
-export default function NotificationsView({ onBack, onOpenTask }) {
+// `embedded` mode: when the inbox is rendered as a regular view
+// inside Home's main content area (rather than a full-screen
+// overlay), we drop the back button + the page-tall min-height +
+// the sticky bg backdrop. Sidebar still owns navigation in that case.
+export default function NotificationsView({ onBack, onOpenTask, embedded = false }) {
   const { user } = useAuth()
   const { data: people = [] } = usePeople()
   const me = useMemo(
@@ -163,20 +165,32 @@ export default function NotificationsView({ onBack, onOpenTask }) {
   }, [nudges])
 
   return (
-    <div className="min-h-screen bg-bg text-text font-sans">
+    <div className={embedded ? 'text-text font-sans' : 'min-h-screen bg-bg text-text font-sans'}>
       <header
-        className="sticky top-0 z-30 bg-bg/85 backdrop-blur-xl border-b border-border/60"
-        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+        className={
+          embedded
+            ? 'mb-3'
+            : 'sticky top-0 z-30 bg-bg/85 backdrop-blur-xl border-b border-border/60'
+        }
+        style={embedded ? undefined : { paddingTop: 'env(safe-area-inset-top)' }}
       >
-        <div className="mx-auto max-w-3xl px-3 sm:px-6 py-2 sm:py-3">
+        <div
+          className={
+            embedded
+              ? ''
+              : 'mx-auto max-w-3xl px-3 sm:px-6 py-2 sm:py-3'
+          }
+        >
           <div className="flex items-center gap-2 sm:gap-3 mb-2">
-            <button
-              onClick={onBack}
-              className="w-9 h-9 rounded-full inline-flex items-center justify-center text-text-2 hover:text-text hover:bg-surface-2 active:bg-surface-3 transition-colors flex-shrink-0"
-              aria-label="Back"
-            >
-              <i className="ti ti-arrow-left text-base" />
-            </button>
+            {!embedded && (
+              <button
+                onClick={onBack}
+                className="w-9 h-9 rounded-full inline-flex items-center justify-center text-text-2 hover:text-text hover:bg-surface-2 active:bg-surface-3 transition-colors flex-shrink-0"
+                aria-label="Back"
+              >
+                <i className="ti ti-arrow-left text-base" />
+              </button>
+            )}
             <i className="ti ti-inbox text-info text-lg flex-shrink-0" />
             <h1 className="text-base sm:text-xl font-medium tracking-tight flex-1 min-w-0">
               Inbox
@@ -310,7 +324,7 @@ export default function NotificationsView({ onBack, onOpenTask }) {
         </div>
       </header>
 
-      <div className="mx-auto max-w-3xl px-3 sm:px-6 py-4 sm:py-6">
+      <div className={embedded ? '' : 'mx-auto max-w-3xl px-3 sm:px-6 py-4 sm:py-6'}>
         {tab === 'assigned' ? (
           <AssignedList
             tasks={

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   useCreateDoc,
+  useCreateTask,
   useDeleteDoc,
   useDoc,
   useDocs,
@@ -8,19 +9,23 @@ import {
 } from '../lib/queries'
 import { useAuth } from '../auth/AuthProvider'
 import { useToast } from '../components/Toast'
+import { useDictation } from '../lib/useDictation'
 import { formatTimeAgo } from '../lib/dates'
-import { renderMarkdown } from '../lib/markdown.jsx'
 import Skeleton from '../components/Skeleton'
 
-// DocsView — flat list of markdown documents in the active workspace,
-// with a Notion-/Linear-style editor.
+// DocsView — flat list of markdown docs in the active workspace.
 //
-// Layout:
-//   Desktop: 280px sidebar with the doc list + a generous editor pane.
-//   Mobile:  two screens — list, or editor (full screen).
+// Editor model: a single writing surface (no preview / no split).
+// The textarea holds markdown; a sticky toolbar above it provides
+// rich-feeling controls (bold/italic/H/list/etc), plus two custom
+// commands:
+//   • Make task — turns the selected text (or current line) into a
+//     new task, with the doc title as the source.
+//   • Voice    — live transcript via the Web Speech API; inserts
+//     finalized speech chunks at the cursor.
 //
-// Editor strategy: sans-serif body (not mono), live preview side-by-
-// side or toggled. Debounced auto-save at 600ms with Cmd+S to flush.
+// Storage: markdown text in `docs.body`. Output stays plain markdown
+// so existing docs render unchanged.
 export default function DocsView() {
   const { workspace } = useAuth()
   const { data: docs = [], isLoading, error } = useDocs()
@@ -28,23 +33,16 @@ export default function DocsView() {
   const showToast = useToast()
   const [selectedId, setSelectedId] = useState(null)
   const [search, setSearch] = useState('')
-  // RLS gates writes to editor + owner roles; PICs are read-only.
   const canWrite = workspace?.role === 'editor' || workspace?.role === 'owner'
 
-  // Detect the "table doesn't exist" error PostgREST returns when the
-  // phase-21 migration hasn't been run yet. Show a setup guide.
   const needsMigration = !!(
     error &&
     (String(error?.message ?? '').includes("table 'public.docs'") ||
       String(error?.code ?? '') === 'PGRST205' ||
       String(error?.code ?? '') === '42P01')
   )
-  if (needsMigration) {
-    return <DocsSetupGuide />
-  }
+  if (needsMigration) return <DocsSetupGuide />
 
-  // Auto-select the first doc on load. Triggers once per workspace
-  // and respects the user's later manual selection.
   const autoSelectedRef = useRef(false)
   useEffect(() => {
     if (autoSelectedRef.current) return
@@ -53,13 +51,10 @@ export default function DocsView() {
       autoSelectedRef.current = true
       return
     }
-    if (docs.length > 0) {
-      setSelectedId(docs[0].id)
-    }
+    if (docs.length > 0) setSelectedId(docs[0].id)
     autoSelectedRef.current = true
   }, [docs, isLoading, selectedId])
 
-  // Restart auto-selection logic when switching workspaces.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     autoSelectedRef.current = false
@@ -89,7 +84,7 @@ export default function DocsView() {
   }
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 lg:min-h-[calc(100vh-9rem)]">
+    <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 lg:min-h-[calc(100vh-6rem)]">
       <DocList
         docs={filtered}
         totalCount={docs.length}
@@ -110,14 +105,18 @@ export default function DocsView() {
           canWrite={canWrite}
         />
       ) : (
-        <DocEmpty onCreate={handleCreate} canWrite={canWrite} hasDocs={docs.length > 0} />
+        <DocEmpty
+          onCreate={handleCreate}
+          canWrite={canWrite}
+          hasDocs={docs.length > 0}
+        />
       )}
     </div>
   )
 }
 
 // ============================================================
-// Doc list — left sidebar on desktop, full-width screen on mobile
+// Doc list
 // ============================================================
 
 function DocList({
@@ -138,8 +137,6 @@ function DocList({
         hideOnMobile ? 'hidden lg:flex' : ''
       }`}
     >
-      {/* Header: doc count + prominent New button.  Bigger, friendlier
-          than the old "DOCS" eyebrow + plus icon. */}
       <div className="px-4 pt-4 pb-3">
         <div className="flex items-baseline justify-between mb-3">
           <h2 className="text-base font-semibold tracking-tight">Docs</h2>
@@ -156,7 +153,6 @@ function DocList({
             New doc
           </button>
         )}
-        {/* Search — soft pill, sits between the header and the list. */}
         <div className="relative mt-3">
           <i className="ti ti-search absolute left-3 top-1/2 -translate-y-1/2 text-text-3 text-sm pointer-events-none" />
           <input
@@ -168,8 +164,6 @@ function DocList({
           />
         </div>
       </div>
-
-      {/* List body */}
       <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-0.5 max-h-[60vh] lg:max-h-none">
         {isLoading ? (
           <div className="p-2">
@@ -199,7 +193,6 @@ function DocList({
 }
 
 function DocListRow({ doc, selected, onClick }) {
-  // Body preview — first non-empty line, stripped of markdown markers.
   const preview = useMemo(() => {
     if (!doc.body) return ''
     const firstLine = doc.body
@@ -265,8 +258,7 @@ function DocsSetupGuide() {
           <p className="text-sm text-text-2 mt-1.5 leading-relaxed">
             The <code>docs</code> table hasn&rsquo;t been created in this
             Supabase project yet. Run the migration once and the Docs view
-            will be ready — your existing tasks, people, and history are
-            unaffected.
+            will be ready.
           </p>
           <ol className="mt-3 text-sm text-text-2 space-y-1.5 list-decimal pl-4 leading-relaxed">
             <li>Open your Supabase project &rarr; SQL Editor.</li>
@@ -287,7 +279,7 @@ function DocsSetupGuide() {
 }
 
 // ============================================================
-// Empty state — shown when no doc is selected
+// Empty state
 // ============================================================
 
 function DocEmpty({ onCreate, canWrite, hasDocs }) {
@@ -302,8 +294,8 @@ function DocEmpty({ onCreate, canWrite, hasDocs }) {
         </h2>
         <p className="text-sm text-text-2 mt-1.5 leading-relaxed">
           {canWrite
-            ? 'Capture meeting summaries, decisions, processes — anything that would otherwise live in a scattered email thread. Markdown supported.'
-            : 'Your team’s shared markdown docs land here. Pick one from the list to read; ask an admin if you need to create or edit one.'}
+            ? 'Capture meeting summaries, decisions, processes — anything that would otherwise live in a scattered email thread.'
+            : 'Your team’s shared docs land here. Pick one from the list to read.'}
         </p>
         {canWrite && (
           <button
@@ -320,36 +312,46 @@ function DocEmpty({ onCreate, canWrite, hasDocs }) {
 }
 
 // ============================================================
-// Editor — title + body + live preview
+// Editor — single writing surface with a markup toolbar
 // ============================================================
 
 function DocEditor({ id, onBack, onDeleted, canWrite }) {
   const { data: doc, isLoading } = useDoc(id)
   const update = useUpdateDoc()
   const remove = useDeleteDoc()
+  const createTask = useCreateTask()
   const showToast = useToast()
+  const textareaRef = useRef(null)
 
-  // Local mirror of title/body so typing isn't latency-bound.
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
-  // Default mode: 'split' for writers, 'preview' for read-only viewers.
-  const [previewMode, setPreviewMode] = useState(canWrite ? 'split' : 'preview')
   const [saveTone, setSaveTone] = useState('idle')
   const [deleting, setDeleting] = useState(false)
 
-  // Reset locals when the doc id changes.
+  // Guard: don't run auto-save until the local state has been
+  // reconciled with the doc on first load. Without this, the auto-
+  // save effect fires on the first render (local title still '' vs
+  // doc.title 'Untitled') and the badge gets stuck on "saving" while
+  // the cleanup phase pre-empts the actual save. See bug: clicking a
+  // new doc → spinner spins forever.
+  const userDirtyRef = useRef(false)
+
+  // Reset locals when the doc id (or its server-side values) change.
   useEffect(() => {
     if (doc) {
       setTitle(doc.title ?? '')
       setBody(doc.body ?? '')
       setSaveTone('idle')
+      userDirtyRef.current = false
     }
   }, [doc?.id, doc?.title, doc?.body])
 
-  // Debounced auto-save.
+  // Debounced auto-save — only fires when the user has actually
+  // touched the inputs.
   useEffect(() => {
     if (!doc) return
     if (!canWrite) return
+    if (!userDirtyRef.current) return
     if (title === (doc.title ?? '') && body === (doc.body ?? '')) return
     setSaveTone('saving')
     const handle = setTimeout(() => {
@@ -368,7 +370,7 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, body, doc?.id])
 
-  // Cmd+S / Ctrl+S — force-flush the save.
+  // Cmd+S — force-flush.
   useEffect(() => {
     if (!canWrite) return
     function onKey(e) {
@@ -394,6 +396,18 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc?.id, title, body, canWrite])
 
+  function markUserDirty() {
+    userDirtyRef.current = true
+  }
+  function handleTitleChange(v) {
+    markUserDirty()
+    setTitle(v)
+  }
+  function handleBodyChange(v) {
+    markUserDirty()
+    setBody(v)
+  }
+
   function handleDelete() {
     if (!doc) return
     if (
@@ -408,9 +422,144 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
         showToast('Doc deleted')
         onDeleted?.()
       },
+      onError: (err) => {
+        showToast(err?.message ?? 'Could not delete', { type: 'error' })
+      },
       onSettled: () => setDeleting(false),
     })
   }
+
+  // ====== Markup helpers — operate on the textarea selection ======
+  // All assume the textarea ref is live. We call after a microtask so
+  // React's onChange has applied; otherwise the cursor restore lands
+  // on stale content.
+  function getSel() {
+    const el = textareaRef.current
+    if (!el) return null
+    return { el, start: el.selectionStart ?? 0, end: el.selectionEnd ?? 0 }
+  }
+  function applyAt(start, end, replacement, nextSelStart, nextSelEnd) {
+    const next = body.slice(0, start) + replacement + body.slice(end)
+    handleBodyChange(next)
+    requestAnimationFrame(() => {
+      const el = textareaRef.current
+      if (!el) return
+      el.focus()
+      el.setSelectionRange(
+        nextSelStart ?? start + replacement.length,
+        nextSelEnd ?? start + replacement.length,
+      )
+    })
+  }
+  function wrap(prefix, suffix = prefix, placeholder = 'text') {
+    const sel = getSel()
+    if (!sel) return
+    const { start, end } = sel
+    const inner = body.slice(start, end) || placeholder
+    const replacement = `${prefix}${inner}${suffix}`
+    applyAt(
+      start,
+      end,
+      replacement,
+      start + prefix.length,
+      start + prefix.length + inner.length,
+    )
+  }
+  function prefixLine(marker) {
+    const sel = getSel()
+    if (!sel) return
+    const { start, end } = sel
+    // Expand to whole lines, then prefix each.
+    const lineStart = body.lastIndexOf('\n', start - 1) + 1
+    const lineEnd = body.indexOf('\n', end)
+    const blockEnd = lineEnd === -1 ? body.length : lineEnd
+    const block = body.slice(lineStart, blockEnd)
+    const prefixed = block
+      .split('\n')
+      .map((l) => (l.startsWith(marker) ? l : marker + l))
+      .join('\n')
+    applyAt(lineStart, blockEnd, prefixed)
+  }
+  function insertLink() {
+    const url = prompt('Link URL', 'https://')
+    if (!url) return
+    const sel = getSel()
+    if (!sel) return
+    const { start, end } = sel
+    const label = body.slice(start, end) || 'link text'
+    const replacement = `[${label}](${url})`
+    applyAt(
+      start,
+      end,
+      replacement,
+      start + 1,
+      start + 1 + label.length,
+    )
+  }
+  function insertHr() {
+    const sel = getSel()
+    if (!sel) return
+    const { start } = sel
+    const before = body.slice(0, start)
+    const needsLead = before.length > 0 && !before.endsWith('\n')
+    const insert = (needsLead ? '\n' : '') + '\n---\n\n'
+    applyAt(start, start, insert)
+  }
+
+  // ====== Make selected text into a task ======
+  function handleMakeTask() {
+    const sel = getSel()
+    if (!sel) return
+    const { start, end } = sel
+    let text = body.slice(start, end).trim()
+    let lineStart = start
+    let lineEnd = end
+    if (!text) {
+      // Empty selection — use the current line.
+      lineStart = body.lastIndexOf('\n', start - 1) + 1
+      const next = body.indexOf('\n', start)
+      lineEnd = next === -1 ? body.length : next
+      text = body.slice(lineStart, lineEnd).trim().replace(/^[-*+]\s+/, '')
+    }
+    if (!text) {
+      showToast('Nothing to make a task from', { type: 'error' })
+      return
+    }
+    createTask.mutate(
+      {
+        title: text.slice(0, 200),
+        source: `Doc: ${doc?.title?.trim() || 'Untitled'}`,
+      },
+      {
+        onSuccess: () => {
+          // Convert the selected line in-place to a checked-off
+          // markdown task so the doc reflects that it's now a task.
+          const inner = body.slice(lineStart, lineEnd)
+          const replaced = inner.startsWith('- [ ] ')
+            ? inner
+            : `- [ ] ${inner.replace(/^[-*+]\s+/, '')}`
+          applyAt(lineStart, lineEnd, replaced)
+          showToast('Task created from selection')
+        },
+      },
+    )
+  }
+
+  // ====== Voice dictation ======
+  // Inserts finalized speech at the current cursor position.
+  const dict = useDictation({
+    onResult: (chunk) => {
+      const trimmed = chunk.trim()
+      if (!trimmed) return
+      const sel = getSel()
+      if (!sel) return
+      const { start } = sel
+      const before = body.slice(0, start)
+      const needsSpace = before.length > 0 && !/\s$/.test(before)
+      const insert = (needsSpace ? ' ' : '') + trimmed
+      applyAt(start, start, insert)
+    },
+  })
 
   if (isLoading || !doc) {
     return (
@@ -425,9 +574,7 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
 
   return (
     <article className="flex-1 bg-surface border border-border rounded-2xl flex flex-col min-w-0 overflow-hidden">
-      {/* Toolbar — back, save state, mode toggle, delete. Sits at the
-          top with a subtle bottom border so the editor body feels like
-          a page underneath. */}
+      {/* Top bar — back / title breadcrumb / save state / delete */}
       <div className="px-4 sm:px-5 h-12 border-b border-border flex items-center gap-2 flex-shrink-0">
         <button
           onClick={onBack}
@@ -447,29 +594,6 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
         </div>
         <SaveBadge tone={saveTone} />
         {canWrite && (
-          <div className="inline-flex p-0.5 bg-surface-2 rounded-md">
-            <ModeButton
-              active={previewMode === 'edit'}
-              icon="ti-pencil"
-              label="Write"
-              onClick={() => setPreviewMode('edit')}
-            />
-            <ModeButton
-              active={previewMode === 'split'}
-              icon="ti-layout-columns"
-              label="Split"
-              onClick={() => setPreviewMode('split')}
-              hideOnMobile
-            />
-            <ModeButton
-              active={previewMode === 'preview'}
-              icon="ti-eye"
-              label="Preview"
-              onClick={() => setPreviewMode('preview')}
-            />
-          </div>
-        )}
-        {canWrite && (
           <button
             onClick={handleDelete}
             disabled={deleting}
@@ -477,103 +601,151 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
             aria-label="Delete doc"
             title="Delete doc"
           >
-            <i className={`ti ${deleting ? 'ti-loader-2 animate-spin' : 'ti-trash'} text-base`} />
+            <i
+              className={`ti ${deleting ? 'ti-loader-2 animate-spin' : 'ti-trash'} text-base`}
+            />
           </button>
         )}
       </div>
 
-      {/* Body — title (big), then editor / preview. The body sits on
-          surface, no inner borders, plenty of horizontal padding so it
-          reads like a document page. */}
-      <div
-        className={`flex-1 min-h-0 flex ${
-          previewMode === 'split' ? 'flex-col lg:flex-row' : 'flex-col'
-        }`}
-      >
-        {/* Editor pane */}
-        {previewMode !== 'preview' && (
-          <div
-            className={`flex flex-col overflow-y-auto ${
-              previewMode === 'split'
-                ? 'lg:flex-1 lg:border-r lg:border-border min-h-[300px] lg:min-h-0'
-                : 'flex-1'
-            }`}
-          >
-            <div className="px-6 sm:px-10 pt-8 pb-6 max-w-3xl w-full mx-auto">
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Untitled"
-                disabled={!canWrite}
-                className="w-full text-2xl sm:text-3xl font-semibold tracking-tight bg-transparent outline-none placeholder:text-text-3 disabled:opacity-80"
-              />
-              <textarea
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                placeholder="Start writing… markdown supported (# heading, **bold**, *italic*, `code`, [link](https://…), - list)"
-                spellCheck="true"
-                disabled={!canWrite}
-                className="w-full mt-5 text-base leading-relaxed bg-transparent outline-none resize-none placeholder:text-text-3 disabled:opacity-80 min-h-[55vh]"
-                style={{ fontFamily: 'inherit' }}
-              />
-            </div>
-          </div>
-        )}
-        {/* Preview pane */}
-        {previewMode !== 'edit' && (
-          <div
-            className={`overflow-y-auto ${
-              previewMode === 'split'
-                ? 'lg:flex-1 border-t lg:border-t-0 border-border bg-surface-2/30'
-                : 'flex-1'
-            }`}
-          >
-            <div className="px-6 sm:px-10 pt-8 pb-6 max-w-3xl w-full mx-auto">
-              {/* Title mirror — preview shows the live title so the
-                  user sees what the document looks like as a whole. */}
-              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
-                {title?.trim() || 'Untitled'}
-              </h1>
-              <div className="mt-5">
-                {body ? (
-                  <div className="prose-tickd max-w-none">
-                    {renderMarkdown(body)}
-                  </div>
-                ) : (
-                  <div className="text-sm text-text-3 italic">
-                    Preview will appear here as you type.
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+      {/* Markup toolbar — sticky just under the top bar so it stays
+          visible while you scroll a long doc. Only rendered when the
+          user can write. */}
+      {canWrite && (
+        <Toolbar
+          onBold={() => wrap('**', '**', 'bold')}
+          onItalic={() => wrap('*', '*', 'italic')}
+          onH1={() => prefixLine('# ')}
+          onH2={() => prefixLine('## ')}
+          onBullet={() => prefixLine('- ')}
+          onNumbered={() => prefixLine('1. ')}
+          onCheck={() => prefixLine('- [ ] ')}
+          onCode={() => wrap('`', '`', 'code')}
+          onQuote={() => prefixLine('> ')}
+          onLink={insertLink}
+          onHr={insertHr}
+          onMakeTask={handleMakeTask}
+          dict={dict}
+        />
+      )}
+
+      {/* The writing surface */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="px-6 sm:px-10 lg:px-14 pt-8 pb-10 max-w-3xl w-full mx-auto">
+          <input
+            value={title}
+            onChange={(e) => handleTitleChange(e.target.value)}
+            placeholder="Untitled"
+            disabled={!canWrite}
+            className="w-full text-2xl sm:text-3xl font-semibold tracking-tight bg-transparent outline-none placeholder:text-text-3 disabled:opacity-80"
+          />
+          <textarea
+            ref={textareaRef}
+            value={body}
+            onChange={(e) => handleBodyChange(e.target.value)}
+            placeholder="Start writing… markdown supported (# heading, **bold**, *italic*, `code`, [link](https://…), - list)"
+            spellCheck="true"
+            disabled={!canWrite}
+            className="w-full mt-5 text-base leading-relaxed bg-transparent outline-none resize-none placeholder:text-text-3 disabled:opacity-80 min-h-[55vh]"
+            style={{ fontFamily: 'inherit' }}
+          />
+        </div>
       </div>
     </article>
   )
 }
 
-function ModeButton({ active, icon, label, onClick, hideOnMobile = false }) {
+// ============================================================
+// Toolbar
+// ============================================================
+
+function Toolbar({
+  onBold,
+  onItalic,
+  onH1,
+  onH2,
+  onBullet,
+  onNumbered,
+  onCheck,
+  onCode,
+  onQuote,
+  onLink,
+  onHr,
+  onMakeTask,
+  dict,
+}) {
+  return (
+    <div className="sticky top-0 z-10 bg-surface border-b border-border flex items-center gap-0.5 px-2 sm:px-3 py-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <ToolButton icon="ti-bold" onClick={onBold} title="Bold (wraps **…**)" />
+      <ToolButton icon="ti-italic" onClick={onItalic} title="Italic (wraps *…*)" />
+      <ToolButton icon="ti-code" onClick={onCode} title="Inline code" />
+      <Divider />
+      <ToolButton icon="ti-h-1" onClick={onH1} title="Heading 1" />
+      <ToolButton icon="ti-h-2" onClick={onH2} title="Heading 2" />
+      <ToolButton icon="ti-quote" onClick={onQuote} title="Blockquote" />
+      <ToolButton icon="ti-minus" onClick={onHr} title="Divider" />
+      <Divider />
+      <ToolButton icon="ti-list" onClick={onBullet} title="Bullet list" />
+      <ToolButton
+        icon="ti-list-numbers"
+        onClick={onNumbered}
+        title="Numbered list"
+      />
+      <ToolButton
+        icon="ti-checkbox"
+        onClick={onCheck}
+        title="Task checklist"
+      />
+      <ToolButton icon="ti-link" onClick={onLink} title="Insert link" />
+      <Divider />
+      <ToolButton
+        icon="ti-subtask"
+        onClick={onMakeTask}
+        title="Make a task from the selected line"
+        label="Make task"
+      />
+      {dict?.supported && (
+        <ToolButton
+          icon={dict.listening ? 'ti-microphone-filled' : 'ti-microphone'}
+          onClick={() => (dict.listening ? dict.stop() : dict.start())}
+          title={
+            dict.listening
+              ? 'Stop dictating'
+              : 'Dictate — words appear at the cursor'
+          }
+          label={dict.listening ? 'Listening…' : 'Voice'}
+          active={dict.listening}
+        />
+      )}
+    </div>
+  )
+}
+
+function ToolButton({ icon, onClick, title, label, active = false }) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1 transition-colors ${
-        hideOnMobile ? 'hidden lg:inline-flex' : ''
-      } ${
-        active
-          ? 'bg-surface text-text font-medium shadow-sm'
-          : 'text-text-2 hover:text-text'
+      title={title}
+      aria-label={title}
+      className={`inline-flex items-center gap-1.5 h-8 px-2 rounded-md text-text-2 hover:text-text hover:bg-surface-2 active:bg-surface-3 transition-colors flex-shrink-0 ${
+        active ? 'bg-danger-bg/40 text-danger-text animate-pulse' : ''
       }`}
-      title={label}
-      aria-label={label}
     >
-      <i className={`ti ${icon} text-sm`} />
-      <span className="hidden xl:inline">{label}</span>
+      <i className={`ti ${icon} text-base`} />
+      {label && <span className="text-[11px] font-medium">{label}</span>}
     </button>
   )
 }
 
-// Subtle indicator next to the title — telegraphs auto-save state.
+function Divider() {
+  return <span className="w-px h-5 bg-border mx-1 flex-shrink-0" />
+}
+
+// ============================================================
+// Save badge
+// ============================================================
+
 function SaveBadge({ tone }) {
   if (tone === 'saving') {
     return (

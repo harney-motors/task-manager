@@ -68,7 +68,8 @@ export default function Home() {
   const [showStandup, setShowStandup] = useState(false)
   const [showPulse, setShowPulse] = useState(false)
   const [showQuickAdd, setShowQuickAdd] = useState(false)
-  const [showNotificationsPage, setShowNotificationsPage] = useState(false)
+  // Inbox is no longer a full-screen overlay — it's a regular view
+  // (`?view=inbox`) so the sidebar + topbar chrome stay mounted.
   const [aiCommandPlan, setAiCommandPlan] = useState(null)
 
   // ---- URL-backed navigation state ----
@@ -178,22 +179,11 @@ export default function Home() {
         setShowSettings(false)
         setShowSuperAdmin(false)
         setShowPulse(false)
-        setShowNotificationsPage(false)
         setOpenTaskId(e.detail.taskId)
       }
     }
     window.addEventListener('tickd:open-task', onOpen)
     return () => window.removeEventListener('tickd:open-task', onOpen)
-  }, [])
-
-  // Notifications "See all" → full-page history view.
-  useEffect(() => {
-    function onOpenPage() {
-      setShowNotificationsPage(true)
-    }
-    window.addEventListener('tickd:open-notifications-page', onOpenPage)
-    return () =>
-      window.removeEventListener('tickd:open-notifications-page', onOpenPage)
   }, [])
 
 
@@ -366,22 +356,15 @@ export default function Home() {
       </Suspense>
     )
   }
-  if (showNotificationsPage) {
-    return (
-      <Suspense fallback={<ViewFallback />}>
-        <NotificationsView
-          onBack={() => setShowNotificationsPage(false)}
-          onOpenTask={(id) => {
-            setShowNotificationsPage(false)
-            setOpenTaskId(id)
-          }}
-        />
-      </Suspense>
-    )
-  }
+  // Inbox is now a regular view branch (view === 'inbox') below — it
+  // renders inside the main layout so the sidebar + chrome stay
+  // visible. Settings / SuperAdmin / Pulse remain full-screen for now.
 
   const openTask = tasks.find((t) => t.id === openTaskId)
   const isPicRole = workspace?.role === 'pic'
+  // Inbox + Docs are full-page surfaces — skip Greeting / QuickEntry
+  // / ActivityFeed so the surface fills the available space.
+  const isFullPageView = view === 'inbox' || view === 'docs'
 
   const goHome = () => {
     setView('today')
@@ -400,7 +383,7 @@ export default function Home() {
       id: 'inbox',
       label: 'Inbox',
       icon: 'ti-inbox',
-      onClick: () => setShowNotificationsPage(true),
+      onClick: () => setView('inbox'),
     },
     {
       id: 'docs',
@@ -467,7 +450,7 @@ export default function Home() {
         onOpenMeeting={() => setShowExtract(true)}
         onOpenStandup={() => setShowStandup(true)}
         onOpenPulse={() => setShowPulse(true)}
-        onOpenInbox={() => setShowNotificationsPage(true)}
+        onOpenInbox={() => setView('inbox')}
         onOpenQuickAdd={() => setShowQuickAdd(true)}
         isPicRole={isPicRole}
       />
@@ -515,19 +498,28 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-4 sm:py-6">
+      {/* Content wrapper. Drops max-w-6xl: with a 240px sidebar,
+          centering the content with a 1152px cap on 1920+ displays
+          left huge empty strips on the right. Letting the inner
+          column fill the flex-1 area uses the screen properly.
+          Greeting + QuickEntry + ActivityFeed are noise on full-page
+          views (Inbox, Docs) — hide them there. */}
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
 
         <>
-          <Greeting tasks={tasks} />
-          {/* Phone gets the FAB instead — QuickEntry would eat the top
-              third of the screen on small viewports. */}
-          <div className="hidden sm:block">
-            <QuickEntry />
-          </div>
-
-          {/* ViewTabs removed at sm+ — the desktop Sidebar handles
-              view switching. BottomNav still owns it on phone. */}
-          <div className="mt-4 mb-4 sm:mt-0 sm:mb-2" />
+          {!isFullPageView && (
+            <>
+              <Greeting tasks={tasks} />
+              {/* Phone gets the FAB instead — QuickEntry would eat
+                  the top third of the screen on small viewports. */}
+              <div className="hidden sm:block">
+                <QuickEntry />
+              </div>
+              {/* ViewTabs removed at sm+ — the desktop Sidebar handles
+                  view switching. BottomNav still owns it on phone. */}
+              <div className="mt-4 mb-4 sm:mt-0 sm:mb-2" />
+            </>
+          )}
 
           {/* Wrapping the active view in a keyed container makes React
               discard + remount on tab change, which replays the
@@ -607,14 +599,22 @@ export default function Home() {
                 <DocsView />
               </Suspense>
             )}
+            {view === 'inbox' && (
+              <Suspense fallback={<ViewFallback />}>
+                <NotificationsView
+                  embedded
+                  onOpenTask={(id) => setOpenTaskId(id)}
+                />
+              </Suspense>
+            )}
           </div>
 
           {/* Recent activity feed — at-a-glance "what changed" strip,
               shown to everyone (the full audit log with restoration etc
-              lives in Settings → Activity for owners/admins). PICs only
-              see entries on tasks they can already see via RLS, so
-              there's nothing to hide. */}
-          {!isPicRole && (
+              lives in Settings → Activity for owners/admins). Skipped
+              on full-page surfaces (Inbox, Docs) where the chrome would
+              be noise. */}
+          {!isPicRole && !isFullPageView && (
             <div className="mt-6">
               <ActivityFeed onOpenTask={setOpenTaskId} compactLimit={5} />
             </div>
