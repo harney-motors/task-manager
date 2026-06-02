@@ -475,9 +475,17 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
   }
 
   // ===== Selection tracking (drives the floating bubble) =====
+  // Skipped on phone widths — iOS / Android pop their own native
+  // selection menu (Cut / Copy / Paste / Look up …) which the bubble
+  // would overlap with. The sticky toolbar above the editor covers
+  // the same actions on mobile.
   function refreshBubble() {
     const el = textareaRef.current
     if (!el || !canWrite) {
+      setBubble(null)
+      return
+    }
+    if (typeof window !== 'undefined' && window.innerWidth < 640) {
       setBubble(null)
       return
     }
@@ -761,9 +769,11 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
         />
       )}
 
-      {/* Writing surface */}
+      {/* Writing surface — tighter padding on phones so the reading
+          column gets the room. Bottom padding accounts for the
+          mobile BottomNav (h≈64px + safe area). */}
       <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="px-6 sm:px-10 lg:px-14 pt-8 pb-10 max-w-3xl w-full mx-auto">
+        <div className="px-4 sm:px-10 lg:px-14 pt-6 sm:pt-8 pb-24 sm:pb-10 max-w-3xl w-full mx-auto">
           <input
             value={title}
             onChange={(e) => handleTitleChange(e.target.value)}
@@ -782,6 +792,7 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
             placeholder="Start writing…"
             spellCheck="true"
             disabled={!canWrite}
+            // text-base = 16px — keeps iOS from zooming on focus.
             className="w-full mt-5 text-base leading-relaxed bg-transparent outline-none resize-none placeholder:text-text-3 disabled:opacity-80 min-h-[55vh]"
             style={{ fontFamily: 'inherit' }}
           />
@@ -887,12 +898,16 @@ function ToolButton({ icon, onClick, title, label, active = false }) {
       onClick={onClick}
       title={title}
       aria-label={title}
-      className={`inline-flex items-center gap-1.5 h-8 px-2 rounded-md text-text-2 hover:text-text hover:bg-surface-2 active:bg-surface-3 transition-colors flex-shrink-0 ${
+      className={`inline-flex items-center gap-1.5 h-10 sm:h-8 min-w-[40px] sm:min-w-0 px-2 rounded-md text-text-2 hover:text-text hover:bg-surface-2 active:bg-surface-3 transition-colors flex-shrink-0 ${
         active ? 'bg-danger-bg/40 text-danger-text animate-pulse' : ''
       }`}
     >
-      <i className={`ti ${icon} text-base`} />
-      {label && <span className="text-[11px] font-medium">{label}</span>}
+      <i className={`ti ${icon} text-lg sm:text-base`} />
+      {label && (
+        <span className="hidden sm:inline text-[11px] font-medium">
+          {label}
+        </span>
+      )}
     </button>
   )
 }

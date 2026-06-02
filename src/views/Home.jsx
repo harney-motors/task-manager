@@ -385,11 +385,14 @@ export default function Home() {
       icon: 'ti-inbox',
       onClick: () => setView('inbox'),
     },
+    // Docs moved to the BottomNav primary slot for mobile users — no
+    // longer needed in the overflow menu.
     {
-      id: 'docs',
-      label: 'Docs',
-      icon: 'ti-book-2',
-      onClick: () => setView('docs'),
+      id: 'grid',
+      label: 'Grid view',
+      icon: 'ti-table',
+      onClick: () => setView('grid'),
+      visible: !isPicRole,
     },
     {
       id: 'meeting',
@@ -502,9 +505,16 @@ export default function Home() {
           centering the content with a 1152px cap on 1920+ displays
           left huge empty strips on the right. Letting the inner
           column fill the flex-1 area uses the screen properly.
-          Greeting + QuickEntry + ActivityFeed are noise on full-page
-          views (Inbox, Docs) — hide them there. */}
-      <div className="w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+          Full-page views (Inbox, Docs) drop the side padding on
+          phones so the surface goes edge-to-edge — Docs in
+          particular needs the writing column to breathe. */}
+      <div
+        className={
+          isFullPageView
+            ? 'w-full px-0 sm:px-6 lg:px-8 py-3 sm:py-6'
+            : 'w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6'
+        }
+      >
 
         <>
           {!isFullPageView && (

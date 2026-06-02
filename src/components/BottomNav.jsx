@@ -18,8 +18,11 @@ const NAV = [
   // restricts data to their own tasks, so Grid + By-PIC are noise).
   { id: 'today',    label: 'Today',  icon: 'ti-sun',      picOk: true  },
   { id: 'list',     label: 'List',   icon: 'ti-list',     picOk: true  },
-  { id: 'grid',     label: 'Grid',   icon: 'ti-table',    picOk: false },
-  // Kanban removed for now — see Sidebar.
+  { id: 'docs',     label: 'Docs',   icon: 'ti-book-2',   picOk: true  },
+  // Grid is a table view that doesn't suit phone widths — moved to
+  // the MobileMoreMenu overflow. Kanban removed entirely a few
+  // commits back. Docs takes the prime middle spot since it's the
+  // most-touched non-task surface on mobile.
   { id: 'pic',      label: 'PIC',    icon: 'ti-users',    picOk: false },
   { id: 'calendar', label: 'Cal',    icon: 'ti-calendar', picOk: true  },
 ]
