@@ -28,9 +28,28 @@ export default async (req) => {
     return new Response('server misconfigured', { status: 500 })
   }
 
+  // Token can arrive via either:
+  //   - ?token=<token>            (direct function call)
+  //   - /calendar/<token>.ics     (pretty URL, rewritten in netlify.toml)
+  //
+  // Netlify rewrites *should* forward the captured :token into the
+  // query string, but some calendar clients seem to call the pretty
+  // URL in a way that loses the query param along the rewrite path
+  // (Apple Calendar surfaced this as "error 400"). Reading from BOTH
+  // places makes the function tolerant of either entrypoint.
   const url = new URL(req.url)
-  const token = (url.searchParams.get('token') ?? '').trim()
+  let token = (url.searchParams.get('token') ?? '').trim()
   if (!token) {
+    const pathMatch = url.pathname.match(/\/calendar\/([^/]+?)\.ics$/)
+    if (pathMatch) token = pathMatch[1]
+  }
+  if (!token) {
+    console.warn(
+      '[calendar-feed] no token resolved from request',
+      'url=', req.url,
+      'pathname=', url.pathname,
+      'query=', Object.fromEntries(url.searchParams),
+    )
     return new Response('token required', { status: 400 })
   }
 
