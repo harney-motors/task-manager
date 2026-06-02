@@ -7,42 +7,40 @@
 //      injection from third parties)
 //   3. Loads the entry + task + mentioned people + recipients' email
 //      prefs in one round-trip
-//   4. Sends one SMTP message per recipient who hasn't opted out
-//      and isn't the author themselves
+//   4. Sends one email per recipient who hasn't opted out and isn't
+//      the author themselves, via the shared sendEmail() helper
 //
-// SMTP plumbing assumes the Supabase project SMTP credentials are
-// surfaced as Netlify env vars. Required env:
+// Required env:
 //   SUPABASE_URL                — for the rest client
 //   SUPABASE_ANON_KEY           — for the rest client (RLS-respecting)
 //   SUPABASE_SERVICE_ROLE_KEY   — for reading auth.users emails
-//   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM
+//   RESEND_API_KEY              — preferred email provider
+//   EMAIL_FROM                  — friendly From: header, e.g.
+//                                  "Tickd <notifications@…>"
 //   APP_URL                     — e.g. https://tickd.netlify.app
 //
-// The service role key NEVER leaves this function — it stays
-// server-side. Email lookup goes through admin.listUsers because
-// auth.users isn't queryable through the regular client.
+// SMTP_* env vars are still honored as a fallback path inside the
+// shared email module — useful during migration.
 
 import { createClient } from '@supabase/supabase-js'
-import nodemailer from 'nodemailer'
 import { renderMentionEmail } from '../../src/lib/mentionEmailTemplate.js'
+import { sendEmail, emailProvider } from './_lib/email.mjs'
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY =
   process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
-const SMTP_HOST = process.env.SMTP_HOST
-const SMTP_PORT = parseInt(process.env.SMTP_PORT ?? '587', 10)
-const SMTP_USER = process.env.SMTP_USER
-const SMTP_PASS = process.env.SMTP_PASS
-const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER
 const APP_URL = process.env.APP_URL || process.env.URL || 'http://localhost:5173'
 
 export default async (req) => {
   if (req.method !== 'POST') {
     return new Response('method not allowed', { status: 405 })
   }
-  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
-    return jsonError(500, 'Server missing SMTP_* env vars')
+  if (!emailProvider()) {
+    return jsonError(
+      500,
+      'Server missing email config — set RESEND_API_KEY + EMAIL_FROM (or SMTP_* as a fallback).',
+    )
   }
   if (!SUPABASE_SERVICE_ROLE_KEY) {
     return jsonError(500, 'Server missing SUPABASE_SERVICE_ROLE_KEY')
@@ -207,14 +205,6 @@ export default async (req) => {
   const taskUrl = `${APP_URL.replace(/\/$/, '')}/?task=${entry.task.id}`
   const unsubscribeUrl = `${APP_URL.replace(/\/$/, '')}/?view=today#email-prefs`
 
-  // SMTP transport — single TCP connection reused for the loop.
-  const transporter = nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: SMTP_PORT,
-    secure: SMTP_PORT === 465,
-    auth: { user: SMTP_USER, pass: SMTP_PASS },
-  })
-
   let sent = 0
   let skipped = 0
   const skipReasons = []
@@ -251,24 +241,24 @@ export default async (req) => {
       unsubscribeUrl,
     })
     try {
-      await transporter.sendMail({
-        from: SMTP_FROM,
+      const result = await sendEmail({
         to: email,
         subject,
         html,
         text,
+        tags: [{ name: 'kind', value: 'mention' }],
       })
       sent++
       console.log(
-        `[notify-mention] sent to ${email} (user ${uid}, person ${person?.id})`,
+        `[notify-mention] sent via ${result.provider} to ${email} (user ${uid}, person ${person?.id}, id ${result.id})`,
       )
     } catch (err) {
       console.error(
-        `[notify-mention] SMTP send FAILED to ${email}:`,
+        `[notify-mention] send FAILED to ${email}:`,
         err?.message ?? err,
       )
       skipped++
-      skipReasons.push({ user_id: uid, reason: `smtp error: ${err?.message ?? err}` })
+      skipReasons.push({ user_id: uid, reason: `send error: ${err?.message ?? err}` })
     }
   }
 
@@ -349,24 +339,24 @@ async function handleSelfTest({ caller, userClient, workspaceId }) {
     unsubscribeUrl: `${APP_URL.replace(/\/$/, '')}/?view=today#email-prefs`,
   })
 
-  const transporter = nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: SMTP_PORT,
-    secure: SMTP_PORT === 465,
-    auth: { user: SMTP_USER, pass: SMTP_PASS },
-  })
-
   try {
-    await transporter.sendMail({
-      from: SMTP_FROM,
+    const result = await sendEmail({
       to: recipientEmail,
       subject,
       html,
       text,
+      tags: [{ name: 'kind', value: 'mention-test' }],
     })
-    console.log(`[notify-mention] self-test sent to ${recipientEmail}`)
+    console.log(
+      `[notify-mention] self-test sent via ${result.provider} to ${recipientEmail} (id ${result.id})`,
+    )
     return new Response(
-      JSON.stringify({ sent: 1, to: recipientEmail }),
+      JSON.stringify({
+        sent: 1,
+        to: recipientEmail,
+        provider: result.provider,
+        id: result.id,
+      }),
       {
         status: 200,
         headers: { 'content-type': 'application/json' },
@@ -374,10 +364,10 @@ async function handleSelfTest({ caller, userClient, workspaceId }) {
     )
   } catch (err) {
     console.error(
-      `[notify-mention] self-test SMTP send FAILED to ${recipientEmail}:`,
+      `[notify-mention] self-test send FAILED to ${recipientEmail}:`,
       err?.message ?? err,
     )
-    return jsonError(500, `SMTP send failed: ${err?.message ?? err}`)
+    return jsonError(500, `Send failed: ${err?.message ?? err}`)
   }
 }
 
