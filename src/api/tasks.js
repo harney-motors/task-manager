@@ -52,6 +52,20 @@ export async function updateTask(id, fields) {
 }
 
 export async function deleteTask(id) {
-  const { error } = await supabase.from('tasks').delete().eq('id', id)
+  // Ask Postgres to return the deleted row so we can detect RLS
+  // denials. supabase-js treats a silently-zero-row delete (RLS
+  // policy doesn't match) as success — without this check, an
+  // editor-role user clicking delete would see a fake success toast
+  // while the task stays alive on the server.
+  const { data, error } = await supabase
+    .from('tasks')
+    .delete()
+    .eq('id', id)
+    .select('id')
   if (error) throw error
+  if (!data || data.length === 0) {
+    throw new Error(
+      "You don't have permission to delete this task. Only workspace owners can.",
+    )
+  }
 }

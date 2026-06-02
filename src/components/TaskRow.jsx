@@ -1,4 +1,5 @@
 import { useUpdateTask } from '../lib/queries'
+import { useAuth } from '../auth/AuthProvider'
 import { useToast } from './Toast'
 import {
   addDays,
@@ -17,11 +18,16 @@ import SubtaskProgress from './SubtaskProgress'
 // (or anything that owns its own hover/edge layout). In that case we
 // drop the row's negative margin so it doesn't fight the wrapper.
 export default function TaskRow({ task, onClick, inWrapper = false }) {
+  const { workspace } = useAuth()
   const updateTask = useUpdateTask()
   const showToast = useToast()
   const overdue = isOverdue(task.due_date) && task.status !== 'Done'
   const done = task.status === 'Done'
   const displayStatus = overdue ? 'Overdue' : task.status
+  // Phase-27: PICs cannot change task status. The checkbox stays
+  // visually present (so the row layout doesn't shift across roles)
+  // but becomes non-interactive — hover tooltip explains why.
+  const canEditStatus = workspace?.role !== 'pic'
   // Subtle "this changed recently" cue — a small pulsing dot before
   // the status pill. Helps users notice what shifted without making
   // them remember timestamps. Threshold is 4h: catches a typical work
@@ -30,6 +36,10 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
 
   function toggleDone(e) {
     e.stopPropagation()
+    if (!canEditStatus) {
+      showToast('PICs can’t change task status', { type: 'error' })
+      return
+    }
     const previousStatus = task.status
     const nextStatus = done ? 'Open' : 'Done'
     updateTask.mutate(
@@ -71,9 +81,26 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
     >
       <button
         onClick={toggleDone}
-        className="flex-shrink-0 text-text-3 hover:text-text"
-        aria-label={done ? 'Mark as open' : 'Mark as done'}
-        title={done ? 'Mark as open' : 'Mark as done'}
+        disabled={!canEditStatus}
+        className={`flex-shrink-0 text-text-3 ${
+          canEditStatus
+            ? 'hover:text-text'
+            : 'opacity-50 cursor-not-allowed'
+        }`}
+        aria-label={
+          canEditStatus
+            ? done
+              ? 'Mark as open'
+              : 'Mark as done'
+            : 'PICs cannot change task status'
+        }
+        title={
+          canEditStatus
+            ? done
+              ? 'Mark as open'
+              : 'Mark as done'
+            : 'PICs can’t change task status. Ask an editor or owner.'
+        }
       >
         <i
           className={`ti ${done ? 'ti-circle-check-filled text-success' : 'ti-circle'} text-base sm:text-lg`}

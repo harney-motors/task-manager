@@ -40,6 +40,14 @@ export default function TaskModal({ task, onClose, onOpenTask }) {
   const addWatcher = useAddWatcher()
   const removeWatcher = useRemoveWatcher()
 
+  // Role gates — keep the UI honest about what the server will accept.
+  // Phase-27 RLS: only owners can DELETE; the BEFORE-UPDATE trigger
+  // blocks PIC status changes.
+  const role = workspace?.role
+  const isPicRole = role === 'pic'
+  const canDelete = role === 'owner'
+  const canEditStatus = !isPicRole
+
   // Realtime presence — broadcasts "I'm viewing this task" + tracks
   // others doing the same. Used to surface co-edit warnings (#16/#17).
   const meIdentity = useMemo(() => {
@@ -282,6 +290,8 @@ export default function TaskModal({ task, onClose, onOpenTask }) {
             handleDelete={handleDelete}
             onOpenRelated={onOpenTask}
             presence={presence}
+            canDelete={canDelete}
+            canEditStatus={canEditStatus}
           />
         ) : (
           <div className="border-b border-border">
@@ -373,6 +383,8 @@ function DetailsTab({
   handleDelete,
   onOpenRelated,
   presence,
+  canDelete = true,
+  canEditStatus = true,
 }) {
   const { data: deps = { blockedBy: [] } } = useTaskDependencies(task.id)
   const openBlockers = (deps.blockedBy ?? []).filter(
@@ -586,14 +598,24 @@ function DetailsTab({
           <select
             value={task.status}
             onChange={(e) => handleStatusChange(e.target.value)}
-            disabled={isTemp}
-            className="text-sm bg-surface border border-border rounded px-2 py-1 hover:bg-surface-2 cursor-pointer disabled:opacity-60"
+            disabled={isTemp || !canEditStatus}
+            title={
+              canEditStatus
+                ? undefined
+                : 'PICs cannot change task status. Ask an editor or owner.'
+            }
+            className="text-sm bg-surface border border-border rounded px-2 py-1 hover:bg-surface-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <option value="Open">Open</option>
             <option value="In progress">In progress</option>
             <option value="Ongoing">Ongoing</option>
             <option value="Done">Done</option>
           </select>
+          {!canEditStatus && (
+            <span className="text-[10px] uppercase tracking-wider text-text-3 bg-surface-2 px-1.5 py-0.5 rounded">
+              Read only
+            </span>
+          )}
           {openBlockers.length > 0 && (
             <span className="text-[11px] text-warning-text inline-flex items-center gap-1">
               <i className="ti ti-link text-xs" />
@@ -718,16 +740,22 @@ function DetailsTab({
         </FieldRow>
       </div>
 
-      {/* Footer */}
+      {/* Footer — owner-only delete affordance. Editors + PICs simply
+          don't see the button; phase-27 RLS rejects their attempts at
+          the server too, and the API surfaces a clear error toast. */}
       <div className="flex items-center justify-between px-4 py-3 bg-surface-2 border-t border-border rounded-b-2xl mt-auto">
-        <button
-          onClick={handleDelete}
-          disabled={isTemp}
-          className="text-xs px-2 py-1 rounded text-danger-text hover:bg-danger-bg inline-flex items-center gap-1.5 disabled:opacity-50"
-        >
-          <i className="ti ti-trash text-sm" />
-          Delete
-        </button>
+        {canDelete ? (
+          <button
+            onClick={handleDelete}
+            disabled={isTemp}
+            className="text-xs px-2 py-1 rounded text-danger-text hover:bg-danger-bg inline-flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <i className="ti ti-trash text-sm" />
+            Delete
+          </button>
+        ) : (
+          <span />
+        )}
         <div className="text-[11px] text-text-3">
           <kbd className="px-1 border border-border rounded">⌘↵</kbd> close ·{' '}
           <kbd className="px-1 border border-border rounded">n</kbd> comments ·{' '}
