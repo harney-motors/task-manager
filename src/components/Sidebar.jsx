@@ -2,7 +2,6 @@ import { useMemo } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import { TickdMark, TickdWordmark } from './TickdMark'
 import WorkspaceSwitcher from './WorkspaceSwitcher'
-import NudgeBadge from './NudgeBadge'
 import {
   useIsSuperadmin,
   useMyMentions,
@@ -126,17 +125,13 @@ export default function Sidebar({
         </button>
       </div>
 
-      {/* Search button + notifications bell. Pair sits in the "header
-          utility row" — same vocabulary every established SaaS app
-          uses (Linear, ClickUp, Notion). The bell was previously only
-          mounted in the mobile topbar; without it here, desktop users
-          had no way to see nudges from any of the main views.
-          h-10 on the search side matches the bell's intrinsic w-10/h-10
-          so the two render at the same baseline. */}
-      <div className="px-3 pb-2 flex items-center gap-1.5">
+      {/* Search button — the bell that used to sit beside it was
+          removed in favour of the dedicated Inbox NavItem below
+          (mentions + assigned + nudges all in one place). */}
+      <div className="px-3 pb-2">
         <button
           onClick={onOpenSearch}
-          className="flex-1 h-10 flex items-center gap-2.5 px-2.5 rounded-lg text-sm text-text-2 hover:text-text hover:bg-surface-2 active:bg-surface-3 transition-colors border border-border/60"
+          className="w-full h-10 flex items-center gap-2.5 px-2.5 rounded-lg text-sm text-text-2 hover:text-text hover:bg-surface-2 active:bg-surface-3 transition-colors border border-border/60"
         >
           <i className="ti ti-search text-base" />
           <span className="flex-1 text-left">Search</span>
@@ -144,7 +139,6 @@ export default function Sidebar({
             ⌘K
           </kbd>
         </button>
-        <NudgeBadge />
       </div>
 
       {/* Primary view nav. PIC role gets a focused subset (Today,

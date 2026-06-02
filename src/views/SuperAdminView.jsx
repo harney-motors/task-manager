@@ -2,7 +2,6 @@ import { useState } from 'react'
 import WorkspacesPanel from './admin/WorkspacesPanel'
 import UsersPanel from './admin/UsersPanel'
 import SystemPanel from './admin/SystemPanel'
-import NudgeBadge from '../components/NudgeBadge'
 
 // Activity tab moved out — the same backend activity log now lives in
 // Settings → Activity (gated to workspace owners + superadmins), where
@@ -36,7 +35,6 @@ export default function SuperAdminView({ onBack }) {
             <h1 className="text-base sm:text-xl font-medium tracking-tight flex-1 min-w-0">
               Super admin
             </h1>
-            <NudgeBadge />
           </div>
 
           <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

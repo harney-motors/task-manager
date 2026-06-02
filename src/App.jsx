@@ -3,7 +3,6 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './auth/AuthProvider'
 import Login from './auth/Login'
 import Home from './views/Home'
-import NotificationsHost from './components/NotificationsHost'
 
 export default function App() {
   const { user, loading, workspace } = useAuth()
@@ -43,10 +42,11 @@ export default function App() {
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      {/* Global notifications surface — listens for `tickd:open-
-          notifications` and pops the modal regardless of which view
-          (Today, Settings, SuperAdmin, Pulse, …) is currently rendered. */}
-      {user && <NotificationsHost />}
+      {/* NotificationsHost / NudgeBadge popup removed — superseded by
+          the full Inbox surface (sidebar entry + mobile overflow). The
+          popup duplicated the inbox and the bell badge had a stale-
+          dismiss bug that wasn't worth fixing. Service-worker push
+          deep links still work via the tickd:open-task event. */}
     </>
   )
 }

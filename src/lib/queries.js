@@ -4,6 +4,7 @@ import { useToast } from '../components/Toast'
 import { createTask, fetchTasks, updateTask, deleteTask } from '../api/tasks'
 import { addWatcher, removeWatcher } from '../api/watchers'
 import { fetchJournalEntries, createJournalEntry, fetchMyMentions } from '../api/journal'
+import { notifyMention } from '../api/notifyMention'
 import {
   createDoc,
   deleteDoc as deleteDocApi,
@@ -881,7 +882,7 @@ export function useCreateJournalEntry(taskId) {
       qc.setQueryData(key, (old) => [optimistic, ...(old ?? [])])
       return { previous }
     },
-    onSuccess: (_entry, input) => {
+    onSuccess: (entry, input) => {
       const args =
         typeof input === 'string'
           ? { body: input, mentions: [] }
@@ -893,17 +894,12 @@ export function useCreateJournalEntry(taskId) {
         kind: 'journal_added',
         extra: { snippet: String(args.body).slice(0, 120) },
       })
-      // If the comment @mentions specific people, also fire a
-      // direct-mention push. Server-side mapping for 'pic_changed'
-      // already targets a specific user (the new PIC); we reuse that
-      // path conceptually by piggy-backing on journal_added's recipient
-      // resolution AND adding extra recipients via the matcher trick:
-      // the cheap approach for v1 is to rely on journal_added's
-      // existing watcher/PIC fan-out, which already covers mentions
-      // when those people are watchers. A dedicated mention-only
-      // channel can come later if needed.
-      // (No-op for v1 beyond the existing journal_added.)
-      void args
+      // Mention emails — server function checks per-user opt-out,
+      // resolves auth emails via the service role, and sends via
+      // SMTP. Fire-and-forget: comment is already saved by now.
+      if (args.mentions.length > 0 && entry?.id) {
+        notifyMention(entry.id)
+      }
     },
     onError: (_err, _input, ctx) => {
       if (ctx?.previous) qc.setQueryData(key, ctx.previous)

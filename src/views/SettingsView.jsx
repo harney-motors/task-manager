@@ -19,10 +19,15 @@ import PersonModal from '../components/PersonModal'
 import DepartmentModal from '../components/DepartmentModal'
 import LinkPersonModal from '../components/LinkPersonModal'
 import PushSettings from '../components/PushSettings'
-import NudgeBadge from '../components/NudgeBadge'
 import Skeleton from '../components/Skeleton'
 import ActivityFeed from '../components/ActivityFeed'
-import { contrastWithWhite, setBrandColor } from '../api/workspaces'
+import {
+  contrastWithWhite,
+  fetchEmailMentionPref,
+  setBrandColor,
+  setEmailMentionPref,
+} from '../api/workspaces'
+import { renderMentionEmail } from '../lib/mentionEmailTemplate'
 import {
   calendarFeedUrl,
   createCalendarToken,
@@ -80,7 +85,6 @@ export default function SettingsView({ onBack }) {
             <h1 className="text-base sm:text-xl font-medium tracking-tight flex-1 min-w-0">
               Settings
             </h1>
-            <NudgeBadge />
           </div>
 
           <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -943,6 +947,7 @@ function ProfilePanel() {
         </div>
         {isOwner && <BrandingSetting />}
         <ThemeSetting />
+        <MentionEmailSetting />
         <div className="pt-3 border-t border-border">
           <button
             onClick={signOut}
@@ -954,6 +959,128 @@ function ProfilePanel() {
         </div>
       </div>
       <PushSettings />
+    </div>
+  )
+}
+
+// Mention emails — per-user opt-out + live preview of the template.
+// Default is on (opt-out). Toggle persists to workspace_members.
+function MentionEmailSetting() {
+  const { user, workspace } = useAuth()
+  const showToast = useToast()
+  const [enabled, setEnabled] = useState(true)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    if (!workspace?.id || !user?.id) return
+    setLoading(true)
+    fetchEmailMentionPref(workspace.id, user.id)
+      .then((val) => {
+        if (!cancelled) setEnabled(val)
+      })
+      .catch(() => {
+        /* table may not have migrated yet — default true is fine */
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [workspace?.id, user?.id])
+
+  async function toggle() {
+    if (saving || !workspace || !user) return
+    const next = !enabled
+    setEnabled(next)
+    setSaving(true)
+    try {
+      await setEmailMentionPref(workspace.id, user.id, next)
+      showToast(next ? 'Mention emails on' : 'Mention emails off')
+    } catch (err) {
+      setEnabled(!next) // revert
+      showToast(err.message ?? 'Could not save', { type: 'error' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Sample inputs for the preview pane — kept in-page so users can
+  // see what the real email looks like before turning it on or off.
+  const sample = renderMentionEmail({
+    recipientName: user?.user_metadata?.full_name || user?.email || 'you',
+    mentionerName: 'Asbert',
+    taskTitle: 'Order brake pads for the Lexus run',
+    commentExcerpt:
+      "Heads-up @" +
+      ((user?.email ?? 'you').split('@')[0] || 'you') +
+      " — we'll need the part number from last Friday's invoice. Can you pull it in the morning?",
+    workspaceName: workspace?.name ?? 'Your workspace',
+    workspaceBrandColor: workspace?.brand_color,
+    taskUrl: '#',
+    appUrl: '#',
+    unsubscribeUrl: '#',
+  })
+
+  return (
+    <div className="pt-3 border-t border-border" id="email-prefs">
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="text-xs text-text-2 mb-1">Mention emails</div>
+          <p className="text-[11px] text-text-3 leading-relaxed">
+            Get an email when a teammate @mentions you in a comment.
+            One message per mention; quiet otherwise.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={toggle}
+          disabled={loading || saving}
+          aria-pressed={enabled}
+          className={`flex-shrink-0 inline-flex items-center w-10 h-6 rounded-full transition-colors ${
+            enabled ? 'bg-info' : 'bg-surface-3'
+          } disabled:opacity-50`}
+          title={enabled ? 'On — click to disable' : 'Off — click to enable'}
+        >
+          <span
+            className={`inline-block w-5 h-5 rounded-full bg-white shadow transition-transform ${
+              enabled ? 'translate-x-[18px]' : 'translate-x-0.5'
+            }`}
+          />
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={() => setShowPreview((x) => !x)}
+        className="mt-2 text-[11px] text-info hover:underline inline-flex items-center gap-1"
+      >
+        <i
+          className={`ti ${showPreview ? 'ti-eye-off' : 'ti-eye'} text-xs`}
+        />
+        {showPreview ? 'Hide preview' : 'Preview what they look like'}
+      </button>
+      {showPreview && (
+        <div className="mt-3 border border-border rounded-lg overflow-hidden">
+          <div className="px-3 py-2 bg-surface-2 border-b border-border text-[10px] text-text-3 flex items-center justify-between gap-2 flex-wrap">
+            <span>
+              <span className="font-medium text-text-2">Subject:</span>{' '}
+              {sample.subject}
+            </span>
+            <span className="font-mono">to: {user?.email}</span>
+          </div>
+          {/* sandboxed iframe so the email's inline styles can't
+              touch the surrounding app */}
+          <iframe
+            title="Mention email preview"
+            sandbox=""
+            srcDoc={sample.html}
+            className="w-full h-[420px] bg-white"
+          />
+        </div>
+      )}
     </div>
   )
 }

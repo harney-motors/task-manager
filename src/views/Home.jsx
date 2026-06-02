@@ -17,7 +17,6 @@ import CommandPreviewModal from '../components/CommandPreviewModal'
 import { onServiceWorkerMessage } from '../lib/registerSw'
 import ActivityFeed from '../components/ActivityFeed'
 import WorkspaceSwitcher from '../components/WorkspaceSwitcher'
-import NudgeBadge from '../components/NudgeBadge'
 import BottomNav from '../components/BottomNav'
 import Sidebar from '../components/Sidebar'
 import ShortcutsHelpModal from '../components/ShortcutsHelpModal'
@@ -497,7 +496,8 @@ export default function Home() {
             <WorkspaceSwitcher />
           </div>
           <div className="flex items-center gap-0.5 flex-shrink-0">
-            <NudgeBadge />
+            {/* Bell removed — the Inbox (sidebar entry + mobile overflow
+                menu) is the single notifications surface now. */}
             <button
               onClick={() => setShowSearch(true)}
               className="w-10 h-10 rounded-full inline-flex items-center justify-center text-text-2 hover:text-text hover:bg-surface-2 active:bg-surface-3 transition-colors"

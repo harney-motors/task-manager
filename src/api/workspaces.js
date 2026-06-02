@@ -22,6 +22,34 @@ export async function setBrandColor(id, hex) {
   return updateWorkspace(id, { brand_color: normalized })
 }
 
+// Per-user, per-workspace opt-out for "you were @mentioned" emails.
+// RLS allows users to update their own workspace_members row, so the
+// regular client is fine here.
+export async function fetchEmailMentionPref(workspaceId, userId) {
+  if (!workspaceId || !userId) return true
+  const { supabase } = await import('../lib/supabase')
+  const { data, error } = await supabase
+    .from('workspace_members')
+    .select('email_mentions_enabled')
+    .eq('workspace_id', workspaceId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (error) throw error
+  // Default to true if the column hasn't migrated yet or the membership
+  // row is missing (shouldn't happen in normal flow).
+  return data?.email_mentions_enabled !== false
+}
+
+export async function setEmailMentionPref(workspaceId, userId, enabled) {
+  const { supabase } = await import('../lib/supabase')
+  const { error } = await supabase
+    .from('workspace_members')
+    .update({ email_mentions_enabled: !!enabled })
+    .eq('workspace_id', workspaceId)
+    .eq('user_id', userId)
+  if (error) throw error
+}
+
 // Validate + normalise a hex string. Accepts #abc → #aabbcc, #aabbcc.
 // Returns null when input is invalid so callers can show a friendlier
 // error than the raw Postgres reject.

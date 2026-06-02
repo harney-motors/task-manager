@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { useAdminSystemStats } from '../../lib/queries'
+import { renderMentionEmail } from '../../lib/mentionEmailTemplate'
 
 function Stat({ label, value, icon }) {
   return (
@@ -43,6 +45,61 @@ export default function SystemPanel() {
           from the Anthropic and Supabase dashboards directly.
         </p>
       </div>
+
+      <MentionEmailPreview />
+    </div>
+  )
+}
+
+// Admin-only preview of the mention-email template. Lets superadmins
+// confirm what their users see before any SMTP config goes live.
+// Read-only — toggling opt-out is a per-user concern surfaced in
+// each user's Settings → Profile panel.
+function MentionEmailPreview() {
+  const [brand, setBrand] = useState('#6366F1')
+  const sample = renderMentionEmail({
+    recipientName: 'Sasha',
+    mentionerName: 'Asbert',
+    taskTitle: 'Order brake pads for the Lexus run',
+    commentExcerpt:
+      "Heads-up @Sasha — we'll need the part number from last Friday's invoice. Can you pull it in the morning?",
+    workspaceName: 'Harney Motors',
+    workspaceBrandColor: brand,
+    taskUrl: '#',
+    appUrl: '#',
+    unsubscribeUrl: '#',
+  })
+  return (
+    <div className="mt-5 bg-surface border border-border rounded-xl overflow-hidden">
+      <div className="px-5 py-4 border-b border-border flex items-center gap-3 flex-wrap">
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium">Mention email — preview</div>
+          <div className="text-[11px] text-text-3 mt-0.5">
+            What users see when they&rsquo;re @mentioned in a comment.
+            Default-on; opt-out lives in Settings → Profile.
+          </div>
+        </div>
+        <label className="inline-flex items-center gap-2 cursor-pointer text-[11px] text-text-2">
+          <span>Test brand colour</span>
+          <input
+            type="color"
+            value={brand}
+            onChange={(e) => setBrand(e.target.value)}
+            className="w-8 h-8 rounded-md border border-border cursor-pointer bg-transparent"
+          />
+          <span className="font-mono text-text-3">{brand}</span>
+        </label>
+      </div>
+      <div className="px-5 py-2 text-[11px] text-text-3 bg-surface-2 border-b border-border">
+        <span className="font-medium text-text-2">Subject:</span>{' '}
+        {sample.subject}
+      </div>
+      <iframe
+        title="Mention email admin preview"
+        sandbox=""
+        srcDoc={sample.html}
+        className="w-full h-[460px] bg-white"
+      />
     </div>
   )
 }
