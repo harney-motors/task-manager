@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   useCreateDoc,
   useCreateTask,
@@ -15,14 +16,12 @@ import Skeleton from '../components/Skeleton'
 
 // DocsView — flat list of markdown docs in the active workspace.
 //
-// Editor model: a single writing surface (no preview / no split).
-// The textarea holds markdown; a sticky toolbar above it provides
-// rich-feeling controls (bold/italic/H/list/etc), plus two custom
-// commands:
-//   • Make task — turns the selected text (or current line) into a
-//     new task, with the doc title as the source.
-//   • Voice    — live transcript via the Web Speech API; inserts
-//     finalized speech chunks at the cursor.
+// Editor model: a single writing surface. No preview, no split, no
+// static toolbar. Formatting controls appear as a *floating bubble*
+// when the user selects text — the modern Notion / Linear / Substack
+// pattern. The same bubble exposes a "Make task" command that turns
+// the selection into a real workspace task (assignable to a PIC via
+// the task modal that opens after creation).
 //
 // Storage: markdown text in `docs.body`. Output stays plain markdown
 // so existing docs render unchanged.
@@ -312,7 +311,7 @@ function DocEmpty({ onCreate, canWrite, hasDocs }) {
 }
 
 // ============================================================
-// Editor — single writing surface with a markup toolbar
+// Editor — single writing surface with a floating selection toolbar
 // ============================================================
 
 function DocEditor({ id, onBack, onDeleted, canWrite }) {
@@ -327,27 +326,24 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
   const [body, setBody] = useState('')
   const [saveTone, setSaveTone] = useState('idle')
   const [deleting, setDeleting] = useState(false)
+  // Floating-toolbar state — set when the user has a non-empty
+  // selection in the body textarea. `rect` is the viewport-relative
+  // bounding box of the selected text END caret; the toolbar floats
+  // just above it.
+  const [bubble, setBubble] = useState(null) // { start, end, rect } | null
 
-  // Guard: don't run auto-save until the local state has been
-  // reconciled with the doc on first load. Without this, the auto-
-  // save effect fires on the first render (local title still '' vs
-  // doc.title 'Untitled') and the badge gets stuck on "saving" while
-  // the cleanup phase pre-empts the actual save. See bug: clicking a
-  // new doc → spinner spins forever.
   const userDirtyRef = useRef(false)
 
-  // Reset locals when the doc id (or its server-side values) change.
   useEffect(() => {
     if (doc) {
       setTitle(doc.title ?? '')
       setBody(doc.body ?? '')
       setSaveTone('idle')
       userDirtyRef.current = false
+      setBubble(null)
     }
   }, [doc?.id, doc?.title, doc?.body])
 
-  // Debounced auto-save — only fires when the user has actually
-  // touched the inputs.
   useEffect(() => {
     if (!doc) return
     if (!canWrite) return
@@ -429,15 +425,55 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
     })
   }
 
-  // ====== Markup helpers — operate on the textarea selection ======
-  // All assume the textarea ref is live. We call after a microtask so
-  // React's onChange has applied; otherwise the cursor restore lands
-  // on stale content.
-  function getSel() {
+  // ===== Selection tracking =====
+  // Probe the textarea after any pointer / key event and decide
+  // whether to show the bubble.
+  function refreshBubble() {
     const el = textareaRef.current
-    if (!el) return null
-    return { el, start: el.selectionStart ?? 0, end: el.selectionEnd ?? 0 }
+    if (!el || !canWrite) {
+      setBubble(null)
+      return
+    }
+    const start = el.selectionStart ?? 0
+    const end = el.selectionEnd ?? 0
+    if (start === end) {
+      setBubble(null)
+      return
+    }
+    const rect = caretRect(el, end)
+    if (!rect) {
+      setBubble(null)
+      return
+    }
+    setBubble({ start, end, rect })
   }
+
+  // Hide the bubble when scrolling — its anchor would drift otherwise.
+  useEffect(() => {
+    if (!bubble) return
+    function onScroll() {
+      setBubble(null)
+    }
+    window.addEventListener('scroll', onScroll, true)
+    return () => window.removeEventListener('scroll', onScroll, true)
+  }, [bubble])
+
+  // Hide on outside click.
+  useEffect(() => {
+    if (!bubble) return
+    function onClick(e) {
+      // Ignore clicks on the textarea (those re-trigger refreshBubble)
+      if (textareaRef.current?.contains(e.target)) return
+      // Ignore clicks on the bubble itself (handled by its own buttons)
+      const bubbleEl = document.querySelector('[data-doc-bubble]')
+      if (bubbleEl && bubbleEl.contains(e.target)) return
+      setBubble(null)
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [bubble])
+
+  // ===== Markup helpers =====
   function applyAt(start, end, replacement, nextSelStart, nextSelEnd) {
     const next = body.slice(0, start) + replacement + body.slice(end)
     handleBodyChange(next)
@@ -449,12 +485,14 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
         nextSelStart ?? start + replacement.length,
         nextSelEnd ?? start + replacement.length,
       )
+      // After applying formatting, the selection content has changed
+      // — re-evaluate the bubble (usually hides it).
+      refreshBubble()
     })
   }
   function wrap(prefix, suffix = prefix, placeholder = 'text') {
-    const sel = getSel()
-    if (!sel) return
-    const { start, end } = sel
+    if (!bubble) return
+    const { start, end } = bubble
     const inner = body.slice(start, end) || placeholder
     const replacement = `${prefix}${inner}${suffix}`
     applyAt(
@@ -466,10 +504,8 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
     )
   }
   function prefixLine(marker) {
-    const sel = getSel()
-    if (!sel) return
-    const { start, end } = sel
-    // Expand to whole lines, then prefix each.
+    if (!bubble) return
+    const { start, end } = bubble
     const lineStart = body.lastIndexOf('\n', start - 1) + 1
     const lineEnd = body.indexOf('\n', end)
     const blockEnd = lineEnd === -1 ? body.length : lineEnd
@@ -481,79 +517,55 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
     applyAt(lineStart, blockEnd, prefixed)
   }
   function insertLink() {
+    if (!bubble) return
     const url = prompt('Link URL', 'https://')
     if (!url) return
-    const sel = getSel()
-    if (!sel) return
-    const { start, end } = sel
+    const { start, end } = bubble
     const label = body.slice(start, end) || 'link text'
     const replacement = `[${label}](${url})`
-    applyAt(
-      start,
-      end,
-      replacement,
-      start + 1,
-      start + 1 + label.length,
-    )
-  }
-  function insertHr() {
-    const sel = getSel()
-    if (!sel) return
-    const { start } = sel
-    const before = body.slice(0, start)
-    const needsLead = before.length > 0 && !before.endsWith('\n')
-    const insert = (needsLead ? '\n' : '') + '\n---\n\n'
-    applyAt(start, start, insert)
+    applyAt(start, end, replacement, start + 1, start + 1 + label.length)
   }
 
-  // ====== Make selected text into a task ======
+  // ===== Make task — creates a real task, opens its modal =====
   function handleMakeTask() {
-    const sel = getSel()
-    if (!sel) return
-    const { start, end } = sel
+    if (!bubble) return
+    const { start, end } = bubble
     let text = body.slice(start, end).trim()
-    let lineStart = start
-    let lineEnd = end
-    if (!text) {
-      // Empty selection — use the current line.
-      lineStart = body.lastIndexOf('\n', start - 1) + 1
-      const next = body.indexOf('\n', start)
-      lineEnd = next === -1 ? body.length : next
-      text = body.slice(lineStart, lineEnd).trim().replace(/^[-*+]\s+/, '')
-    }
-    if (!text) {
-      showToast('Nothing to make a task from', { type: 'error' })
-      return
-    }
+    if (!text) return
+    // Strip leading list markers so "- buy paint" → "buy paint".
+    text = text.replace(/^[-*+]\s+/, '').replace(/^\d+\.\s+/, '')
     createTask.mutate(
       {
         title: text.slice(0, 200),
         source: `Doc: ${doc?.title?.trim() || 'Untitled'}`,
       },
       {
-        onSuccess: () => {
-          // Convert the selected line in-place to a checked-off
-          // markdown task so the doc reflects that it's now a task.
-          const inner = body.slice(lineStart, lineEnd)
-          const replaced = inner.startsWith('- [ ] ')
-            ? inner
-            : `- [ ] ${inner.replace(/^[-*+]\s+/, '')}`
-          applyAt(lineStart, lineEnd, replaced)
-          showToast('Task created from selection')
+        onSuccess: (task) => {
+          // Open the new task's modal so the user can assign a PIC,
+          // due date, etc. Home listens for `tickd:open-task`.
+          window.dispatchEvent(
+            new CustomEvent('tickd:open-task', {
+              detail: { taskId: task.id },
+            }),
+          )
+          showToast(`Task created — assign a PIC in the open modal`)
+          setBubble(null)
+        },
+        onError: (err) => {
+          showToast(err?.message ?? 'Could not create task', { type: 'error' })
         },
       },
     )
   }
 
-  // ====== Voice dictation ======
-  // Inserts finalized speech at the current cursor position.
+  // ===== Voice dictation =====
   const dict = useDictation({
     onResult: (chunk) => {
       const trimmed = chunk.trim()
       if (!trimmed) return
-      const sel = getSel()
-      if (!sel) return
-      const { start } = sel
+      const el = textareaRef.current
+      if (!el) return
+      const start = el.selectionStart ?? body.length
       const before = body.slice(0, start)
       const needsSpace = before.length > 0 && !/\s$/.test(before)
       const insert = (needsSpace ? ' ' : '') + trimmed
@@ -574,7 +586,7 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
 
   return (
     <article className="flex-1 bg-surface border border-border rounded-2xl flex flex-col min-w-0 overflow-hidden">
-      {/* Top bar — back / title breadcrumb / save state / delete */}
+      {/* Top bar */}
       <div className="px-4 sm:px-5 h-12 border-b border-border flex items-center gap-2 flex-shrink-0">
         <button
           onClick={onBack}
@@ -593,6 +605,26 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
           )}
         </div>
         <SaveBadge tone={saveTone} />
+        {/* Voice button stays on the top bar — it works without a
+            selection (insert at the cursor). Bubble toolbar handles
+            formatting + Make-task which both depend on a selection. */}
+        {canWrite && dict.supported && (
+          <button
+            type="button"
+            onClick={() => (dict.listening ? dict.stop() : dict.start())}
+            title={dict.listening ? 'Stop dictating' : 'Dictate text into the doc'}
+            aria-label={dict.listening ? 'Stop dictating' : 'Start dictating'}
+            className={`w-9 h-9 rounded-full inline-flex items-center justify-center transition-colors flex-shrink-0 ${
+              dict.listening
+                ? 'bg-danger-bg text-danger-text animate-pulse'
+                : 'text-text-2 hover:text-text hover:bg-surface-2'
+            }`}
+          >
+            <i
+              className={`ti ${dict.listening ? 'ti-microphone-filled' : 'ti-microphone'} text-base`}
+            />
+          </button>
+        )}
         {canWrite && (
           <button
             onClick={handleDelete}
@@ -608,28 +640,7 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
         )}
       </div>
 
-      {/* Markup toolbar — sticky just under the top bar so it stays
-          visible while you scroll a long doc. Only rendered when the
-          user can write. */}
-      {canWrite && (
-        <Toolbar
-          onBold={() => wrap('**', '**', 'bold')}
-          onItalic={() => wrap('*', '*', 'italic')}
-          onH1={() => prefixLine('# ')}
-          onH2={() => prefixLine('## ')}
-          onBullet={() => prefixLine('- ')}
-          onNumbered={() => prefixLine('1. ')}
-          onCheck={() => prefixLine('- [ ] ')}
-          onCode={() => wrap('`', '`', 'code')}
-          onQuote={() => prefixLine('> ')}
-          onLink={insertLink}
-          onHr={insertHr}
-          onMakeTask={handleMakeTask}
-          dict={dict}
-        />
-      )}
-
-      {/* The writing surface */}
+      {/* Writing surface */}
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="px-6 sm:px-10 lg:px-14 pt-8 pb-10 max-w-3xl w-full mx-auto">
           <input
@@ -643,7 +654,15 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
             ref={textareaRef}
             value={body}
             onChange={(e) => handleBodyChange(e.target.value)}
-            placeholder="Start writing… markdown supported (# heading, **bold**, *italic*, `code`, [link](https://…), - list)"
+            onMouseUp={refreshBubble}
+            onKeyUp={refreshBubble}
+            onTouchEnd={refreshBubble}
+            onBlur={() => {
+              // Don't dismiss immediately on blur — clicking a bubble
+              // button briefly blurs the textarea. The outside-click
+              // handler will clean up if it really left the editor.
+            }}
+            placeholder="Start writing…"
             spellCheck="true"
             disabled={!canWrite}
             className="w-full mt-5 text-base leading-relaxed bg-transparent outline-none resize-none placeholder:text-text-3 disabled:opacity-80 min-h-[55vh]"
@@ -651,95 +670,188 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
           />
         </div>
       </div>
+
+      {/* Floating selection bubble — portal to body so its
+          position:fixed coordinates resolve against the viewport,
+          not whatever stacking context contains the editor. */}
+      {bubble &&
+        createPortal(
+          <SelectionBubble
+            rect={bubble.rect}
+            onBold={() => wrap('**', '**', 'bold')}
+            onItalic={() => wrap('*', '*', 'italic')}
+            onCode={() => wrap('`', '`', 'code')}
+            onH1={() => prefixLine('# ')}
+            onH2={() => prefixLine('## ')}
+            onBullet={() => prefixLine('- ')}
+            onCheck={() => prefixLine('- [ ] ')}
+            onQuote={() => prefixLine('> ')}
+            onLink={insertLink}
+            onMakeTask={handleMakeTask}
+          />,
+          document.body,
+        )}
     </article>
   )
 }
 
 // ============================================================
-// Toolbar
+// Floating selection bubble
 // ============================================================
+//
+// Positioned at viewport-relative coordinates. Tries to sit ABOVE the
+// selection end; flips below if there's no room. Stays inside the
+// horizontal viewport bounds.
+function SelectionBubble({ rect, onBold, onItalic, onCode, onH1, onH2, onBullet, onCheck, onQuote, onLink, onMakeTask }) {
+  const ref = useRef(null)
+  const [pos, setPos] = useState({ top: 0, left: 0, ready: false })
 
-function Toolbar({
-  onBold,
-  onItalic,
-  onH1,
-  onH2,
-  onBullet,
-  onNumbered,
-  onCheck,
-  onCode,
-  onQuote,
-  onLink,
-  onHr,
-  onMakeTask,
-  dict,
-}) {
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const bw = el.offsetWidth
+    const bh = el.offsetHeight
+    // Anchor at the selection end caret. Center the bubble above it.
+    let top = rect.top - bh - 8
+    let left = rect.left - bw / 2
+    // Flip below if it'd clip above
+    if (top < 8) top = rect.top + rect.height + 8
+    // Clamp inside viewport with 8px padding
+    const maxLeft = window.innerWidth - bw - 8
+    if (left < 8) left = 8
+    if (left > maxLeft) left = maxLeft
+    setPos({ top, left, ready: true })
+  }, [rect.top, rect.left, rect.height])
+
   return (
-    <div className="sticky top-0 z-10 bg-surface border-b border-border flex items-center gap-0.5 px-2 sm:px-3 py-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <ToolButton icon="ti-bold" onClick={onBold} title="Bold (wraps **…**)" />
-      <ToolButton icon="ti-italic" onClick={onItalic} title="Italic (wraps *…*)" />
-      <ToolButton icon="ti-code" onClick={onCode} title="Inline code" />
-      <Divider />
-      <ToolButton icon="ti-h-1" onClick={onH1} title="Heading 1" />
-      <ToolButton icon="ti-h-2" onClick={onH2} title="Heading 2" />
-      <ToolButton icon="ti-quote" onClick={onQuote} title="Blockquote" />
-      <ToolButton icon="ti-minus" onClick={onHr} title="Divider" />
-      <Divider />
-      <ToolButton icon="ti-list" onClick={onBullet} title="Bullet list" />
-      <ToolButton
-        icon="ti-list-numbers"
-        onClick={onNumbered}
-        title="Numbered list"
-      />
-      <ToolButton
-        icon="ti-checkbox"
-        onClick={onCheck}
-        title="Task checklist"
-      />
-      <ToolButton icon="ti-link" onClick={onLink} title="Insert link" />
-      <Divider />
-      <ToolButton
+    <div
+      ref={ref}
+      data-doc-bubble=""
+      style={{
+        position: 'fixed',
+        top: pos.top,
+        left: pos.left,
+        visibility: pos.ready ? 'visible' : 'hidden',
+        zIndex: 60,
+      }}
+      className="bg-surface border border-border rounded-lg shadow-xl flex items-center gap-0.5 px-1.5 py-1 tickd-popover"
+      // Prevent mousedown on the bubble from dropping the textarea's
+      // selection — without this, clicking a button would clear the
+      // selection before the handler ran.
+      onMouseDown={(e) => e.preventDefault()}
+    >
+      <BubbleButton icon="ti-bold" onClick={onBold} title="Bold" />
+      <BubbleButton icon="ti-italic" onClick={onItalic} title="Italic" />
+      <BubbleButton icon="ti-code" onClick={onCode} title="Inline code" />
+      <BubbleDivider />
+      <BubbleButton icon="ti-h-1" onClick={onH1} title="Heading 1" />
+      <BubbleButton icon="ti-h-2" onClick={onH2} title="Heading 2" />
+      <BubbleButton icon="ti-quote" onClick={onQuote} title="Blockquote" />
+      <BubbleDivider />
+      <BubbleButton icon="ti-list" onClick={onBullet} title="Bullet list" />
+      <BubbleButton icon="ti-checkbox" onClick={onCheck} title="Task checklist" />
+      <BubbleButton icon="ti-link" onClick={onLink} title="Insert link" />
+      <BubbleDivider />
+      <BubbleButton
         icon="ti-subtask"
         onClick={onMakeTask}
-        title="Make a task from the selected line"
+        title="Create a workspace task from the selection"
         label="Make task"
+        emphasis
       />
-      {dict?.supported && (
-        <ToolButton
-          icon={dict.listening ? 'ti-microphone-filled' : 'ti-microphone'}
-          onClick={() => (dict.listening ? dict.stop() : dict.start())}
-          title={
-            dict.listening
-              ? 'Stop dictating'
-              : 'Dictate — words appear at the cursor'
-          }
-          label={dict.listening ? 'Listening…' : 'Voice'}
-          active={dict.listening}
-        />
-      )}
     </div>
   )
 }
 
-function ToolButton({ icon, onClick, title, label, active = false }) {
+function BubbleButton({ icon, onClick, title, label, emphasis = false }) {
   return (
     <button
       type="button"
       onClick={onClick}
       title={title}
       aria-label={title}
-      className={`inline-flex items-center gap-1.5 h-8 px-2 rounded-md text-text-2 hover:text-text hover:bg-surface-2 active:bg-surface-3 transition-colors flex-shrink-0 ${
-        active ? 'bg-danger-bg/40 text-danger-text animate-pulse' : ''
+      className={`inline-flex items-center gap-1.5 h-8 px-2 rounded-md transition-colors flex-shrink-0 ${
+        emphasis
+          ? 'bg-info text-white hover:opacity-90 font-medium'
+          : 'text-text-2 hover:text-text hover:bg-surface-2 active:bg-surface-3'
       }`}
     >
       <i className={`ti ${icon} text-base`} />
-      {label && <span className="text-[11px] font-medium">{label}</span>}
+      {label && <span className="text-[11px]">{label}</span>}
     </button>
   )
 }
 
-function Divider() {
-  return <span className="w-px h-5 bg-border mx-1 flex-shrink-0" />
+function BubbleDivider() {
+  return <span className="w-px h-5 bg-border mx-0.5 flex-shrink-0" />
+}
+
+// ============================================================
+// Caret position helper — mirror-div technique
+// ============================================================
+//
+// Returns the viewport-relative bounding rect of the caret at
+// `position` in `textarea`. Builds a hidden mirror div with the same
+// font / wrap behaviour as the textarea, inserts a marker span at the
+// requested position, measures it, and returns the rect. Standard
+// trick used by every selection-floating-toolbar implementation.
+function caretRect(textarea, position) {
+  if (typeof window === 'undefined') return null
+  const div = document.createElement('div')
+  const style = window.getComputedStyle(textarea)
+  const propsToCopy = [
+    'boxSizing',
+    'width',
+    'fontFamily',
+    'fontSize',
+    'fontWeight',
+    'fontStyle',
+    'letterSpacing',
+    'wordSpacing',
+    'lineHeight',
+    'textTransform',
+    'paddingTop',
+    'paddingRight',
+    'paddingBottom',
+    'paddingLeft',
+    'borderTopWidth',
+    'borderRightWidth',
+    'borderBottomWidth',
+    'borderLeftWidth',
+  ]
+  for (const p of propsToCopy) {
+    div.style[p] = style[p]
+  }
+  div.style.position = 'absolute'
+  div.style.visibility = 'hidden'
+  div.style.overflow = 'hidden'
+  div.style.whiteSpace = 'pre-wrap'
+  div.style.overflowWrap = 'break-word'
+  div.style.top = '0'
+  div.style.left = '0'
+  div.textContent = textarea.value.substring(0, position)
+  // Append a zero-width marker so we can measure where the caret sits.
+  const span = document.createElement('span')
+  span.textContent = textarea.value.substring(position) || '.'
+  div.appendChild(span)
+  document.body.appendChild(div)
+  let spanRect, divRect
+  try {
+    spanRect = span.getBoundingClientRect()
+    divRect = div.getBoundingClientRect()
+  } finally {
+    document.body.removeChild(div)
+  }
+  // The mirror sits at (0, 0); convert to textarea-local coords, then
+  // to viewport coords via the textarea's own rect.
+  const taRect = textarea.getBoundingClientRect()
+  const localTop = spanRect.top - divRect.top
+  const localLeft = spanRect.left - divRect.left
+  return {
+    top: taRect.top + localTop - textarea.scrollTop,
+    left: taRect.left + localLeft - textarea.scrollLeft,
+    height: spanRect.height,
+  }
 }
 
 // ============================================================
