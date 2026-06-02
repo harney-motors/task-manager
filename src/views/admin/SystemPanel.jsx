@@ -56,7 +56,7 @@ export default function SystemPanel() {
 // Read-only — toggling opt-out is a per-user concern surfaced in
 // each user's Settings → Profile panel.
 function MentionEmailPreview() {
-  const [brand, setBrand] = useState('#6366F1')
+  const [brand, setBrand] = useState('#185FA5')
   const sample = renderMentionEmail({
     recipientName: 'Sasha',
     mentionerName: 'Asbert',

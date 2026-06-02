@@ -64,7 +64,7 @@ export function renderMentionEmail({
   appUrl,
   unsubscribeUrl,
 }) {
-  const accent = sanitizeHex(workspaceBrandColor) || '#6366F1'
+  const accent = sanitizeHex(workspaceBrandColor) || '#185FA5'
   const accentTint = withAlpha(accent, 0.12) // soft pill background
   const safeTask = escapeHtml(truncate(taskTitle || '(untitled task)', 140))
   const safeWorkspace = escapeHtml(workspaceName || 'Workspace')

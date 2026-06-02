@@ -39,19 +39,21 @@
   --color-text-2: #3A3A3C;    /* iOS secondaryLabel */
   --color-text-3: #8E8E93;    /* iOS tertiaryLabel */
 
-  /* Semantic — pastel pass. Primary lifted to indigo-500 (a touch
-     softer than the previous indigo-600), and dark "text on
-     coloured bg" pulled back from near-black to the 700-range so
-     pills read as soft tags instead of slab-dark labels. */
-  /* Primary accent — wraps `var(--brand-color)` so a workspace's
-     custom hex (set in App.jsx on workspace switch) flows through
-     every bg-info / text-info / border-info utility. Falls back to
-     indigo-500 when no brand colour is set. The companion bg/text
-     pastel tints stay fixed indigo for now — only the strong primary
-     swings with branding. */
-  --color-info: var(--brand-color, #6366F1);    /* indigo-500 default */
-  --color-info-bg: #EEF2FF;     /* indigo-50  */
-  --color-info-text: #4338CA;   /* indigo-700 */
+  /* Semantic — pastel pass.
+     Primary accent is the Tickd brand blue (#185FA5 — same hue as the
+     logo mark) so every "info" surface reads as part of one family
+     instead of fighting the icon with an unrelated indigo. The bg/text
+     tints are derived from that same blue (lifted into a soft tint for
+     bg, darkened for text) so chips, links, and selected states all
+     stay on-brand. PIC + department palettes stay varied for identity.
+
+     `--color-info` still wraps `var(--brand-color)` so a workspace's
+     custom hex (set in App.jsx on workspace switch) overrides the
+     default; the bg/text tints stay fixed brand-blue so chips don't
+     swing wildly per workspace. */
+  --color-info: var(--brand-color, #185FA5);    /* Tickd brand blue */
+  --color-info-bg: #E6EEF7;     /* brand-blue 50 — soft sky tint */
+  --color-info-text: #0F4378;   /* brand-blue 700 — AA on bg */
   --color-success: #10B981;     /* emerald-500 */
   --color-success-bg: #ECFDF5;  /* emerald-50 */
   --color-success-text: #047857; /* emerald-700 */
@@ -59,8 +61,8 @@
   --color-danger-text: #B91C1C; /* red-700 */
   --color-warning-bg: #FEF3C7;  /* amber-100 */
   --color-warning-text: #92400E; /* amber-800 */
-  --color-in-progress-bg: #EEF2FF;
-  --color-in-progress-text: #4338CA;
+  --color-in-progress-bg: #E6EEF7;
+  --color-in-progress-text: #0F4378;
 
   /* PIC palette — purple */
   --color-pic-purple-bg: #EEEDFE;
@@ -115,8 +117,8 @@
 
   /* Calendar heatmap tint — referenced as rgba(var(--heatmap-tint-rgb), x)
      in TodayView / PicHomeView so opacity can be driven by task density.
-     Indigo-600 rgb. */
-  --heatmap-tint-rgb: 79, 70, 229;
+     Tickd brand-blue rgb so the heatmap matches the rest of the UI. */
+  --heatmap-tint-rgb: 24, 95, 165;
 }
 
 /* ============================================================
@@ -143,11 +145,12 @@
   /* Dark mode pastel pass — lifted backgrounds out of the crushed
      near-black ranges and softened text to match. Same hues, lower
      saturation, higher value. Still warm-dark, just airier. */
-  /* Dark-mode primary — same brand-color fallthrough as the light
-     mode, default lifted to a pastel lavender for the unbranded path. */
-  --color-info: var(--brand-color, #A5B4FC);  /* indigo-300 default */
-  --color-info-bg: #312E81;     /* indigo-900 — softer than indigo-950 */
-  --color-info-text: #E0E7FF;   /* indigo-100 */
+  /* Dark-mode primary — same brand-color fallthrough as light mode,
+     default lifted to a soft sky-blue (a brightened cousin of the
+     #185FA5 logo) so accents stay on-brand on dark surfaces. */
+  --color-info: var(--brand-color, #6BA4DD);  /* lifted brand blue */
+  --color-info-bg: #102C49;     /* brand-blue 900 — same hue, darker */
+  --color-info-text: #C9DEF2;   /* brand-blue 100 — AA on bg */
   --color-success: #6EE7B7;     /* emerald-300 — pastel mint */
   --color-success-bg: #064E3B;  /* emerald-900 */
   --color-success-text: #D1FAE5;
@@ -155,8 +158,8 @@
   --color-danger-text: #FCA5A5; /* red-300 */
   --color-warning-bg: #422006;
   --color-warning-text: #FCD34D; /* amber-300 */
-  --color-in-progress-bg: #312E81;
-  --color-in-progress-text: #E0E7FF;
+  --color-in-progress-bg: #102C49;
+  --color-in-progress-text: #C9DEF2;
 
   /* PIC palette — same dot color so identities stay stable, but
      darker bg and lighter text for chip legibility on dark surface. */
@@ -193,8 +196,8 @@
   --color-dept-ops-bg: #1E1B3A;
   --color-dept-ops-text: #C5C0F0;
 
-  /* Heatmap tint shifts lighter for contrast against dark surface. */
-  --heatmap-tint-rgb: 102, 168, 235;
+  /* Heatmap tint — lifted brand blue for contrast on dark surfaces. */
+  --heatmap-tint-rgb: 107, 164, 221;
 }
 
 html, body, #root {

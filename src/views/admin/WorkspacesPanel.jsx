@@ -214,7 +214,7 @@ function BrandColorPicker({ workspace: w }) {
         />
         <input
           type="color"
-          value={current || '#6366F1'}
+          value={current || '#185FA5'}
           onChange={(e) => handleChange(e.target.value)}
           disabled={saving}
           className="sr-only"
