@@ -41,31 +41,71 @@ export default async (req) => {
   // ---------- Resolve token ----------
   const { data: tokenRow, error: tokenErr } = await admin
     .from('calendar_feed_tokens')
-    .select('id, user_id, workspace_id, revoked_at')
+    .select('id, user_id, workspace_id, scope, revoked_at')
     .eq('token', token)
     .maybeSingle()
   if (tokenErr || !tokenRow || tokenRow.revoked_at) {
     return new Response('not found', { status: 404 })
   }
+  const scope = tokenRow.scope ?? 'workspace'
 
   // ---------- Fetch workspace + tasks ----------
-  const [{ data: workspace }, { data: tasks }] = await Promise.all([
-    admin
-      .from('workspaces')
-      .select('id, name')
-      .eq('id', tokenRow.workspace_id)
-      .maybeSingle(),
-    admin
-      .from('tasks')
-      .select(
-        'id, task_number, title, status, priority, due_date, updated_at, pic:people!tasks_pic_id_fkey(name)',
-      )
-      .eq('workspace_id', tokenRow.workspace_id)
-      .not('due_date', 'is', null),
-  ])
+  // For 'mine' scope we need the user's linked person id so we can
+  // filter tasks where they're PIC or watcher. Pull it in parallel
+  // with the workspace lookup to save a round-trip.
+  const myPersonPromise =
+    scope === 'mine'
+      ? admin
+          .from('people')
+          .select('id')
+          .eq('workspace_id', tokenRow.workspace_id)
+          .eq('user_id', tokenRow.user_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null })
+
+  // Tasks select: include task_watchers when we need to filter on them.
+  // Watchers are a related table, so we left-join them via PostgREST's
+  // embedded select syntax. The shape is task_watchers[{person_id}].
+  const tasksSelect =
+    scope === 'mine'
+      ? 'id, task_number, title, status, priority, due_date, updated_at, pic_id, pic:people!tasks_pic_id_fkey(name), task_watchers(person_id)'
+      : 'id, task_number, title, status, priority, due_date, updated_at, pic:people!tasks_pic_id_fkey(name)'
+
+  const [{ data: workspace }, { data: tasks }, { data: myPerson }] =
+    await Promise.all([
+      admin
+        .from('workspaces')
+        .select('id, name')
+        .eq('id', tokenRow.workspace_id)
+        .maybeSingle(),
+      admin
+        .from('tasks')
+        .select(tasksSelect)
+        .eq('workspace_id', tokenRow.workspace_id)
+        .not('due_date', 'is', null),
+      myPersonPromise,
+    ])
 
   if (!workspace) {
     return new Response('workspace gone', { status: 410 })
+  }
+
+  // ---------- Apply scope filter ----------
+  let scopedTasks = tasks ?? []
+  if (scope === 'mine') {
+    const myId = myPerson?.id ?? null
+    if (!myId) {
+      // The subscriber isn't linked to a person in this workspace, so
+      // there's nothing to surface. Return an empty (but well-formed)
+      // calendar so apps don't show an error.
+      scopedTasks = []
+    } else {
+      scopedTasks = scopedTasks.filter((t) => {
+        if (t.pic_id === myId) return true
+        const watchers = t.task_watchers ?? []
+        return watchers.some((w) => w.person_id === myId)
+      })
+    }
   }
 
   // ---------- Record access (fire-and-forget) ----------
@@ -78,14 +118,16 @@ export default async (req) => {
   // ---------- Render .ics ----------
   const body = renderIcs({
     workspaceName: workspace.name,
-    tasks: tasks ?? [],
+    scope,
+    tasks: scopedTasks,
   })
 
+  const scopeLabel = scope === 'mine' ? '-my-tasks' : ''
   return new Response(body, {
     status: 200,
     headers: {
       'content-type': 'text/calendar; charset=utf-8',
-      'content-disposition': `inline; filename="tickd-${slug(workspace.name)}.ics"`,
+      'content-disposition': `inline; filename="tickd-${slug(workspace.name)}${scopeLabel}.ics"`,
       // Calendar apps cache aggressively; let them, but allow a short
       // refresh so changes show up reasonably fast.
       'cache-control': 'public, max-age=900',
@@ -95,9 +137,18 @@ export default async (req) => {
 
 // ---------- ICS rendering ----------
 
-function renderIcs({ workspaceName, tasks }) {
+function renderIcs({ workspaceName, scope, tasks }) {
   const now = formatUtc(new Date())
-  const calName = `Tickd · ${workspaceName}`
+  // Calendar name carries the scope so users distinguish the two
+  // feeds when they subscribe to both in the same calendar app.
+  const calName =
+    scope === 'mine'
+      ? `Tickd · ${workspaceName} (mine)`
+      : `Tickd · ${workspaceName}`
+  const calDesc =
+    scope === 'mine'
+      ? 'Tasks I own or watch — from Tickd'
+      : 'Task due dates from Tickd'
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -105,7 +156,7 @@ function renderIcs({ workspaceName, tasks }) {
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     `X-WR-CALNAME:${escapeText(calName)}`,
-    `X-WR-CALDESC:${escapeText('Task due dates from Tickd')}`,
+    `X-WR-CALDESC:${escapeText(calDesc)}`,
     'X-PUBLISHED-TTL:PT1H',
     'REFRESH-INTERVAL;VALUE=DURATION:PT1H',
   ]

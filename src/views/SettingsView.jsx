@@ -716,6 +716,73 @@ function CalendarSyncPanel() {
 }
 
 function WorkspaceCalendarRow({ workspace, isActive }) {
+  return (
+    <div className="bg-surface border border-border rounded-xl p-5">
+      <div className="flex items-center gap-2 flex-wrap mb-4">
+        <h3 className="text-sm font-medium">{workspace.name}</h3>
+        {isActive && (
+          <span className="text-[10px] uppercase tracking-wider text-text-3 bg-surface-2 rounded px-1.5 py-0.5">
+            Active
+          </span>
+        )}
+        <span className="text-[10px] uppercase tracking-wider text-text-3">
+          {workspace.role}
+        </span>
+      </div>
+
+      {/* Two scopes, two independent subscription cards. People can
+          enable either, both, or neither. Default behaviour (before
+          phase-24) was workspace-wide only. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <SubscriptionCard
+          workspace={workspace}
+          scope="workspace"
+          title="All workspace tasks"
+          subtitle="Everything in this workspace with a due date — useful for team leads / managers."
+          icon="ti-building"
+        />
+        <SubscriptionCard
+          workspace={workspace}
+          scope="mine"
+          title="Just my tasks"
+          subtitle="Only tasks where you're the PIC or a watcher. Your linked person decides."
+          icon="ti-user"
+        />
+      </div>
+
+      <details className="text-xs text-text-2 mt-3">
+        <summary className="cursor-pointer hover:text-text">
+          How to subscribe in your calendar app
+        </summary>
+        <div className="mt-2 space-y-2 pl-3 border-l-2 border-border">
+          <div>
+            <span className="font-medium text-text">iPhone / iPad:</span>{' '}
+            Settings → Calendar → Accounts → Add Account → Other → Add
+            Subscribed Calendar → paste URL.
+          </div>
+          <div>
+            <span className="font-medium text-text">Mac (Calendar app):</span>{' '}
+            File → New Calendar Subscription → paste URL → set
+            auto-refresh to Every hour.
+          </div>
+          <div>
+            <span className="font-medium text-text">Google Calendar:</span>{' '}
+            Settings → Add calendar → From URL → paste URL.
+          </div>
+          <div>
+            <span className="font-medium text-text">Outlook:</span> Add
+            calendar → Subscribe from web → paste URL.
+          </div>
+        </div>
+      </details>
+    </div>
+  )
+}
+
+// Single subscription card per (workspace, scope). Owns its own token
+// row + busy + copy state. Identical UX to the previous one-card
+// layout, just parameterised by scope.
+function SubscriptionCard({ workspace, scope, title, subtitle, icon }) {
   const showToast = useToast()
   const [tokenRow, setTokenRow] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -725,7 +792,7 @@ function WorkspaceCalendarRow({ workspace, isActive }) {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    fetchCalendarToken(workspace.id)
+    fetchCalendarToken(workspace.id, scope)
       .then((row) => {
         if (!cancelled) setTokenRow(row)
       })
@@ -738,12 +805,12 @@ function WorkspaceCalendarRow({ workspace, isActive }) {
     return () => {
       cancelled = true
     }
-  }, [workspace.id])
+  }, [workspace.id, scope])
 
   async function handleEnable() {
     setBusy(true)
     try {
-      const row = await createCalendarToken(workspace.id)
+      const row = await createCalendarToken(workspace.id, scope)
       setTokenRow(row)
       showToast('Subscription enabled.')
     } catch (err) {
@@ -756,13 +823,13 @@ function WorkspaceCalendarRow({ workspace, isActive }) {
   async function handleRotate() {
     if (
       !confirm(
-        `Rotate the subscription URL for "${workspace.name}"? The old URL will stop working immediately and you'll need to re-add the new one in your calendar app.`,
+        `Rotate this subscription URL? The old URL will stop working immediately and you'll need to re-add the new one in your calendar app.`,
       )
     )
       return
     setBusy(true)
     try {
-      const row = await rotateCalendarToken(workspace.id)
+      const row = await rotateCalendarToken(workspace.id, scope)
       setTokenRow(row)
       showToast('Subscription URL rotated.')
     } catch (err) {
@@ -775,13 +842,13 @@ function WorkspaceCalendarRow({ workspace, isActive }) {
   async function handleRevoke() {
     if (
       !confirm(
-        `Disable calendar sync for "${workspace.name}"? Your calendar app will stop seeing updates on the next refresh.`,
+        `Disable this calendar subscription? Your calendar app will stop seeing updates on the next refresh.`,
       )
     )
       return
     setBusy(true)
     try {
-      await revokeCalendarToken(workspace.id)
+      await revokeCalendarToken(workspace.id, scope)
       setTokenRow(null)
       showToast('Subscription disabled.')
     } catch (err) {
@@ -803,109 +870,79 @@ function WorkspaceCalendarRow({ workspace, isActive }) {
   }
 
   return (
-    <div className="bg-surface border border-border rounded-xl p-5">
-      <div className="flex items-center gap-2 flex-wrap">
-        <h3 className="text-sm font-medium">{workspace.name}</h3>
-        {isActive && (
-          <span className="text-[10px] uppercase tracking-wider text-text-3 bg-surface-2 rounded px-1.5 py-0.5">
-            Active
-          </span>
-        )}
-        <span className="text-[10px] uppercase tracking-wider text-text-3">
-          {workspace.role}
+    <div className="border border-border rounded-lg p-4 bg-surface-2/30 flex flex-col">
+      <div className="flex items-start gap-2.5 mb-2">
+        <span className="flex-shrink-0 w-7 h-7 rounded-md bg-info-bg text-info-text inline-flex items-center justify-center">
+          <i className={`ti ${icon} text-sm`} />
         </span>
+        <div className="flex-1 min-w-0">
+          <h4 className="text-sm font-medium">{title}</h4>
+          <p className="text-[11px] text-text-3 mt-0.5 leading-relaxed">
+            {subtitle}
+          </p>
+        </div>
       </div>
 
       {loading ? (
-        <div className="text-xs text-text-3 mt-3">Loading…</div>
+        <div className="text-[11px] text-text-3 mt-2">Loading…</div>
       ) : !tokenRow ? (
-        <div className="mt-3">
-          <p className="text-xs text-text-2 mb-3">
-            Not subscribed yet. Enable to get a private URL you can paste
-            into your calendar app.
-          </p>
+        <div className="mt-2">
           <button
             onClick={handleEnable}
             disabled={busy}
-            className="text-xs px-3 py-1.5 rounded bg-info text-white font-medium hover:opacity-90 disabled:opacity-50 inline-flex items-center gap-1.5"
+            className="w-full text-xs px-3 py-1.5 rounded bg-info text-white font-medium hover:opacity-90 disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
           >
             <i className="ti ti-calendar-plus text-sm" />
-            Enable subscription
+            Enable
           </button>
         </div>
       ) : (
-        <div className="mt-3 space-y-3">
+        <div className="mt-2 space-y-2 flex-1 flex flex-col">
           <div>
-            <div className="text-[11px] uppercase tracking-wider text-text-3 mb-1">
+            <div className="text-[10px] uppercase tracking-wider text-text-3 mb-1">
               Subscription URL
             </div>
             <div className="flex items-center gap-1 flex-wrap">
-              <code className="text-[11px] bg-surface-2 border border-border rounded px-2 py-1 break-all font-mono flex-1 min-w-0">
+              <code className="text-[10px] bg-surface border border-border rounded px-1.5 py-1 break-all font-mono flex-1 min-w-0">
                 {calendarFeedUrl(tokenRow.token)}
               </code>
               <button
                 onClick={handleCopy}
-                className="text-xs px-2 py-1 rounded border border-border hover:bg-surface-2 text-text-2 hover:text-text inline-flex items-center gap-1"
+                className="text-[11px] px-1.5 py-1 rounded border border-border hover:bg-surface-2 text-text-2 hover:text-text inline-flex items-center gap-1"
+                aria-label="Copy URL"
               >
                 <i className={`ti ${copied ? 'ti-check' : 'ti-copy'} text-sm`} />
-                {copied ? 'Copied' : 'Copy'}
               </button>
             </div>
             <a
               href={webcalFeedUrl(tokenRow.token)}
-              className="text-[11px] text-info hover:underline mt-1 inline-flex items-center gap-1"
+              className="text-[10px] text-info hover:underline mt-1 inline-flex items-center gap-1"
             >
-              <i className="ti ti-external-link text-xs" />
-              Open in Apple Calendar (webcal://)
+              <i className="ti ti-external-link text-[10px]" />
+              Open in Apple Calendar
             </a>
           </div>
 
-          <details className="text-xs text-text-2">
-            <summary className="cursor-pointer hover:text-text">
-              How to subscribe
-            </summary>
-            <div className="mt-2 space-y-2 pl-3 border-l-2 border-border">
-              <div>
-                <span className="font-medium text-text">iPhone / iPad:</span>{' '}
-                Settings → Calendar → Accounts → Add Account → Other → Add
-                Subscribed Calendar → paste URL.
-              </div>
-              <div>
-                <span className="font-medium text-text">Mac (Calendar app):</span>{' '}
-                File → New Calendar Subscription → paste URL → set
-                auto-refresh to Every hour.
-              </div>
-              <div>
-                <span className="font-medium text-text">Google Calendar:</span>{' '}
-                Settings → Add calendar → From URL → paste URL.
-              </div>
-              <div>
-                <span className="font-medium text-text">Outlook:</span> Add
-                calendar → Subscribe from web → paste URL.
-              </div>
-            </div>
-          </details>
-
-          <div className="flex items-center gap-2 pt-2 border-t border-border">
+          <div className="flex items-center gap-2 pt-2 border-t border-border mt-auto">
             <button
               onClick={handleRotate}
               disabled={busy}
-              className="text-xs px-2.5 py-1 rounded border border-border hover:bg-surface-2 text-text-2 hover:text-text disabled:opacity-50"
+              className="text-[11px] px-2 py-0.5 rounded border border-border hover:bg-surface text-text-2 hover:text-text disabled:opacity-50"
               title="Replace this URL with a new one. Old URL stops working immediately."
             >
-              Rotate URL
+              Rotate
             </button>
             <button
               onClick={handleRevoke}
               disabled={busy}
-              className="text-xs px-2.5 py-1 rounded text-text-3 hover:text-danger-text hover:bg-danger-bg disabled:opacity-50"
+              className="text-[11px] px-2 py-0.5 rounded text-text-3 hover:text-danger-text hover:bg-danger-bg disabled:opacity-50"
             >
               Disable
             </button>
-            <span className="text-[11px] text-text-3 ml-auto">
+            <span className="text-[10px] text-text-3 ml-auto">
               {tokenRow.last_accessed_at
                 ? `Last fetched ${formatRelativeTime(tokenRow.last_accessed_at)}`
-                : 'Never fetched yet'}
+                : 'Never fetched'}
             </span>
           </div>
         </div>

@@ -11,8 +11,17 @@ function generateToken() {
     .replace(/=+$/, '')
 }
 
-// Fetch the active token row for (current user, workspace), or null.
-export async function fetchCalendarToken(workspaceId) {
+// Calendar token "scope" — what the .ics feed should include:
+//   workspace → every task in the workspace (legacy behaviour)
+//   mine      → only tasks where the user is PIC or watcher
+const VALID_SCOPES = new Set(['workspace', 'mine'])
+function normalizeScope(s) {
+  return VALID_SCOPES.has(s) ? s : 'workspace'
+}
+
+// Fetch the active token row for (current user, workspace, scope), or
+// null. A user may have one of each scope active for the same workspace.
+export async function fetchCalendarToken(workspaceId, scope = 'workspace') {
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -20,9 +29,10 @@ export async function fetchCalendarToken(workspaceId) {
 
   const { data, error } = await supabase
     .from('calendar_feed_tokens')
-    .select('id, token, created_at, last_accessed_at')
+    .select('id, token, scope, created_at, last_accessed_at')
     .eq('user_id', user.id)
     .eq('workspace_id', workspaceId)
+    .eq('scope', normalizeScope(scope))
     .is('revoked_at', null)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -31,10 +41,34 @@ export async function fetchCalendarToken(workspaceId) {
   return data ?? null
 }
 
-// Create a fresh token for (current user, workspace). Returns the row.
-// If one already exists, the unique constraint will block — caller
-// should call rotate() instead, or fetchCalendarToken() to read.
-export async function createCalendarToken(workspaceId) {
+// Fetch both scopes at once (workspace + mine). Convenience for the
+// Settings UI which renders both subscription cards side by side.
+// Returns { workspace: row|null, mine: row|null }.
+export async function fetchCalendarTokens(workspaceId) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not signed in')
+
+  const { data, error } = await supabase
+    .from('calendar_feed_tokens')
+    .select('id, token, scope, created_at, last_accessed_at')
+    .eq('user_id', user.id)
+    .eq('workspace_id', workspaceId)
+    .is('revoked_at', null)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  const byScope = { workspace: null, mine: null }
+  for (const row of data ?? []) {
+    if (!byScope[row.scope]) byScope[row.scope] = row
+  }
+  return byScope
+}
+
+// Create a fresh token for (current user, workspace, scope). Returns
+// the row. If one already exists for the same scope, the unique
+// constraint blocks — caller should rotate() or fetch() instead.
+export async function createCalendarToken(workspaceId, scope = 'workspace') {
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -46,19 +80,20 @@ export async function createCalendarToken(workspaceId) {
     .insert({
       user_id: user.id,
       workspace_id: workspaceId,
+      scope: normalizeScope(scope),
       token,
     })
-    .select('id, token, created_at')
+    .select('id, token, scope, created_at')
     .single()
   if (error) throw error
   return data
 }
 
-// Revoke the current active token and issue a new one. Returns the new
-// row. Old URLs go cold immediately — calendar apps will get 404 on
-// their next refresh.
-export async function rotateCalendarToken(workspaceId) {
-  const existing = await fetchCalendarToken(workspaceId)
+// Revoke the current active token of `scope` and issue a new one.
+// Returns the new row. Old URLs go cold immediately — calendar apps
+// will get 404 on their next refresh.
+export async function rotateCalendarToken(workspaceId, scope = 'workspace') {
+  const existing = await fetchCalendarToken(workspaceId, scope)
   if (existing) {
     const { error } = await supabase
       .from('calendar_feed_tokens')
@@ -66,12 +101,12 @@ export async function rotateCalendarToken(workspaceId) {
       .eq('id', existing.id)
     if (error) throw error
   }
-  return createCalendarToken(workspaceId)
+  return createCalendarToken(workspaceId, scope)
 }
 
 // Revoke without replacement — subscription stops working entirely.
-export async function revokeCalendarToken(workspaceId) {
-  const existing = await fetchCalendarToken(workspaceId)
+export async function revokeCalendarToken(workspaceId, scope = 'workspace') {
+  const existing = await fetchCalendarToken(workspaceId, scope)
   if (!existing) return
   const { error } = await supabase
     .from('calendar_feed_tokens')
