@@ -78,6 +78,10 @@ export default async (req) => {
   const entryId = String(body?.entry_id ?? '').trim()
   if (!entryId) return jsonError(400, 'entry_id is required')
 
+  // Verbose tracing so deliverability issues are debuggable from the
+  // Netlify function logs without re-deploying with extra logs.
+  console.log(`[notify-mention] start entry=${entryId} caller=${caller.id}`)
+
   // Fetch the entry + task + mentions. RLS gates this to entries the
   // caller can see (workspace member) AND we verify the caller is the
   // author below so a malicious client can't trigger emails for entries
@@ -96,7 +100,11 @@ export default async (req) => {
   if (!entry.task) return jsonError(404, 'Source task missing')
 
   const mentionIds = (entry.mentions ?? []).filter(Boolean)
+  console.log(
+    `[notify-mention] entry resolved task=${entry.task?.id} mentions=${mentionIds.length}`,
+  )
   if (mentionIds.length === 0) {
+    console.log('[notify-mention] no mentions on entry — exit')
     return new Response(JSON.stringify({ sent: 0, skipped: 0 }), {
       status: 200,
       headers: { 'content-type': 'application/json' },
@@ -127,7 +135,15 @@ export default async (req) => {
     if (p.user_id) peopleByUser.set(p.user_id, p)
   }
   const userIds = Array.from(peopleByUser.keys())
+  console.log(
+    `[notify-mention] resolved ${userIds.length}/${mentionIds.length} mentioned people to linked users`,
+  )
   if (userIds.length === 0) {
+    console.log(
+      '[notify-mention] none of the mentioned people are linked to a user account — exit. ',
+      'Person IDs:',
+      mentionIds,
+    )
     return new Response(JSON.stringify({ sent: 0, skipped: mentionIds.length }), {
       status: 200,
       headers: { 'content-type': 'application/json' },
@@ -185,18 +201,25 @@ export default async (req) => {
 
   let sent = 0
   let skipped = 0
+  const skipReasons = []
   for (const uid of userIds) {
     if (uid === caller.id) {
-      skipped++ // don't email someone their own mention
+      skipped++
+      skipReasons.push({ user_id: uid, reason: 'is the comment author' })
       continue
     }
     if (optedOut.has(uid)) {
       skipped++
+      skipReasons.push({ user_id: uid, reason: 'opted out of mention emails' })
       continue
     }
     const email = emailByUser.get(uid)
     if (!email) {
       skipped++
+      skipReasons.push({
+        user_id: uid,
+        reason: 'no email on auth.users record',
+      })
       continue
     }
     const person = peopleByUser.get(uid)
@@ -220,13 +243,24 @@ export default async (req) => {
         text,
       })
       sent++
+      console.log(
+        `[notify-mention] sent to ${email} (user ${uid}, person ${person?.id})`,
+      )
     } catch (err) {
-      console.warn('[notify-mention] smtp send failed', err)
+      console.error(
+        `[notify-mention] SMTP send FAILED to ${email}:`,
+        err?.message ?? err,
+      )
       skipped++
+      skipReasons.push({ user_id: uid, reason: `smtp error: ${err?.message ?? err}` })
     }
   }
 
-  return new Response(JSON.stringify({ sent, skipped }), {
+  console.log(
+    `[notify-mention] done sent=${sent} skipped=${skipped}`,
+    skipReasons.length ? skipReasons : '',
+  )
+  return new Response(JSON.stringify({ sent, skipped, skipReasons }), {
     status: 200,
     headers: { 'content-type': 'application/json' },
   })

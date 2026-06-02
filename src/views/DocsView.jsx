@@ -26,7 +26,13 @@ import Skeleton from '../components/Skeleton'
 // so existing docs render unchanged.
 export default function DocsView() {
   const { workspace } = useAuth()
-  const { data: docs = [], isLoading, error } = useDocs()
+  const {
+    data: docs = [],
+    isLoading,
+    error,
+    refetch,
+    isFetching,
+  } = useDocs()
   const createDoc = useCreateDoc()
   const showToast = useToast()
   const [selectedId, setSelectedId] = useState(null)
@@ -40,6 +46,19 @@ export default function DocsView() {
       String(error?.code ?? '') === '42P01')
   )
   if (needsMigration) return <DocsSetupGuide />
+
+  // Network / RLS / generic errors — show a real banner with retry
+  // instead of silently rendering an empty list. Without this, an
+  // intermittent "Load failed" looked like "all my docs disappeared".
+  if (error) {
+    return (
+      <DocsLoadError
+        error={error}
+        onRetry={refetch}
+        retrying={isFetching}
+      />
+    )
+  }
 
   const autoSelectedRef = useRef(false)
   useEffect(() => {
@@ -241,6 +260,52 @@ function DocListRow({ doc, selected, onClick }) {
 // ============================================================
 // Migration-needed state
 // ============================================================
+
+// ============================================================
+// Generic load-error state — surfaces real network / RLS errors
+// ============================================================
+//
+// Without this, a one-off network blip ("Load failed" on Safari)
+// would just produce an empty doc list and feel like everything
+// vanished. Showing the actual error + a retry button reassures
+// the user that the data is still on the server.
+
+function DocsLoadError({ error, onRetry, retrying }) {
+  const msg = error?.message || 'Could not load docs.'
+  return (
+    <div className="bg-surface border border-border rounded-2xl p-6 sm:p-10 max-w-2xl">
+      <div className="flex items-start gap-3">
+        <span className="flex-shrink-0 w-10 h-10 rounded-xl bg-danger-bg text-danger-text inline-flex items-center justify-center">
+          <i className="ti ti-cloud-off text-lg" />
+        </span>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-base font-semibold tracking-tight">
+            Couldn’t reach Docs
+          </h2>
+          <p className="text-sm text-text-2 mt-1.5 leading-relaxed">
+            Something went wrong loading your docs. Your data is still
+            safe on the server — this just means the request didn’t
+            complete. Most often it’s a flaky network.
+          </p>
+          <p className="text-[11px] font-mono text-text-3 mt-2 break-all">
+            {msg}
+          </p>
+          <button
+            type="button"
+            onClick={() => onRetry?.()}
+            disabled={retrying}
+            className="mt-4 text-sm px-4 py-2 rounded-lg bg-info text-white font-medium hover:opacity-95 active:scale-[0.98] inline-flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <i
+              className={`ti ${retrying ? 'ti-loader-2 animate-spin' : 'ti-refresh'} text-sm`}
+            />
+            {retrying ? 'Retrying…' : 'Try again'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function DocsSetupGuide() {
   return (

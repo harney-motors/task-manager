@@ -70,7 +70,20 @@ import {
 import { logActivity } from '../api/activity'
 
 function errMsg(err, fallback) {
-  return err?.message ?? fallback
+  // Always log the raw error to the console so we can diagnose
+  // intermittent "Load failed" / "Network error" style toasts that
+  // would otherwise lose all context once dismissed.
+  if (err && typeof console !== 'undefined') {
+    console.warn('[queries]', fallback, err)
+  }
+  const raw = err?.message ?? ''
+  // Safari sends a terse "Load failed" / "Network connection lost"
+  // for any fetch that didn't reach the server. Re-write to something
+  // actionable; the raw error still goes to the console for engs.
+  if (/load failed|network/i.test(raw)) {
+    return `${fallback} — couldn't reach the server. Check your connection and try again.`
+  }
+  return raw || fallback
 }
 
 export const queryKeys = {
