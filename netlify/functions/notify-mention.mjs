@@ -24,7 +24,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { renderMentionEmail } from '../../src/lib/mentionEmailTemplate.js'
-import { sendEmail, emailProvider } from './_lib/email.mjs'
+import { sendEmail, emailProvider, emailDiagnostic } from './_lib/email.mjs'
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY =
@@ -37,9 +37,11 @@ export default async (req) => {
     return new Response('method not allowed', { status: 405 })
   }
   if (!emailProvider()) {
+    const diag = emailDiagnostic()
     return jsonError(
       500,
-      'Server missing email config — set RESEND_API_KEY + EMAIL_FROM (or SMTP_* as a fallback).',
+      `Server missing email config. Function sees: ${JSON.stringify(diag)}. ` +
+        'Make sure RESEND_API_KEY + EMAIL_FROM are scoped to "Functions" in Netlify env vars and the site has been redeployed since they were added.',
     )
   }
   if (!SUPABASE_SERVICE_ROLE_KEY) {

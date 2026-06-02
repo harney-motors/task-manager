@@ -53,6 +53,22 @@ export function emailProvider() {
   return null
 }
 
+// Diagnostic — returns booleans only (never values) so we can include
+// the result in error responses without leaking secrets. Used by the
+// "no provider configured" path to tell the user exactly which env
+// var is missing.
+export function emailDiagnostic() {
+  return {
+    has_RESEND_API_KEY: !!RESEND_API_KEY,
+    has_EMAIL_FROM: !!process.env.EMAIL_FROM,
+    has_SMTP_FROM: !!process.env.SMTP_FROM,
+    has_SMTP_HOST: !!SMTP_HOST,
+    has_SMTP_USER: !!SMTP_USER,
+    has_SMTP_PASS: !!SMTP_PASS,
+    has_FROM_resolved: !!FROM,
+  }
+}
+
 // `to` accepts a single address or an array.
 // `tags` is Resend-only; ignored by the SMTP path. Useful for
 // segmenting deliverability dashboards by purpose (mention, digest).
