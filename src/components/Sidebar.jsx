@@ -31,13 +31,15 @@ const MENTIONS_LAST_SEEN_KEY = 'tickd:mentions-last-seen'
 // keep the focused subset (Today/List/Kanban/Calendar) so PICs can
 // still re-shape their workload across the formats that make sense.
 const VIEWS = [
-  { id: 'today',    label: 'Today',    icon: 'ti-sun',           picOk: true },
-  { id: 'list',     label: 'List',     icon: 'ti-list',          picOk: true },
-  { id: 'grid',     label: 'Grid',     icon: 'ti-table',         picOk: false },
-  { id: 'kanban',   label: 'Kanban',   icon: 'ti-layout-kanban', picOk: true },
-  { id: 'pic',      label: 'By PIC',   icon: 'ti-users',         picOk: false },
-  { id: 'calendar', label: 'Calendar', icon: 'ti-calendar',      picOk: true },
-  { id: 'docs',     label: 'Docs',     icon: 'ti-book-2',        picOk: true },
+  { id: 'today',    label: 'Today',    icon: 'ti-sun',      picOk: true },
+  { id: 'list',     label: 'List',     icon: 'ti-list',     picOk: true },
+  { id: 'grid',     label: 'Grid',     icon: 'ti-table',    picOk: false },
+  // Kanban removed for now — drag UX was fiddly and the board view
+  // duplicated List + Status filtering. Keep the file so we can
+  // restore later if there's appetite.
+  { id: 'pic',      label: 'By PIC',   icon: 'ti-users',    picOk: false },
+  { id: 'calendar', label: 'Calendar', icon: 'ti-calendar', picOk: true },
+  { id: 'docs',     label: 'Docs',     icon: 'ti-book-2',   picOk: true },
 ]
 
 export default function Sidebar({

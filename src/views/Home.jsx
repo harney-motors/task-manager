@@ -32,7 +32,8 @@ import { useIsSuperadmin } from '../lib/queries'
 const GridView = lazy(() => import('./GridView'))
 const PicView = lazy(() => import('./PicView'))
 const CalendarView = lazy(() => import('./CalendarView'))
-const KanbanView = lazy(() => import('./KanbanView'))
+// KanbanView intentionally not lazy-loaded — removed from nav for
+// now (Sidebar / BottomNav). File kept in src/views/ for the future.
 const DocsView = lazy(() => import('./DocsView'))
 const SettingsView = lazy(() => import('./SettingsView'))
 const SuperAdminView = lazy(() => import('./SuperAdminView'))
@@ -599,11 +600,6 @@ export default function Home() {
             {view === 'calendar' && (
               <Suspense fallback={<ViewFallback />}>
                 <CalendarView onOpenTask={setOpenTaskId} />
-              </Suspense>
-            )}
-            {view === 'kanban' && (
-              <Suspense fallback={<ViewFallback />}>
-                <KanbanView onOpenTask={setOpenTaskId} />
               </Suspense>
             )}
             {view === 'docs' && (

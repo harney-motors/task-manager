@@ -16,22 +16,19 @@ const NAV = [
   //
   // picOk: true — view shows up in the PIC-role bar (RLS already
   // restricts data to their own tasks, so Grid + By-PIC are noise).
-  { id: 'today',    label: 'Today',  icon: 'ti-sun',           picOk: true  },
-  { id: 'list',     label: 'List',   icon: 'ti-list',          picOk: true  },
-  { id: 'grid',     label: 'Grid',   icon: 'ti-table',         picOk: false },
-  { id: 'kanban',   label: 'Board',  icon: 'ti-layout-kanban', picOk: true  },
-  { id: 'pic',      label: 'PIC',    icon: 'ti-users',         picOk: false },
-  { id: 'calendar', label: 'Cal',    icon: 'ti-calendar',      picOk: true  },
+  { id: 'today',    label: 'Today',  icon: 'ti-sun',      picOk: true  },
+  { id: 'list',     label: 'List',   icon: 'ti-list',     picOk: true  },
+  { id: 'grid',     label: 'Grid',   icon: 'ti-table',    picOk: false },
+  // Kanban removed for now — see Sidebar.
+  { id: 'pic',      label: 'PIC',    icon: 'ti-users',    picOk: false },
+  { id: 'calendar', label: 'Cal',    icon: 'ti-calendar', picOk: true  },
 ]
 
 export default function BottomNav({ active, onChange, picRole = false }) {
-  // PIC role gets a focused 4-tab bar; everyone else gets the 5-tab
-  // bar (dropping the Kanban tab on mobile keeps room for thumb reach;
-  // it's still available from the desktop sidebar and the URL).
-  const items = picRole
-    ? NAV.filter((n) => n.picOk)
-    : NAV.filter((n) => n.id !== 'kanban')
-  const cols = items.length === 4 ? 'grid-cols-4' : 'grid-cols-5'
+  // PIC role gets a focused subset (today/list/cal). Everyone else
+  // gets the full 5-tab bar.
+  const items = NAV.filter((n) => (picRole ? n.picOk : true))
+  const cols = items.length >= 5 ? 'grid-cols-5' : 'grid-cols-4'
   return (
     <nav
       className="sm:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border bg-surface/85 backdrop-blur-xl"

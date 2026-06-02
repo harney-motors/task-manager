@@ -61,6 +61,20 @@ export async function updateDoc(id, { title, body, userId }) {
 }
 
 export async function deleteDoc(id) {
-  const { error } = await supabase.from('docs').delete().eq('id', id)
+  // Ask Postgres to send back the deleted row(s). If RLS silently
+  // denies the delete (e.g. policy doesn't include the caller's
+  // role), supabase-js otherwise returns success with `error: null`,
+  // which is indistinguishable from a successful delete. Returning
+  // the row lets us detect 0-rows-deleted and surface a real error.
+  const { data, error } = await supabase
+    .from('docs')
+    .delete()
+    .eq('id', id)
+    .select('id')
   if (error) throw error
+  if (!data || data.length === 0) {
+    throw new Error(
+      "You don't have permission to delete this doc, or it was already removed.",
+    )
+  }
 }
