@@ -12,9 +12,9 @@
 // 'today' = due_date === today (regardless of status)
 // 'next7' = due in [today, today+7]
 // 'next30' = due in [today, today+30]
-export function applyTaskFilters(tasks, filters) {
+export function applyTaskFilters(tasks, filters, { meId } = {}) {
   if (!filters) return tasks
-  const { picId, deptId, status, priority, tag, due } = filters
+  const { picId, deptId, status, priority, tag, due, involvement } = filters
 
   // Precompute today/limits once per call so we don't allocate dates
   // for every task.
@@ -34,6 +34,16 @@ export function applyTaskFilters(tasks, filters) {
   }
 
   return tasks.filter((t) => {
+    // Involvement scope — "Mine" = PIC or watcher; "Watching" =
+    // watcher (regardless of PIC). Silently no-ops when meId is
+    // missing (account not linked to a person), so old callers stay
+    // safe.
+    if (involvement && involvement !== 'all' && meId) {
+      const isPic = t.pic_id === meId
+      const isWatcher = (t.watchers ?? []).some((w) => w.id === meId)
+      if (involvement === 'mine' && !isPic && !isWatcher) return false
+      if (involvement === 'watching' && !isWatcher) return false
+    }
     if (picId && picId !== 'all' && t.pic_id !== picId) return false
     if (deptId && deptId !== 'all' && t.department_id !== deptId) return false
     if (status && status !== 'all' && t.status !== status) return false
@@ -86,6 +96,9 @@ export function readFiltersFromParams(searchParams) {
     priority: searchParams.get('priority') || 'all',
     tag: searchParams.get('tag') || 'all',
     due: searchParams.get('due') || 'all',
+    // 'me' is the URL key; the JS field is `involvement` because
+    // the value space is richer than a boolean ('mine' | 'watching').
+    involvement: searchParams.get('me') || 'all',
   }
 }
 
@@ -114,6 +127,7 @@ export function writeFiltersToParams(setSearchParams, patch) {
         priority: 'priority',
         tag: 'tag',
         due: 'due',
+        involvement: 'me',
         group: 'group',
         sort: 'sort',
       }
@@ -138,6 +152,7 @@ export function isAnyFilterActive(filters) {
     (filters.status && filters.status !== 'all') ||
     (filters.priority && filters.priority !== 'all') ||
     (filters.tag && filters.tag !== 'all') ||
-    (filters.due && filters.due !== 'all')
+    (filters.due && filters.due !== 'all') ||
+    (filters.involvement && filters.involvement !== 'all')
   )
 }

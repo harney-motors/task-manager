@@ -13,6 +13,7 @@ import { useAuth } from '../auth/AuthProvider'
 import {
   useCreateTask,
   useDepartments,
+  useMyPersonId,
   usePeople,
   useTasks,
   useUpdateTask,
@@ -160,12 +161,13 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
     defaultGroup: 'status',
     defaultSort: 'due',
   })
+  const meId = useMyPersonId()
   const picTasks = useMemo(() => {
     const base = isUnassigned
       ? tasks.filter((t) => !t.pic_id)
       : tasks.filter((t) => t.pic_id === effectivePicId)
-    return applyTaskFilters(base, { ...sideFilters, picId: 'all' })
-  }, [tasks, effectivePicId, isUnassigned, sideFilters])
+    return applyTaskFilters(base, { ...sideFilters, picId: 'all' }, { meId })
+  }, [tasks, effectivePicId, isUnassigned, sideFilters, meId])
   const taskGroups = useMemo(
     () => applyTaskGrouping(picTasks, { group, sort, people, departments }),
     [picTasks, group, sort, people, departments],

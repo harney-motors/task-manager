@@ -714,13 +714,25 @@ export function useDeleteTask() {
 // ---------- Watchers ----------
 
 export function useAddWatcher() {
-  const { workspace } = useAuth()
+  const { workspace, user } = useAuth()
   const showToast = useToast()
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ taskId, personId }) => addWatcher(taskId, personId),
-    onSuccess: (_data, { taskId }) => {
+    onSuccess: (_data, { taskId, personId }) => {
+      // Push notification — out-of-band ping to the new watcher.
       notifyTaskEvent({ taskId, kind: 'watcher_added' })
+      // Activity log — drives the Inbox "Lara added you as a watcher"
+      // event + the per-task Activity tab entry. `person_id` lets the
+      // inbox derivation know WHICH person was added so it can scope
+      // the notification to the actual subject.
+      logActivity({
+        workspaceId: workspace?.id,
+        taskId,
+        actorId: user?.id,
+        action: 'watcher.added',
+        payload: { person_id: personId },
+      })
     },
     onError: (err) => showToast(errMsg(err, 'Could not add watcher'), { type: 'error' }),
     onSettled: () =>
@@ -729,11 +741,20 @@ export function useAddWatcher() {
 }
 
 export function useRemoveWatcher() {
-  const { workspace } = useAuth()
+  const { workspace, user } = useAuth()
   const showToast = useToast()
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ taskId, personId }) => removeWatcher(taskId, personId),
+    onSuccess: (_data, { taskId, personId }) => {
+      logActivity({
+        workspaceId: workspace?.id,
+        taskId,
+        actorId: user?.id,
+        action: 'watcher.removed',
+        payload: { person_id: personId },
+      })
+    },
     onError: (err) => showToast(errMsg(err, 'Could not remove watcher'), { type: 'error' }),
     onSettled: () =>
       qc.invalidateQueries({ queryKey: queryKeys.tasks(workspace?.id) }),
@@ -741,6 +762,19 @@ export function useRemoveWatcher() {
 }
 
 // ---------- People ----------
+
+// Convenience: the personId of the signed-in user inside the current
+// workspace, or null if they aren't linked to a person yet. Returned
+// once both queries (user + people) have resolved; consumers can
+// safely pass it through to applyTaskFilters' `meId` option.
+export function useMyPersonId() {
+  const { user } = useAuth()
+  const { data: people = [] } = usePeople()
+  return useMemo(
+    () => people.find((p) => p.user_id === user?.id)?.id ?? null,
+    [people, user?.id],
+  )
+}
 
 export function usePeople({ includeInactive = false } = {}) {
   const { workspace } = useAuth()

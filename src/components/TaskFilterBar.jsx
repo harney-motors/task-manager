@@ -35,18 +35,29 @@ export default function TaskFilterBar({
     defaultSort,
   })
 
-  // "Mine" toggle — quick chip that maps to picId === my linked person.
-  // Tasks have pic_id (FK to people), and a user is linked to a person
-  // via people.user_id. If the current account isn't linked to any
-  // person in this workspace, the chip is hidden (would have no effect).
+  // "Mine" / "Watching" toggles — quick scope chips that filter by
+  // involvement (PIC + watcher) rather than just PIC. This is what
+  // makes watchers a first-class workflow citizen: a task you watch
+  // shows up under "Mine" alongside tasks you PIC. "Watching" then
+  // isolates the watcher-only slice for a focused "what am I keeping
+  // an eye on?" view.
+  //
+  // If the current account isn't linked to any person in this
+  // workspace, both chips are hidden (involvement would have no
+  // target).
   const myPersonId = useMemo(
     () => people.find((p) => p.user_id === user?.id)?.id ?? null,
     [people, user?.id],
   )
-  const mineActive = myPersonId && filters.picId === myPersonId
+  const mineActive = myPersonId && filters.involvement === 'mine'
+  const watchingActive = myPersonId && filters.involvement === 'watching'
   function toggleMine() {
     if (!myPersonId) return
-    update({ picId: mineActive ? null : myPersonId })
+    update({ involvement: mineActive ? null : 'mine' })
+  }
+  function toggleWatching() {
+    if (!myPersonId) return
+    update({ involvement: watchingActive ? null : 'watching' })
   }
   const tagOptions = useMemo(() => {
     const s = new Set()
@@ -64,6 +75,7 @@ export default function TaskFilterBar({
       status: null,
       priority: null,
       tag: null,
+      involvement: null,
     })
   }
 
@@ -84,10 +96,11 @@ export default function TaskFilterBar({
     // so desktop users still get one-glance access to every filter.
     <div className="border-b border-border">
       <div className="flex items-center gap-1.5 p-2 sm:p-3 sm:gap-2 sm:flex-wrap overflow-x-auto sm:overflow-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {/* "Mine" chip — quick toggle for the most common picId filter.
-            Hidden when the account isn't linked to a person, since the
-            filter wouldn't have a target. Sits before the PIC dropdown
-            because it's a frequent shortcut, not a per-PIC drilldown. */}
+        {/* Mine + Watching — involvement-scoped quick chips. Mine is
+            the broad "tasks I care about" shortcut (PIC or watcher);
+            Watching narrows it down to the watcher-only slice. The
+            two are mutually exclusive — clicking one clears the
+            other. Hidden when the account isn't linked to a person. */}
         {showPic && myPersonId && (
           <button
             onClick={toggleMine}
@@ -97,10 +110,25 @@ export default function TaskFilterBar({
                 ? 'border-info bg-info-bg text-info-text font-medium'
                 : 'border-border bg-surface hover:bg-surface-2 text-text-2'
             }`}
-            title="Show only tasks where you're the PIC"
+            title="Show tasks where you're the PIC or a watcher"
           >
             <i className="ti ti-user text-[12px] sm:text-sm" />
             Mine
+          </button>
+        )}
+        {showPic && myPersonId && (
+          <button
+            onClick={toggleWatching}
+            aria-pressed={watchingActive}
+            className={`text-[11px] sm:text-xs border rounded px-1.5 py-0.5 sm:px-2 sm:py-1 inline-flex items-center gap-1 flex-shrink-0 transition-colors ${
+              watchingActive
+                ? 'border-info bg-info-bg text-info-text font-medium'
+                : 'border-border bg-surface hover:bg-surface-2 text-text-2'
+            }`}
+            title="Show only tasks where you're a watcher (not the PIC)"
+          >
+            <i className="ti ti-eye text-[12px] sm:text-sm" />
+            Watching
           </button>
         )}
         {showPic && (

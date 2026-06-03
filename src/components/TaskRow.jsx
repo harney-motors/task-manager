@@ -1,4 +1,4 @@
-import { useUpdateTask } from '../lib/queries'
+import { useMyPersonId, useUpdateTask } from '../lib/queries'
 import { useAuth } from '../auth/AuthProvider'
 import { useToast } from './Toast'
 import {
@@ -21,6 +21,15 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
   const { workspace } = useAuth()
   const updateTask = useUpdateTask()
   const showToast = useToast()
+  // "You're watching" subtle indicator — only shown when the current
+  // user is in the watchers list AND isn't the PIC (so it doesn't
+  // double up next to the assignee avatar). Reinforces *why* a task
+  // is showing up in the user's scoped views.
+  const meId = useMyPersonId()
+  const iAmWatcher =
+    meId != null &&
+    task.pic_id !== meId &&
+    (task.watchers ?? []).some((w) => w.id === meId)
   const overdue = isOverdue(task.due_date) && task.status !== 'Done'
   const done = task.status === 'Done'
   const displayStatus = overdue ? 'Overdue' : task.status
@@ -114,6 +123,20 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
           {task.title}
         </div>
         <div className="text-[11px] sm:text-xs text-text-2 flex items-center gap-1.5 sm:gap-2 mt-1 sm:mt-0.5 flex-wrap">
+          {/* "You're watching" tag — surfaces *why* this row is in the
+              user's mine/watching-scoped view. Subtle so it doesn't
+              compete with the PIC, but text-anchored on desktop so
+              the meaning is unambiguous. Hidden when current user is
+              the PIC (no need to double-up that signal). */}
+          {iAmWatcher && (
+            <span
+              className="inline-flex items-center gap-0.5 text-info-text bg-info-bg/60 rounded px-1 py-px text-[10px] font-medium leading-none"
+              title="You're watching this task"
+            >
+              <i className="ti ti-eye text-[10px]" />
+              <span className="hidden sm:inline">Watching</span>
+            </span>
+          )}
           {/* PIC avatar — initials in a coloured circle, first name
               beside (the modern ClickUp/Linear/Monday pattern). */}
           {task.pic ? (

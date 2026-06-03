@@ -211,6 +211,24 @@ function renderActivityEvent(row, { me, peopleByUserId }) {
     }
   }
 
+  if (row.action === 'watcher.added') {
+    // Only surface to the person who was just added — others on the
+    // task don't need to be told "someone became a watcher."
+    const addedPersonId = row.payload?.person_id
+    if (addedPersonId !== me?.id) return null
+    return {
+      id: `watcher-added:${row.id}`,
+      kind: 'watcher_added',
+      taskId: task.id,
+      taskTitle: task.title,
+      actorName,
+      occurredAt: row.created_at,
+      body: `${actorName} added you as a watcher.`,
+      severity: 'medium',
+      icon: 'ti-eye',
+    }
+  }
+
   if (row.action === 'task.updated') {
     const changes = row.payload?.changes ?? {}
 

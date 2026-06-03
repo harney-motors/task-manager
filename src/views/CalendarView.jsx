@@ -21,6 +21,7 @@ import {
 } from 'date-fns'
 import {
   useDepartments,
+  useMyPersonId,
   usePeople,
   useTasks,
   useUpdateTask,
@@ -67,9 +68,10 @@ export default function CalendarView({ onOpenTask }) {
   // unrelated re-renders.
   const [searchParams] = useSearchParams()
   const filters = readFiltersFromParams(searchParams)
+  const meId = useMyPersonId()
   const tasks = useMemo(
-    () => applyTaskFilters(allTasks, filters),
-    [allTasks, filters],
+    () => applyTaskFilters(allTasks, filters, { meId }),
+    [allTasks, filters, meId],
   )
   const { data: people = [] } = usePeople()
   const { data: departments = [] } = useDepartments()

@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../auth/AuthProvider'
 import {
   useDepartments,
+  useMyPersonId,
   usePeople,
   useTasks,
   useUpdateTask,
@@ -90,15 +91,16 @@ export default function ListView({ onOpenTask }) {
   // "what's actionable right now".
   const [statusScope, setStatusScope] = useState('open-ish')
 
+  const meId = useMyPersonId()
   const filteredTasks = useMemo(() => {
-    let pool = applyTaskFilters(tasks, filters)
+    let pool = applyTaskFilters(tasks, filters, { meId })
     if (statusScope === 'open-ish') {
       pool = pool.filter((t) => t.status !== 'Done')
     } else if (statusScope !== 'all') {
       pool = pool.filter((t) => t.status === statusScope)
     }
     return pool
-  }, [tasks, filters, statusScope])
+  }, [tasks, filters, statusScope, meId])
 
   // Bucket each task by due-bucket → sort within bucket by due asc then
   // priority. Tasks without a due date go to 'none' (regardless of status).

@@ -5,6 +5,7 @@ import {
   useCreateSavedFilter,
   useDeleteSavedFilter,
   useDepartments,
+  useMyPersonId,
   usePeople,
   useSavedFilters,
   useTasks,
@@ -106,9 +107,10 @@ export default function GridView({ onOpenTask, aiFilter, onFiltersChange }) {
     filters.tag,
   ])
 
+  const meId = useMyPersonId()
   const filtered = useMemo(
-    () => applyTaskFilters(tasks, filters),
-    [tasks, filters],
+    () => applyTaskFilters(tasks, filters, { meId }),
+    [tasks, filters, meId],
   )
 
   const taskGroups = useMemo(
