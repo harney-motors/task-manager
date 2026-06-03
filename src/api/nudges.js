@@ -25,6 +25,18 @@ export async function dismissNudge(id) {
   if (error) throw error
 }
 
+// Bulk "Mark all read" — flip every passed-in nudge to dismissed in
+// one round-trip. RLS already restricts updates to the caller's own
+// nudges, so even a malicious caller can't dismiss someone else's.
+export async function dismissNudges(ids) {
+  if (!ids || ids.length === 0) return
+  const { error } = await supabase
+    .from('ai_nudges')
+    .update({ status: 'dismissed', dismissed_at: new Date().toISOString() })
+    .in('id', ids)
+  if (error) throw error
+}
+
 // Full history — active + dismissed — for the dedicated /notifications
 // page. Newest first, capped to a reasonable window so a long-lived
 // workspace doesn't ship megabytes back to the client.

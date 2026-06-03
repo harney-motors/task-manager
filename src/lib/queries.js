@@ -34,6 +34,7 @@ import {
   fetchActiveNudges,
   fetchAllNudges,
   dismissNudge,
+  dismissNudges,
   restoreNudge,
 } from '../api/nudges'
 import {
@@ -254,6 +255,35 @@ export function useDismissNudge() {
       qc.invalidateQueries({ queryKey: key })
       // History view consumes a different query — refresh it too so
       // a just-dismissed nudge slides into the Dismissed section.
+      qc.invalidateQueries({ queryKey: queryKeys.nudgesAll(workspace?.id) })
+    },
+  })
+}
+
+// Bulk "Mark all read" for nudges. Caller passes the list of active
+// nudge ids (usually `nudges.filter(n => n.status === 'active')`).
+// Optimistic — the active query drops the rows immediately; the
+// history query (Dismissed tab) refetches on settle.
+export function useDismissNudgesBulk() {
+  const { workspace } = useAuth()
+  const qc = useQueryClient()
+  const key = queryKeys.nudges(workspace?.id)
+  return useMutation({
+    mutationFn: (ids) => dismissNudges(ids),
+    onMutate: async (ids) => {
+      await qc.cancelQueries({ queryKey: key })
+      const previous = qc.getQueryData(key)
+      const idSet = new Set(ids)
+      qc.setQueryData(key, (old) =>
+        (old ?? []).filter((n) => !idSet.has(n.id)),
+      )
+      return { previous }
+    },
+    onError: (_err, _ids, ctx) => {
+      if (ctx?.previous) qc.setQueryData(key, ctx.previous)
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: key })
       qc.invalidateQueries({ queryKey: queryKeys.nudgesAll(workspace?.id) })
     },
   })

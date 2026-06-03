@@ -7,6 +7,7 @@ import {
   useDismissMention,
   useDismissMentionsBulk,
   useDismissNudge,
+  useDismissNudgesBulk,
   useInboxEvents,
   useMyMentions,
   usePeople,
@@ -43,6 +44,7 @@ export default function NotificationsView({ onBack, onOpenTask, embedded = false
   // Mutations — nudges, mentions, and the new inbox-events stream.
   const dismiss = useDismissNudge()
   const restore = useRestoreNudge()
+  const dismissNudgesBulk = useDismissNudgesBulk()
   const dismissMentionMut = useDismissMention(me?.id)
   const restoreMentionMut = useRestoreMention(me?.id)
   const dismissMentionsBulk = useDismissMentionsBulk(me?.id)
@@ -81,7 +83,9 @@ export default function NotificationsView({ onBack, onOpenTask, embedded = false
     if (hasUnseen) setTab('mentions')
     autoSwitchedRef.current = true
   }, [mentions, mentionsLoading])
-  const [filter, setFilter] = useState('all') // all | active | dismissed (nudges sub-filter)
+  // Nudges sub-filter — defaults to 'active' so the Nudges tab opens
+  // on "what still needs me", matching the Mentions + Updates pattern.
+  const [filter, setFilter] = useState('active')
   // Mentions tab uses its own filter dim — 'active' is the default
   // (matches what users almost always want), 'dismissed' surfaces
   // their cleared history, 'all' shows everything in one list.
@@ -230,7 +234,15 @@ export default function NotificationsView({ onBack, onOpenTask, embedded = false
               onClick={() => setTab('nudges')}
             >
               Nudges
-              <span className="text-[10px] text-text-3 ml-1">{nudges.length}</span>
+              {counts.active > 0 && tab !== 'nudges' ? (
+                <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold">
+                  {counts.active > 9 ? '9+' : counts.active}
+                </span>
+              ) : (
+                <span className="text-[10px] text-text-3 ml-1">
+                  {nudges.length}
+                </span>
+              )}
             </PrimaryTab>
           </div>
 
@@ -288,22 +300,22 @@ export default function NotificationsView({ onBack, onOpenTask, embedded = false
               )}
             </div>
           ) : tab === 'nudges' ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <div className="inline-flex items-center gap-0.5 p-0.5 bg-surface-2 rounded-md">
-                  <FilterTab
-                    active={filter === 'all'}
-                    count={counts.all}
-                    onClick={() => setFilter('all')}
-                  >
-                    All
-                  </FilterTab>
                   <FilterTab
                     active={filter === 'active'}
                     count={counts.active}
                     onClick={() => setFilter('active')}
                   >
                     Active
+                  </FilterTab>
+                  <FilterTab
+                    active={filter === 'all'}
+                    count={counts.all}
+                    onClick={() => setFilter('all')}
+                  >
+                    All
                   </FilterTab>
                   <FilterTab
                     active={filter === 'dismissed'}
@@ -319,8 +331,25 @@ export default function NotificationsView({ onBack, onOpenTask, embedded = false
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search…"
-                className="flex-1 min-w-0 text-xs px-3 py-1.5 rounded-md border border-border bg-surface outline-none focus:border-info"
+                className="flex-1 min-w-[140px] text-xs px-3 py-1.5 rounded-md border border-border bg-surface outline-none focus:border-info"
               />
+              {counts.active > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const ids = nudges
+                      .filter((n) => n.status === 'active')
+                      .map((n) => n.id)
+                    dismissNudgesBulk.mutate(ids)
+                  }}
+                  disabled={dismissNudgesBulk.isPending}
+                  className="text-[11px] px-2.5 py-1.5 rounded-md border border-border bg-surface text-text-2 hover:text-text hover:bg-surface-2 active:bg-surface-3 inline-flex items-center gap-1 whitespace-nowrap disabled:opacity-50"
+                  title="Mark every active nudge as read"
+                >
+                  <i className="ti ti-checks text-xs" />
+                  Mark all read
+                </button>
+              )}
             </div>
           ) : (
             <div className="flex items-center gap-2 flex-wrap">
