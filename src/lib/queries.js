@@ -3,7 +3,14 @@ import { useAuth } from '../auth/AuthProvider'
 import { useToast } from '../components/Toast'
 import { createTask, fetchTasks, updateTask, deleteTask } from '../api/tasks'
 import { addWatcher, removeWatcher } from '../api/watchers'
-import { fetchJournalEntries, createJournalEntry, fetchMyMentions } from '../api/journal'
+import {
+  fetchJournalEntries,
+  createJournalEntry,
+  fetchMyMentions,
+  dismissMention,
+  restoreMention,
+  dismissMentions,
+} from '../api/journal'
 import { notifyMention } from '../api/notifyMention'
 import {
   createDoc,
@@ -264,6 +271,82 @@ export function useMyMentions(personId) {
     queryFn: () => fetchMyMentions(personId),
     enabled: !!workspace && !!personId,
     staleTime: 30 * 1000,
+  })
+}
+
+// Per-user "clear from my inbox" for a mention. Optimistically flips
+// the `dismissed` flag on the corresponding row so the UI moves it
+// out of the Active filter immediately; rolls back on error.
+export function useDismissMention(personId) {
+  const { workspace } = useAuth()
+  const qc = useQueryClient()
+  const key = queryKeys.mentions(workspace?.id, personId)
+  return useMutation({
+    mutationFn: (entryId) => dismissMention(entryId),
+    onMutate: async (entryId) => {
+      await qc.cancelQueries({ queryKey: key })
+      const previous = qc.getQueryData(key)
+      qc.setQueryData(key, (old) =>
+        (old ?? []).map((m) =>
+          m.id === entryId ? { ...m, dismissed: true } : m,
+        ),
+      )
+      return { previous }
+    },
+    onError: (_err, _id, ctx) => {
+      if (ctx?.previous) qc.setQueryData(key, ctx.previous)
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['mentions'] }),
+  })
+}
+
+// Restore a dismissed mention back to active.
+export function useRestoreMention(personId) {
+  const { workspace } = useAuth()
+  const qc = useQueryClient()
+  const key = queryKeys.mentions(workspace?.id, personId)
+  return useMutation({
+    mutationFn: (entryId) => restoreMention(entryId),
+    onMutate: async (entryId) => {
+      await qc.cancelQueries({ queryKey: key })
+      const previous = qc.getQueryData(key)
+      qc.setQueryData(key, (old) =>
+        (old ?? []).map((m) =>
+          m.id === entryId ? { ...m, dismissed: false } : m,
+        ),
+      )
+      return { previous }
+    },
+    onError: (_err, _id, ctx) => {
+      if (ctx?.previous) qc.setQueryData(key, ctx.previous)
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['mentions'] }),
+  })
+}
+
+// Bulk "Mark all as read" for mentions. Caller passes the list of
+// entry IDs to dismiss (usually the currently-visible active set).
+export function useDismissMentionsBulk(personId) {
+  const { workspace } = useAuth()
+  const qc = useQueryClient()
+  const key = queryKeys.mentions(workspace?.id, personId)
+  return useMutation({
+    mutationFn: (entryIds) => dismissMentions(entryIds),
+    onMutate: async (entryIds) => {
+      await qc.cancelQueries({ queryKey: key })
+      const previous = qc.getQueryData(key)
+      const idSet = new Set(entryIds)
+      qc.setQueryData(key, (old) =>
+        (old ?? []).map((m) =>
+          idSet.has(m.id) ? { ...m, dismissed: true } : m,
+        ),
+      )
+      return { previous }
+    },
+    onError: (_err, _ids, ctx) => {
+      if (ctx?.previous) qc.setQueryData(key, ctx.previous)
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['mentions'] }),
   })
 }
 

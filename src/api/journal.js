@@ -91,19 +91,100 @@ export async function fetchMyMentions(personId, limit = 50) {
   const authorIds = [
     ...new Set(entries.map((e) => e.author_id).filter(Boolean)),
   ]
-  if (authorIds.length === 0) {
-    return entries.map((e) => ({ ...e, author_name: null }))
-  }
-  const { data: peopleData } = await supabase
-    .from('people')
-    .select('user_id, name')
-    .in('user_id', authorIds)
   const nameByUser = {}
-  for (const p of peopleData ?? []) {
-    if (p.user_id && !nameByUser[p.user_id]) nameByUser[p.user_id] = p.name
+  if (authorIds.length > 0) {
+    const { data: peopleData } = await supabase
+      .from('people')
+      .select('user_id, name')
+      .in('user_id', authorIds)
+    for (const p of peopleData ?? []) {
+      if (p.user_id && !nameByUser[p.user_id]) nameByUser[p.user_id] = p.name
+    }
   }
+
+  // Per-user dismissed state — surfaced as `dismissed: boolean` on
+  // each mention so the inbox can filter / style without a separate
+  // query. RLS limits this to the current user's own dismissals.
+  // Wrapped in try/catch so the inbox still loads if the phase-28
+  // migration hasn't been applied yet (table will be missing).
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  let dismissedSet = new Set()
+  if (user) {
+    try {
+      const { data: dismissedRows, error: dismissErr } = await supabase
+        .from('mention_dismissals')
+        .select('entry_id')
+        .eq('user_id', user.id)
+        .in(
+          'entry_id',
+          entries.map((e) => e.id),
+        )
+      if (dismissErr) {
+        // Missing table or RLS hiccup — log and treat as "nothing
+        // dismissed" so the inbox still renders.
+        console.warn('[mentions] dismissals fetch failed', dismissErr)
+      } else {
+        dismissedSet = new Set((dismissedRows ?? []).map((r) => r.entry_id))
+      }
+    } catch (err) {
+      console.warn('[mentions] dismissals fetch threw', err)
+    }
+  }
+
   return entries.map((e) => ({
     ...e,
     author_name: e.author_id ? nameByUser[e.author_id] ?? null : null,
+    dismissed: dismissedSet.has(e.id),
   }))
+}
+
+// Per-user "clear from my inbox" for a mention. The underlying
+// journal entry (the actual comment) is untouched — this is a
+// recipient-side suppression flag so a mention disappears from one
+// user's inbox without affecting the comment or any other recipient.
+export async function dismissMention(entryId) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not signed in')
+  const { error } = await supabase
+    .from('mention_dismissals')
+    .upsert(
+      { user_id: user.id, entry_id: entryId },
+      { onConflict: 'user_id,entry_id' },
+    )
+  if (error) throw error
+}
+
+// Restore a previously-dismissed mention. Straight delete of the
+// dismissal record. Used by the "Restore" affordance in the
+// Mentions → Dismissed view.
+export async function restoreMention(entryId) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not signed in')
+  const { error } = await supabase
+    .from('mention_dismissals')
+    .delete()
+    .eq('user_id', user.id)
+    .eq('entry_id', entryId)
+  if (error) throw error
+}
+
+// Bulk "Mark all as read" — one upsert covers every entryId.
+// Called from the Mentions tab's "Mark all read" button.
+export async function dismissMentions(entryIds) {
+  if (!entryIds || entryIds.length === 0) return
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not signed in')
+  const rows = entryIds.map((entry_id) => ({ user_id: user.id, entry_id }))
+  const { error } = await supabase
+    .from('mention_dismissals')
+    .upsert(rows, { onConflict: 'user_id,entry_id' })
+  if (error) throw error
 }

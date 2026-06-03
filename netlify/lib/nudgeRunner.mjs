@@ -24,6 +24,25 @@ const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
 const PUSH_SERVICE_KEY = process.env.PUSH_SERVICE_KEY
 const SITE_URL = process.env.URL || ''
 
+// How long a dismissed nudge stays suppressed before the runner is
+// allowed to re-emit one with the same fingerprint. Tuned so users
+// don't see "X is overdue" three times the same day after dismissing
+// it, but still get a re-up next week if the issue persists.
+const SUPPRESSION_DAYS = 7
+
+// Build the suppression key for a nudge candidate.
+//   `${kind}:${primary_task_id}`
+// Pure FYI / summary nudges (no task subject) get `${kind}:` and are
+// intentionally NEVER suppressed — they're general background colour,
+// not actionable repeat offenders.
+function fingerprintFor(kind, taskIds) {
+  return `${kind || 'fyi'}:${taskIds?.[0] ?? ''}`
+}
+function isSuppressable(fp) {
+  // Anything that ends with a real task_id is suppressable.
+  return !fp.endsWith(':')
+}
+
 const SYSTEM_PROMPT = `You are the daily reflection bot for Tickd, an executive task manager.
 
 You are given one user's actionable workspace state at a specific time of day. Return a short ranked list of nudges that an attentive chief-of-staff would surface — observations that help the user focus, unblock, or close out.
@@ -65,6 +84,7 @@ export async function runNudges({ slot }) {
   let processed = 0
   let skipped = 0
   let inserted = 0
+  let suppressed = 0
   let pushed = 0
 
   for (const ws of workspaces ?? []) {
@@ -108,16 +128,51 @@ export async function runNudges({ slot }) {
           today: todayIso,
         })
 
-        const rows = (result.nudges ?? []).map((n) => ({
-          workspace_id: ws.id,
-          user_id: member.user_id,
-          kind: n.kind || 'fyi',
-          severity: n.severity || 'medium',
-          title: String(n.title || '').slice(0, 200),
-          body: n.body ? String(n.body).slice(0, 400) : null,
-          payload: n.task_ids?.length ? { task_ids: n.task_ids } : null,
-          slot: slotKey,
-        }))
+        // Pull this user's recently-dismissed fingerprints so we can
+        // skip re-emitting a nudge they just told us they don't want
+        // to see again. Window is SUPPRESSION_DAYS. The partial index
+        // on (user_id, fingerprint) where status='dismissed' makes
+        // this query cheap even on a long-lived workspace.
+        const suppressionCutoff = new Date(
+          Date.now() - SUPPRESSION_DAYS * 24 * 60 * 60 * 1000,
+        ).toISOString()
+        const { data: dismissedRows } = await admin
+          .from('ai_nudges')
+          .select('fingerprint')
+          .eq('user_id', member.user_id)
+          .eq('status', 'dismissed')
+          .gte('dismissed_at', suppressionCutoff)
+          .not('fingerprint', 'is', null)
+        const suppressedFingerprints = new Set(
+          (dismissedRows ?? []).map((r) => r.fingerprint),
+        )
+
+        const candidates = (result.nudges ?? []).map((n) => {
+          const fingerprint = fingerprintFor(n.kind, n.task_ids)
+          return {
+            row: {
+              workspace_id: ws.id,
+              user_id: member.user_id,
+              kind: n.kind || 'fyi',
+              severity: n.severity || 'medium',
+              title: String(n.title || '').slice(0, 200),
+              body: n.body ? String(n.body).slice(0, 400) : null,
+              payload: n.task_ids?.length ? { task_ids: n.task_ids } : null,
+              slot: slotKey,
+              fingerprint,
+            },
+            fingerprint,
+          }
+        })
+
+        const rows = candidates
+          .filter((c) => {
+            if (!isSuppressable(c.fingerprint)) return true
+            const blocked = suppressedFingerprints.has(c.fingerprint)
+            if (blocked) suppressed++
+            return !blocked
+          })
+          .map((c) => c.row)
 
         if (rows.length > 0) {
           const { error: insErr } = await admin.from('ai_nudges').insert(rows)
@@ -167,7 +222,7 @@ export async function runNudges({ slot }) {
     }
   }
 
-  return { slot, totalUsers, processed, skipped, inserted, pushed }
+  return { slot, totalUsers, processed, skipped, inserted, suppressed, pushed }
 }
 
 // ---------- Helpers ----------

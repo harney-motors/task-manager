@@ -2,9 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import {
   useAllNudges,
+  useDismissMention,
+  useDismissMentionsBulk,
   useDismissNudge,
   useMyMentions,
   usePeople,
+  useRestoreMention,
   useRestoreNudge,
   useTasks,
 } from '../lib/queries'
@@ -78,6 +81,9 @@ export default function NotificationsView({ onBack, onOpenTask, embedded = false
   }, [assignedAll])
   const dismiss = useDismissNudge()
   const restore = useRestoreNudge()
+  const dismissMentionMut = useDismissMention(me?.id)
+  const restoreMentionMut = useRestoreMention(me?.id)
+  const dismissMentionsBulk = useDismissMentionsBulk(me?.id)
   // Primary tab. Defaults to 'assigned' — the day-to-day "what's on my
   // plate" lens. Effect below auto-jumps to 'mentions' if there are
   // unseen mentions newer than the user's last visit.
@@ -110,24 +116,30 @@ export default function NotificationsView({ onBack, onOpenTask, embedded = false
     autoSwitchedRef.current = true
   }, [mentions, mentionsLoading])
   const [filter, setFilter] = useState('all') // all | active | dismissed (nudges sub-filter)
+  // Mentions tab uses its own filter dim — 'active' is the default
+  // (matches what users almost always want), 'dismissed' surfaces
+  // their cleared history, 'all' shows everything in one list.
+  const [mentionFilter, setMentionFilter] = useState('active')
   const [search, setSearch] = useState('')
 
-  // Unseen-mentions count for the tab badge. Read on mount + when
-  // mentions change. We snapshot last-seen BEFORE updating it so the
-  // count survives the immediate "mark as seen" effect below.
-  const unseenMentions = useMemo(() => {
-    if (!mentions.length) return 0
-    let lastSeenAt = 0
-    try {
-      const raw = localStorage.getItem(MENTIONS_LAST_SEEN_KEY)
-      if (raw) lastSeenAt = new Date(raw).getTime() || 0
-    } catch {
-      /* ignore */
-    }
-    return mentions.filter(
-      (m) => new Date(m.created_at).getTime() > lastSeenAt,
-    ).length
-  }, [mentions])
+  // Active (undismissed) mention count — drives the tab badge so the
+  // number reflects the real backlog instead of a session-scoped
+  // "newer than your last visit" heuristic. Users explicitly dismiss
+  // mentions when they're done with them, so this stays accurate.
+  const activeMentionCount = useMemo(
+    () => mentions.filter((m) => !m.dismissed).length,
+    [mentions],
+  )
+  const dismissedMentionCount = mentions.length - activeMentionCount
+
+  // Visible mentions per the user's filter selection. Active is the
+  // default — "what still needs me" — but we keep All / Dismissed so
+  // history is browsable.
+  const visibleMentions = useMemo(() => {
+    if (mentionFilter === 'active') return mentions.filter((m) => !m.dismissed)
+    if (mentionFilter === 'dismissed') return mentions.filter((m) => m.dismissed)
+    return mentions
+  }, [mentions, mentionFilter])
 
   // Mark mentions as seen the moment the user clicks into the tab.
   useEffect(() => {
@@ -221,9 +233,9 @@ export default function NotificationsView({ onBack, onOpenTask, embedded = false
               onClick={() => setTab('mentions')}
             >
               Mentions
-              {unseenMentions > 0 ? (
+              {activeMentionCount > 0 ? (
                 <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold">
-                  {unseenMentions > 9 ? '9+' : unseenMentions}
+                  {activeMentionCount > 9 ? '9+' : activeMentionCount}
                 </span>
               ) : (
                 <span className="text-[10px] text-text-3 ml-1">
@@ -313,13 +325,60 @@ export default function NotificationsView({ onBack, onOpenTask, embedded = false
               />
             </div>
           ) : (
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search comments…"
-              className="w-full text-xs px-3 py-1.5 rounded-md border border-border bg-surface outline-none focus:border-info"
-            />
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="inline-flex items-center gap-0.5 p-0.5 bg-surface-2 rounded-md">
+                  <FilterTab
+                    active={mentionFilter === 'active'}
+                    count={activeMentionCount}
+                    onClick={() => setMentionFilter('active')}
+                  >
+                    Active
+                  </FilterTab>
+                  <FilterTab
+                    active={mentionFilter === 'all'}
+                    count={mentions.length}
+                    onClick={() => setMentionFilter('all')}
+                  >
+                    All
+                  </FilterTab>
+                  <FilterTab
+                    active={mentionFilter === 'dismissed'}
+                    count={dismissedMentionCount}
+                    onClick={() => setMentionFilter('dismissed')}
+                  >
+                    Dismissed
+                  </FilterTab>
+                </div>
+              </div>
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search comments…"
+                className="flex-1 min-w-[140px] text-xs px-3 py-1.5 rounded-md border border-border bg-surface outline-none focus:border-info"
+              />
+              {/* Mark-all-read clears every currently-active mention in
+                  one upsert. Hidden when there's nothing to clear so the
+                  bar stays calm at inbox-zero. */}
+              {activeMentionCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const ids = mentions
+                      .filter((m) => !m.dismissed)
+                      .map((m) => m.id)
+                    dismissMentionsBulk.mutate(ids)
+                  }}
+                  disabled={dismissMentionsBulk.isPending}
+                  className="text-[11px] px-2.5 py-1.5 rounded-md border border-border bg-surface text-text-2 hover:text-text hover:bg-surface-2 active:bg-surface-3 inline-flex items-center gap-1 whitespace-nowrap disabled:opacity-50"
+                  title="Mark every active mention as read"
+                >
+                  <i className="ti ti-checks text-xs" />
+                  Mark all read
+                </button>
+              )}
+            </div>
           )}
         </div>
       </header>
@@ -342,11 +401,14 @@ export default function NotificationsView({ onBack, onOpenTask, embedded = false
           />
         ) : tab === 'mentions' ? (
           <MentionsList
-            mentions={mentions}
+            mentions={visibleMentions}
+            filter={mentionFilter}
             search={search}
             loading={mentionsLoading}
             hasLinkedPerson={!!me}
             onOpenTask={onOpenTask}
+            onDismiss={(id) => dismissMentionMut.mutate(id)}
+            onRestore={(id) => restoreMentionMut.mutate(id)}
           />
         ) : isLoading ? (
           <div className="bg-surface border border-border rounded-xl p-10 text-center text-xs text-text-3">
@@ -400,8 +462,20 @@ function PrimaryTab({ active, icon, onClick, children }) {
 }
 
 // Mentions inbox body. Renders entries that tagged the current user
-// across the workspace. Each row is a link into the source task.
-function MentionsList({ mentions, search, loading, hasLinkedPerson, onOpenTask }) {
+// across the workspace. Each row deep-links into the source task; a
+// per-row X / restore button toggles the user-scoped dismissal state
+// so the row drops out of the Active filter without affecting the
+// underlying comment or any other recipient.
+function MentionsList({
+  mentions,
+  filter,
+  search,
+  loading,
+  hasLinkedPerson,
+  onOpenTask,
+  onDismiss,
+  onRestore,
+}) {
   const filtered = useMemo(() => {
     if (!search) return mentions
     const q = search.trim().toLowerCase()
@@ -429,27 +503,45 @@ function MentionsList({ mentions, search, loading, hasLinkedPerson, onOpenTask }
     )
   }
   if (filtered.length === 0) {
+    // Empty-state copy follows the filter: "all caught up" reads
+    // differently than "nothing has been dismissed".
+    let copy
+    if (search) {
+      copy = 'No mentions match your search.'
+    } else if (filter === 'dismissed') {
+      copy = "You haven't dismissed any mentions yet."
+    } else if (filter === 'active') {
+      copy = 'All caught up — no active mentions waiting on you.'
+    } else {
+      copy =
+        'No one has @mentioned you yet. When a teammate tags you in a comment, it lands here.'
+    }
     return (
       <div className="bg-surface border border-border rounded-xl p-10 text-center text-xs text-text-3">
-        {search
-          ? 'No mentions match your search.'
-          : 'No one has @mentioned you yet. When a teammate tags you in a comment, it lands here.'}
+        {copy}
       </div>
     )
   }
   return (
     <ul className="bg-surface border border-border rounded-xl overflow-hidden divide-y divide-border">
       {filtered.map((m) => (
-        <MentionRow key={m.id} mention={m} onOpenTask={onOpenTask} />
+        <MentionRow
+          key={m.id}
+          mention={m}
+          onOpenTask={onOpenTask}
+          onDismiss={() => onDismiss(m.id)}
+          onRestore={() => onRestore(m.id)}
+        />
       ))}
     </ul>
   )
 }
 
-function MentionRow({ mention, onOpenTask }) {
+function MentionRow({ mention, onOpenTask, onDismiss, onRestore }) {
   const taskTitle = mention.task?.title ?? '(deleted task)'
   const author = mention.author_name ?? 'Someone'
   const taskId = mention.task?.id
+  const isDismissed = !!mention.dismissed
   function handleClick() {
     if (taskId && onOpenTask) onOpenTask(taskId)
   }
@@ -457,25 +549,32 @@ function MentionRow({ mention, onOpenTask }) {
     <li>
       <div
         onClick={handleClick}
-        className={`flex items-start gap-3 px-3 sm:px-4 py-3 transition-colors ${
+        className={`group flex items-start gap-3 px-3 sm:px-4 py-3 transition-colors ${
           taskId ? 'cursor-pointer hover:bg-surface-2 active:bg-surface-3' : ''
-        }`}
+        } ${isDismissed ? 'opacity-70' : ''}`}
       >
         <span className="flex-shrink-0 w-7 h-7 rounded-lg inline-flex items-center justify-center bg-info-bg text-info-text">
           <i className="ti ti-at text-sm" />
         </span>
         <div className="flex-1 min-w-0">
-          <div className="text-sm leading-snug">
-            <span className="font-medium">{author}</span>
-            <span className="text-text-2"> mentioned you in </span>
-            <span className="font-medium">{taskTitle}</span>
+          <div className="text-sm leading-snug flex items-center gap-2 flex-wrap">
+            <span>
+              <span className="font-medium">{author}</span>
+              <span className="text-text-2"> mentioned you in </span>
+              <span className="font-medium">{taskTitle}</span>
+            </span>
+            {isDismissed && (
+              <span className="text-[10px] px-1.5 py-px rounded bg-surface-3 text-text-3 uppercase tracking-wider">
+                Dismissed
+              </span>
+            )}
           </div>
           <div className="text-[11px] sm:text-xs text-text-2 mt-1 leading-snug line-clamp-2">
             {mention.body}
           </div>
           <div className="text-[10px] text-text-3 mt-1 flex items-center gap-2 flex-wrap">
             <span>{formatTimeAgo(mention.created_at)}</span>
-            {taskId && (
+            {taskId && !isDismissed && (
               <span className="text-info inline-flex items-center gap-0.5">
                 <i className="ti ti-arrow-right text-[10px]" />
                 Open task
@@ -483,6 +582,33 @@ function MentionRow({ mention, onOpenTask }) {
             )}
           </div>
         </div>
+        {/* Per-row dismiss/restore — mirrors the HistoryRow controls on
+            the Nudges tab so the affordance feels familiar. */}
+        {isDismissed ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onRestore()
+            }}
+            aria-label="Restore mention"
+            title="Restore to active"
+            className="flex-shrink-0 w-8 h-8 rounded-full inline-flex items-center justify-center text-text-3 hover:text-info hover:bg-info-bg/40 active:bg-info-bg transition-colors"
+          >
+            <i className="ti ti-rotate-clockwise-2 text-sm" />
+          </button>
+        ) : (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onDismiss()
+            }}
+            aria-label="Dismiss mention"
+            title="Dismiss"
+            className="flex-shrink-0 w-8 h-8 rounded-full inline-flex items-center justify-center text-text-3 hover:text-text hover:bg-surface-2 active:bg-surface-3 transition-colors"
+          >
+            <i className="ti ti-x text-sm" />
+          </button>
+        )}
       </div>
     </li>
   )
