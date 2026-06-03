@@ -36,6 +36,29 @@ export async function fetchJournalEntries(taskId) {
   }))
 }
 
+// Update an existing entry's body + mentions. RLS restricts this to
+// the original author. The DB trigger bumps `updated_at` automatically
+// when the body changes, so we don't pass it in the patch.
+export async function updateJournalEntry(entryId, { body, mentions }) {
+  const { error } = await supabase
+    .from('journal_entries')
+    .update({ body, mentions: mentions ?? [] })
+    .eq('id', entryId)
+  if (error) throw error
+}
+
+// Hard-delete by id. RLS restricts this to the original author. If
+// the entry is a top-level comment with replies, the FK cascade will
+// remove the replies too — JournalPanel guards against that by
+// soft-deleting (body rewrite) when replies are present.
+export async function deleteJournalEntry(entryId) {
+  const { error } = await supabase
+    .from('journal_entries')
+    .delete()
+    .eq('id', entryId)
+  if (error) throw error
+}
+
 export async function createJournalEntry({
   taskId,
   body,

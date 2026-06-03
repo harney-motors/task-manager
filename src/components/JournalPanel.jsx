@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '../auth/AuthProvider'
 import {
   subscribeJournalRealtime,
   useCreateJournalEntry,
+  useDeleteJournalEntry,
   useJournalEntries,
   usePeople,
+  useUpdateJournalEntry,
 } from '../lib/queries'
 import {
   detectActiveMention,
@@ -12,6 +15,12 @@ import {
   tokenizeBody,
 } from '../lib/mentions'
 import { picPill } from '../lib/colors'
+
+// Edit-window guard: a comment can be edited by its author within this
+// many milliseconds of creation, AND only while it has no replies.
+// Tuned to the user's expectation: 15 minutes is enough to fix typos,
+// short enough to keep the thread honest after others have responded.
+const EDIT_WINDOW_MS = 15 * 60 * 1000
 
 // Comments thread (formerly "Journal"). Renders entries grouped by
 // thread — top-level newest first, replies asc-by-time underneath.
@@ -29,7 +38,38 @@ export default function JournalPanel({
   const { data: entries = [], isLoading } = useJournalEntries(taskId)
   const { data: people = [] } = usePeople()
   const createEntry = useCreateJournalEntry(taskId)
+  const updateEntry = useUpdateJournalEntry(taskId)
+  const deleteEntry = useDeleteJournalEntry(taskId)
+  const { user } = useAuth()
   const qc = useQueryClient()
+
+  // Owner-action helpers passed down into rows. Update / delete are
+  // unconditional here — the per-row guards (author check, edit window,
+  // reply count) decide which buttons render.
+  function handleEdit(entryId, body, mentions) {
+    updateEntry.mutate({ entryId, body, mentions })
+  }
+  function handleDelete(entry, replyCount) {
+    // If a top-level comment has replies, hard-deleting would cascade
+    // and erase teammates' replies. Soft-delete instead by rewriting
+    // the body — the row stays so threads remain readable.
+    if (!entry.parent_id && replyCount > 0) {
+      if (
+        !window.confirm(
+          'This comment has replies. Replace it with "[deleted]" to keep the thread intact?',
+        )
+      )
+        return
+      updateEntry.mutate({
+        entryId: entry.id,
+        body: '[deleted]',
+        mentions: [],
+      })
+      return
+    }
+    if (!window.confirm('Delete this comment? This cannot be undone.')) return
+    deleteEntry.mutate(entry.id)
+  }
 
   // Realtime: re-fetch on any insert/update/delete to journal_entries
   // scoped to this task. Cheap because each change is small.
@@ -101,7 +141,10 @@ export default function JournalPanel({
               entry={e}
               replies={repliesByParent.get(e.id) ?? []}
               people={people}
+              currentUserId={user?.id}
               onPostReply={(reply) => createEntry.mutate(reply)}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
             />
           ))
         )}
@@ -124,14 +167,38 @@ export default function JournalPanel({
 // Thread = one top-level comment + its replies
 // ============================================================
 
-function CommentThread({ entry, replies, people, onPostReply }) {
+function CommentThread({
+  entry,
+  replies,
+  people,
+  currentUserId,
+  onPostReply,
+  onEdit,
+  onDelete,
+}) {
   const [replying, setReplying] = useState(false)
   return (
     <div>
-      <CommentRow entry={entry} people={people} />
+      <CommentRow
+        entry={entry}
+        people={people}
+        currentUserId={currentUserId}
+        replyCount={replies.length}
+        onEdit={onEdit}
+        onDelete={onDelete}
+      />
       <div className="ml-5 mt-2 space-y-2 border-l-2 border-border pl-3">
         {replies.map((r) => (
-          <CommentRow key={r.id} entry={r} people={people} compact />
+          <CommentRow
+            key={r.id}
+            entry={r}
+            people={people}
+            currentUserId={currentUserId}
+            replyCount={0}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            compact
+          />
         ))}
         {replying ? (
           <Composer
@@ -159,42 +226,163 @@ function CommentThread({ entry, replies, people, onPostReply }) {
   )
 }
 
-function CommentRow({ entry, people, compact }) {
+function CommentRow({
+  entry,
+  people,
+  compact,
+  currentUserId,
+  replyCount = 0,
+  onEdit,
+  onDelete,
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(entry.body)
+
+  // Sync local draft when the row itself changes (e.g. realtime
+  // refresh after another tab edited the same comment). Otherwise the
+  // textarea would silently keep stale text.
+  useEffect(() => {
+    setDraft(entry.body)
+  }, [entry.body])
+
+  // Author-only affordances. RLS will reject anyone else regardless,
+  // but hiding the controls is the honest UX.
+  const isAuthor = !!currentUserId && entry.author_id === currentUserId
+  // Edit is restricted: within 15min AND no replies. Replies count
+  // only applies to top-level comments; reply rows pass 0.
+  const ageMs = Date.now() - new Date(entry.created_at).getTime()
+  const inEditWindow = ageMs >= 0 && ageMs <= EDIT_WINDOW_MS
+  const canEdit = isAuthor && inEditWindow && replyCount === 0 && !!onEdit
+  const canDelete = isAuthor && !!onDelete
+  const wasEdited = !!entry.updated_at
+  const isDeleted = entry.body === '[deleted]'
+
   const tokens = useMemo(
     () => tokenizeBody(entry.body, people),
     [entry.body, people],
   )
+
+  function saveEdit() {
+    const trimmed = draft.trim()
+    if (!trimmed || trimmed === entry.body) {
+      setEditing(false)
+      return
+    }
+    const mentions = extractMentions(trimmed, people)
+    onEdit(entry.id, trimmed, mentions)
+    setEditing(false)
+  }
+  function cancelEdit() {
+    setDraft(entry.body)
+    setEditing(false)
+  }
+
   return (
-    <div>
+    <div className="group">
       <div className="text-[11px] text-text-2 font-medium mb-1 flex items-center gap-1.5">
         {entry.author_name && (
           <span className="text-text">{entry.author_name}</span>
         )}
         <span className="text-text-3">{formatJournalTime(entry.created_at)}</span>
-      </div>
-      <div
-        className={`text-xs leading-relaxed bg-surface rounded p-2 border-l-2 border-info ${
-          compact ? '' : ''
-        }`}
-      >
-        {tokens.map((tok, i) =>
-          tok.type === 'mention' ? (
-            <span
-              key={i}
-              className={`inline-flex items-center px-1 py-px rounded text-[10px] font-medium align-baseline mx-px ${
-                tok.person
-                  ? picPill(tok.person.color)
-                  : 'bg-surface-2 text-text-3'
-              }`}
-              title={tok.person?.name ?? `Unknown: ${tok.value}`}
-            >
-              {tok.value}
-            </span>
-          ) : (
-            <span key={i}>{tok.value}</span>
-          ),
+        {wasEdited && !isDeleted && (
+          <span
+            className="text-[10px] text-text-3 italic"
+            title={`Edited ${formatJournalTime(entry.updated_at)}`}
+          >
+            (edited)
+          </span>
+        )}
+        {/* Author affordances — hover-reveal on desktop, always shown
+            on touch (no hover). Sit on the right; light text so the
+            row doesn't shout. */}
+        {(canEdit || canDelete) && !editing && !isDeleted && (
+          <span className="ml-auto inline-flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 sm:opacity-0 max-sm:opacity-100 transition-opacity">
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="text-[10px] text-text-3 hover:text-info underline-offset-2 hover:underline"
+                title="Edit (within 15 minutes, before any reply)"
+              >
+                Edit
+              </button>
+            )}
+            {canDelete && (
+              <button
+                type="button"
+                onClick={() => onDelete(entry, replyCount)}
+                className="text-[10px] text-text-3 hover:text-danger-text underline-offset-2 hover:underline"
+                title="Delete this comment"
+              >
+                Delete
+              </button>
+            )}
+          </span>
         )}
       </div>
+      {editing ? (
+        <div className="text-xs">
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={Math.min(6, Math.max(2, draft.split('\n').length))}
+            className="w-full px-2 py-1.5 text-xs rounded border border-info bg-surface outline-none resize-y leading-relaxed"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') cancelEdit()
+              if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') saveEdit()
+            }}
+          />
+          <div className="flex items-center gap-2 mt-1.5">
+            <button
+              type="button"
+              onClick={saveEdit}
+              disabled={!draft.trim() || draft.trim() === entry.body}
+              className="text-[11px] px-2.5 py-1 rounded-md bg-info text-white hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={cancelEdit}
+              className="text-[11px] px-2.5 py-1 rounded-md text-text-2 hover:text-text"
+            >
+              Cancel
+            </button>
+            <span className="text-[10px] text-text-3 ml-auto">
+              ⌘↵ to save · Esc to cancel
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div
+          className={`text-xs leading-relaxed bg-surface rounded p-2 border-l-2 ${
+            isDeleted
+              ? 'border-border text-text-3 italic'
+              : 'border-info'
+          } ${compact ? '' : ''}`}
+        >
+          {isDeleted
+            ? 'This comment was deleted.'
+            : tokens.map((tok, i) =>
+                tok.type === 'mention' ? (
+                  <span
+                    key={i}
+                    className={`inline-flex items-center px-1 py-px rounded text-[10px] font-medium align-baseline mx-px ${
+                      tok.person
+                        ? picPill(tok.person.color)
+                        : 'bg-surface-2 text-text-3'
+                    }`}
+                    title={tok.person?.name ?? `Unknown: ${tok.value}`}
+                  >
+                    {tok.value}
+                  </span>
+                ) : (
+                  <span key={i}>{tok.value}</span>
+                ),
+              )}
+        </div>
+      )}
     </div>
   )
 }

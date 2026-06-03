@@ -7,6 +7,8 @@ import { addWatcher, removeWatcher } from '../api/watchers'
 import {
   fetchJournalEntries,
   createJournalEntry,
+  updateJournalEntry,
+  deleteJournalEntry,
   fetchMyMentions,
   dismissMention,
   restoreMention,
@@ -1210,6 +1212,69 @@ export function useCreateJournalEntry(taskId) {
     onSettled: () => {
       qc.invalidateQueries({ queryKey: key })
       if (workspace?.id) {
+        qc.invalidateQueries({ queryKey: queryKeys.tasks(workspace.id) })
+      }
+    },
+  })
+}
+
+// Edit an existing comment. RLS keeps this scoped to the original
+// author. The 15-minute / no-reply window is a UX guard enforced in
+// JournalPanel; the hook itself is unconditional so the optimistic
+// update doesn't have to think about timing.
+export function useUpdateJournalEntry(taskId) {
+  const qc = useQueryClient()
+  const key = queryKeys.journal(taskId)
+  return useMutation({
+    mutationFn: ({ entryId, body, mentions }) =>
+      updateJournalEntry(entryId, { body, mentions }),
+    onMutate: async ({ entryId, body, mentions }) => {
+      await qc.cancelQueries({ queryKey: key })
+      const previous = qc.getQueryData(key)
+      qc.setQueryData(key, (old) =>
+        (old ?? []).map((e) =>
+          e.id === entryId
+            ? {
+                ...e,
+                body,
+                mentions: mentions ?? e.mentions ?? [],
+                updated_at: new Date().toISOString(),
+              }
+            : e,
+        ),
+      )
+      return { previous }
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous) qc.setQueryData(key, ctx.previous)
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: key }),
+  })
+}
+
+// Hard-delete a comment. RLS keeps this scoped to the original author.
+// Callers should handle the "has replies" case at the UI layer (the
+// FK cascade would take child replies down with the parent — we
+// soft-delete in JournalPanel for that case to preserve threads).
+export function useDeleteJournalEntry(taskId) {
+  const qc = useQueryClient()
+  const { workspace } = useAuth()
+  const key = queryKeys.journal(taskId)
+  return useMutation({
+    mutationFn: (entryId) => deleteJournalEntry(entryId),
+    onMutate: async (entryId) => {
+      await qc.cancelQueries({ queryKey: key })
+      const previous = qc.getQueryData(key)
+      qc.setQueryData(key, (old) => (old ?? []).filter((e) => e.id !== entryId))
+      return { previous }
+    },
+    onError: (_err, _id, ctx) => {
+      if (ctx?.previous) qc.setQueryData(key, ctx.previous)
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: key })
+      if (workspace?.id) {
+        // Refresh tasks query so note_count drops in row metadata.
         qc.invalidateQueries({ queryKey: queryKeys.tasks(workspace.id) })
       }
     },
