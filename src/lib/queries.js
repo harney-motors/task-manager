@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../auth/AuthProvider'
 import { useToast } from '../components/Toast'
@@ -20,6 +21,14 @@ import {
   updateDoc as updateDocApi,
 } from '../api/docs'
 import { fetchRecentActivity } from '../api/activity'
+import {
+  deriveInboxEvents,
+  dismissInboxEvent,
+  dismissInboxEvents,
+  fetchInboxActivity,
+  fetchInboxDismissals,
+  restoreInboxEvent,
+} from '../api/inbox'
 import { notifyTaskEvent } from '../api/notify'
 import {
   fetchActiveNudges,
@@ -106,6 +115,8 @@ export const queryKeys = {
   taskDeps:      (taskId)      => ['taskDeps', taskId],
   workspaceBlockers: (workspaceId) => ['workspaceBlockers', workspaceId],
   mentions:      (workspaceId, personId) => ['mentions', workspaceId, personId],
+  inboxActivity: (workspaceId) => ['inbox-activity', workspaceId],
+  inboxDismissals: (workspaceId, userId) => ['inbox-dismissals', workspaceId, userId],
   docs:          (workspaceId) => ['docs', workspaceId],
   doc:           (id)          => ['doc', id],
 }
@@ -347,6 +358,138 @@ export function useDismissMentionsBulk(personId) {
       if (ctx?.previous) qc.setQueryData(key, ctx.previous)
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ['mentions'] }),
+  })
+}
+
+// ============================================================
+// Inbox event-stream — Updates tab in NotificationsView
+// ============================================================
+
+// Derived feed of dismissable inbox events: assignments, status
+// changes, due-date moves (from activity_log), plus synthetic
+// "task became overdue" events. The hook composes useTasks +
+// usePeople with two dedicated queries (activity + dismissals).
+//
+// The derivation runs in a memo so re-renders are cheap; React Query
+// only refetches when the underlying tables actually change.
+export function useInboxEvents() {
+  const { workspace, user } = useAuth()
+  const { data: tasks = [] } = useTasks()
+  const { data: people = [] } = usePeople()
+
+  const me = useMemo(
+    () => people.find((p) => p.user_id === user?.id) ?? null,
+    [people, user?.id],
+  )
+  const peopleByUserId = useMemo(() => {
+    const map = {}
+    for (const p of people) {
+      if (p.user_id) map[p.user_id] = p.name
+    }
+    return map
+  }, [people])
+
+  const { data: activity = [], isLoading: activityLoading } = useQuery({
+    queryKey: queryKeys.inboxActivity(workspace?.id),
+    queryFn: () => fetchInboxActivity(workspace.id),
+    enabled: !!workspace,
+    staleTime: 30 * 1000,
+  })
+
+  const { data: dismissedIds = new Set(), isLoading: dismissalsLoading } =
+    useQuery({
+      queryKey: queryKeys.inboxDismissals(workspace?.id, user?.id),
+      queryFn: () => fetchInboxDismissals(),
+      enabled: !!workspace && !!user,
+      staleTime: 30 * 1000,
+    })
+
+  const events = useMemo(
+    () =>
+      deriveInboxEvents({
+        tasks,
+        activity,
+        me,
+        myUserId: user?.id,
+        peopleByUserId,
+        dismissedIds,
+      }),
+    [tasks, activity, me, user?.id, peopleByUserId, dismissedIds],
+  )
+
+  return {
+    data: events,
+    isLoading: activityLoading || dismissalsLoading,
+  }
+}
+
+// Optimistic dismiss for a single inbox event. We update both the
+// activity cache (the derived event list reads dismissedIds via the
+// separate query, so we update that instead).
+export function useDismissInboxEvent() {
+  const { workspace, user } = useAuth()
+  const qc = useQueryClient()
+  const key = queryKeys.inboxDismissals(workspace?.id, user?.id)
+  return useMutation({
+    mutationFn: (eventId) => dismissInboxEvent(eventId),
+    onMutate: async (eventId) => {
+      await qc.cancelQueries({ queryKey: key })
+      const previous = qc.getQueryData(key)
+      qc.setQueryData(
+        key,
+        (old) => new Set([...(old ?? new Set()), eventId]),
+      )
+      return { previous }
+    },
+    onError: (_err, _id, ctx) => {
+      if (ctx?.previous) qc.setQueryData(key, ctx.previous)
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: key }),
+  })
+}
+
+export function useRestoreInboxEvent() {
+  const { workspace, user } = useAuth()
+  const qc = useQueryClient()
+  const key = queryKeys.inboxDismissals(workspace?.id, user?.id)
+  return useMutation({
+    mutationFn: (eventId) => restoreInboxEvent(eventId),
+    onMutate: async (eventId) => {
+      await qc.cancelQueries({ queryKey: key })
+      const previous = qc.getQueryData(key)
+      qc.setQueryData(key, (old) => {
+        const next = new Set(old ?? new Set())
+        next.delete(eventId)
+        return next
+      })
+      return { previous }
+    },
+    onError: (_err, _id, ctx) => {
+      if (ctx?.previous) qc.setQueryData(key, ctx.previous)
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: key }),
+  })
+}
+
+export function useDismissInboxEventsBulk() {
+  const { workspace, user } = useAuth()
+  const qc = useQueryClient()
+  const key = queryKeys.inboxDismissals(workspace?.id, user?.id)
+  return useMutation({
+    mutationFn: (eventIds) => dismissInboxEvents(eventIds),
+    onMutate: async (eventIds) => {
+      await qc.cancelQueries({ queryKey: key })
+      const previous = qc.getQueryData(key)
+      qc.setQueryData(
+        key,
+        (old) => new Set([...(old ?? new Set()), ...eventIds]),
+      )
+      return { previous }
+    },
+    onError: (_err, _ids, ctx) => {
+      if (ctx?.previous) qc.setQueryData(key, ctx.previous)
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: key }),
   })
 }
 
