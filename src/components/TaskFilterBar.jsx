@@ -199,18 +199,10 @@ export default function TaskFilterBar({
           </FilterSelect>
         )}
         {showDue && (
-          <FilterSelect
+          <DueFilter
             value={filters.due}
             onChange={(v) => update({ due: v })}
-            active={filters.due !== 'all'}
-          >
-            <option value="all">Any due date</option>
-            <option value="overdue">Overdue</option>
-            <option value="today">Due today</option>
-            <option value="next7">Due next 7 days</option>
-            <option value="next30">Due next 30 days</option>
-            <option value="none">No due date</option>
-          </FilterSelect>
+          />
         )}
         {anyActive && (
           <button
@@ -269,6 +261,110 @@ export default function TaskFilterBar({
         )}
       </div>
     </div>
+  )
+}
+
+// Due-date filter — preset dropdown plus inline date input(s) when
+// the user picks "On…" (specific date) or "Between…" (range). The
+// dropdown owns the mode; inputs only render when their mode is
+// active. URL values:
+//   'date'                         — mode selected, no value yet
+//   'date:YYYY-MM-DD'              — specific date
+//   'range' / 'range::'            — mode selected, no value yet
+//   'range:start:end'              — full or partial range
+function DueFilter({ value, onChange }) {
+  // Derive mode + concrete values from the composite URL value so we
+  // don't need separate state for "I picked the mode but haven't typed
+  // a date yet." Keeps the component fully URL-driven.
+  let mode = value || 'all'
+  let dateValue = ''
+  let rangeStart = ''
+  let rangeEnd = ''
+  if (value?.startsWith('date:')) {
+    mode = 'date'
+    dateValue = value.slice(5)
+  } else if (value?.startsWith('range:')) {
+    mode = 'range'
+    const [, start = '', end = ''] = value.split(':')
+    rangeStart = start
+    rangeEnd = end
+  } else if (value === 'date' || value === 'range') {
+    mode = value
+  }
+  const active = mode !== 'all'
+
+  function setMode(next) {
+    // Switching INTO 'date' or 'range' clears any prior payload so the
+    // user starts with a blank input.
+    onChange(next)
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 flex-shrink-0">
+      <FilterSelect
+        value={mode}
+        onChange={setMode}
+        active={active}
+      >
+        <option value="all">Any due date</option>
+        <option value="overdue">Overdue</option>
+        <option value="today">Due today</option>
+        <option value="next7">Due next 7 days</option>
+        <option value="next30">Due next 30 days</option>
+        <option value="none">No due date</option>
+        <option value="date">On a specific date…</option>
+        <option value="range">In a date range…</option>
+      </FilterSelect>
+      {mode === 'date' && (
+        <input
+          type="date"
+          value={dateValue}
+          onChange={(e) =>
+            onChange(e.target.value ? `date:${e.target.value}` : 'date')
+          }
+          className={`text-[11px] sm:text-xs border rounded px-1.5 py-0.5 sm:px-2 sm:py-1 flex-shrink-0 ${
+            dateValue
+              ? 'border-info bg-info-bg text-info-text font-medium'
+              : 'border-border bg-surface'
+          }`}
+          aria-label="Due on this date"
+        />
+      )}
+      {mode === 'range' && (
+        <>
+          <input
+            type="date"
+            value={rangeStart}
+            onChange={(e) =>
+              onChange(`range:${e.target.value}:${rangeEnd}`)
+            }
+            className={`text-[11px] sm:text-xs border rounded px-1.5 py-0.5 sm:px-2 sm:py-1 flex-shrink-0 ${
+              rangeStart
+                ? 'border-info bg-info-bg text-info-text font-medium'
+                : 'border-border bg-surface'
+            }`}
+            aria-label="Range start"
+          />
+          <span className="text-text-3 text-[11px] sm:text-xs">→</span>
+          <input
+            type="date"
+            value={rangeEnd}
+            // HTML5 hint: end can't be before start. Helps the native
+            // picker show only valid days.
+            min={rangeStart || undefined}
+            onChange={(e) =>
+              onChange(`range:${rangeStart}:${e.target.value}`)
+            }
+            className={`text-[11px] sm:text-xs border rounded px-1.5 py-0.5 sm:px-2 sm:py-1 flex-shrink-0 ${
+              rangeEnd
+                ? 'border-info bg-info-bg text-info-text font-medium'
+                : 'border-border bg-surface'
+            }`}
+            aria-label="Range end"
+          />
+        </>
+      )}
+    </span>
   )
 }
 

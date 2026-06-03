@@ -392,7 +392,6 @@ export default function Home() {
       label: 'Grid view',
       icon: 'ti-table',
       onClick: () => setView('grid'),
-      visible: !isPicRole,
     },
     {
       id: 'meeting',
@@ -574,7 +573,7 @@ export default function Home() {
               )
             )}
             {view === 'list'     && <ListView     onOpenTask={setOpenTaskId} />}
-            {view === 'grid'     && !isPicRole && (
+            {view === 'grid' && (
               <Suspense fallback={<ViewFallback />}>
               <GridView
                 onOpenTask={setOpenTaskId}

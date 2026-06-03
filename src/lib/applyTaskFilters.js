@@ -6,12 +6,19 @@
 // filter on this field". OR semantics within a field (e.g. status
 // 'all' means all statuses), AND semantics across fields.
 
-// Due-filter values: 'all' | 'overdue' | 'today' | 'next7' | 'next30' | 'none'
-// 'overdue' = strictly before today AND status != Done
-// 'none' = no due_date set
-// 'today' = due_date === today (regardless of status)
-// 'next7' = due in [today, today+7]
-// 'next30' = due in [today, today+30]
+// Due-filter values:
+//   'all'                            — no filter
+//   'overdue'                        — strictly before today AND status != Done
+//   'today'                          — due_date === today
+//   'next7'                          — due in [today, today+7]
+//   'next30'                         — due in [today, today+30]
+//   'none'                           — no due_date set
+//   'date'                           — mode selected, no value yet (no-op)
+//   'date:YYYY-MM-DD'                — due on exactly that date
+//   'range'                          — mode selected, no value yet (no-op)
+//   'range:YYYY-MM-DD:YYYY-MM-DD'    — due between start and end (inclusive)
+//   'range:YYYY-MM-DD:'              — start only, treated as "from that day on"
+//   'range::YYYY-MM-DD'              — end only, treated as "up through that day"
 export function applyTaskFilters(tasks, filters, { meId } = {}) {
   if (!filters) return tasks
   const { picId, deptId, status, priority, tag, due, involvement } = filters
@@ -54,6 +61,8 @@ export function applyTaskFilters(tasks, filters, { meId } = {}) {
     }
     if (due && due !== 'all') {
       const d = t.due_date // 'YYYY-MM-DD' string or null
+      // Composite values (date:..., range:...) flow through to the
+      // default branch below; switch handles the fixed presets.
       switch (due) {
         case 'overdue':
           if (!d || d >= todayIso || t.status === 'Done') return false
@@ -70,7 +79,21 @@ export function applyTaskFilters(tasks, filters, { meId } = {}) {
         case 'none':
           if (d) return false
           break
+        case 'date':
+        case 'range':
+          // Mode selected but no value picked yet — treat as a no-op
+          // so the user can see all tasks while choosing.
+          break
         default:
+          if (due.startsWith('date:')) {
+            const target = due.slice(5)
+            if (!target || d !== target) return false
+          } else if (due.startsWith('range:')) {
+            const [, start = '', end = ''] = due.split(':')
+            if (!d) return false
+            if (start && d < start) return false
+            if (end && d > end) return false
+          }
           break
       }
     }

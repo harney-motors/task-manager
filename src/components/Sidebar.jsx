@@ -33,7 +33,11 @@ const MENTIONS_LAST_SEEN_KEY = 'tickd:mentions-last-seen'
 const VIEWS = [
   { id: 'today',    label: 'Today',    icon: 'ti-sun',      picOk: true },
   { id: 'list',     label: 'List',     icon: 'ti-list',     picOk: true },
-  { id: 'grid',     label: 'Grid',     icon: 'ti-table',    picOk: false },
+  // Grid is now available to PICs too — they only see their own
+  // tasks via RLS, so the table view is a useful "what's on my plate
+  // this week" lens alongside List / Calendar. PIC role still can't
+  // change status (the DB trigger enforces that everywhere).
+  { id: 'grid',     label: 'Grid',     icon: 'ti-table',    picOk: true },
   // Kanban removed for now — drag UX was fiddly and the board view
   // duplicated List + Status filtering. Keep the file so we can
   // restore later if there's appetite.
