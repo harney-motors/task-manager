@@ -1224,6 +1224,7 @@ export function useCreateJournalEntry(taskId) {
 // update doesn't have to think about timing.
 export function useUpdateJournalEntry(taskId) {
   const qc = useQueryClient()
+  const showToast = useToast()
   const key = queryKeys.journal(taskId)
   return useMutation({
     mutationFn: ({ entryId, body, mentions }) =>
@@ -1245,8 +1246,9 @@ export function useUpdateJournalEntry(taskId) {
       )
       return { previous }
     },
-    onError: (_err, _vars, ctx) => {
+    onError: (err, _vars, ctx) => {
       if (ctx?.previous) qc.setQueryData(key, ctx.previous)
+      showToast(errMsg(err, 'Could not edit comment'), { type: 'error' })
     },
     onSettled: () => qc.invalidateQueries({ queryKey: key }),
   })
@@ -1258,6 +1260,7 @@ export function useUpdateJournalEntry(taskId) {
 // soft-delete in JournalPanel for that case to preserve threads).
 export function useDeleteJournalEntry(taskId) {
   const qc = useQueryClient()
+  const showToast = useToast()
   const { workspace } = useAuth()
   const key = queryKeys.journal(taskId)
   return useMutation({
@@ -1268,8 +1271,9 @@ export function useDeleteJournalEntry(taskId) {
       qc.setQueryData(key, (old) => (old ?? []).filter((e) => e.id !== entryId))
       return { previous }
     },
-    onError: (_err, _id, ctx) => {
+    onError: (err, _id, ctx) => {
       if (ctx?.previous) qc.setQueryData(key, ctx.previous)
+      showToast(errMsg(err, 'Could not delete comment'), { type: 'error' })
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: key })

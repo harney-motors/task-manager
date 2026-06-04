@@ -39,24 +39,45 @@ export async function fetchJournalEntries(taskId) {
 // Update an existing entry's body + mentions. RLS restricts this to
 // the original author. The DB trigger bumps `updated_at` automatically
 // when the body changes, so we don't pass it in the patch.
+//
+// We .select() back the affected ids so we can detect the RLS-silent-
+// no-op case: when a policy blocks the UPDATE, Supabase returns no
+// error AND no rows. Without this check the optimistic update would
+// roll back invisibly when the realtime fetch hydrates.
 export async function updateJournalEntry(entryId, { body, mentions }) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('journal_entries')
     .update({ body, mentions: mentions ?? [] })
     .eq('id', entryId)
+    .select('id')
   if (error) throw error
+  if (!data || data.length === 0) {
+    throw new Error(
+      "You can't edit this comment. Only the author can, and the database may still be missing the phase-30 RLS policy — run supabase/2026-06-02-phase-30-comment-edit-delete.sql.",
+    )
+  }
 }
 
 // Hard-delete by id. RLS restricts this to the original author. If
 // the entry is a top-level comment with replies, the FK cascade will
 // remove the replies too — JournalPanel guards against that by
 // soft-deleting (body rewrite) when replies are present.
+//
+// Same .select-back trick as updateJournalEntry above so an RLS-blocked
+// DELETE doesn't silently look successful and let the row reappear on
+// the next refetch.
 export async function deleteJournalEntry(entryId) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('journal_entries')
     .delete()
     .eq('id', entryId)
+    .select('id')
   if (error) throw error
+  if (!data || data.length === 0) {
+    throw new Error(
+      "You can't delete this comment. Only the author can, and the database may still be missing the phase-30 RLS policy — run supabase/2026-06-02-phase-30-comment-edit-delete.sql.",
+    )
+  }
 }
 
 export async function createJournalEntry({
