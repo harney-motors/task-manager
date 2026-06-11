@@ -153,6 +153,7 @@ export default async (req) => {
       caller,
       userClient,
       workspaceId,
+      appUrl: APP_URL,
     })
   }
 
@@ -351,7 +352,11 @@ export default async (req) => {
 // The body is fabricated, but the template, SMTP transport, and
 // recipient lookup are exactly what the real send uses, so a
 // successful test == a real mention would also arrive.
-async function handleSelfTest({ caller, userClient, workspaceId }) {
+async function handleSelfTest({ caller, userClient, workspaceId, appUrl }) {
+  // APP_URL is now resolved per-request in the main handler and passed
+  // through here so the self-test email uses the same deep-link rules
+  // as the real mention email path.
+  const APP_URL = appUrl
   console.log(
     `[notify-mention] SELF-TEST caller=${caller.id} workspace=${workspaceId}`,
   )
