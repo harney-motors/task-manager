@@ -19,21 +19,101 @@ export async function fetchJournalEntries(taskId) {
   const authorIds = [
     ...new Set(entries.map((e) => e.author_id).filter(Boolean)),
   ]
-  if (authorIds.length === 0) {
-    return entries.map((e) => ({ ...e, author_name: null }))
-  }
-  const { data: peopleData } = await supabase
-    .from('people')
-    .select('user_id, name')
-    .in('user_id', authorIds)
   const nameByUser = {}
-  for (const p of peopleData ?? []) {
-    if (p.user_id && !nameByUser[p.user_id]) nameByUser[p.user_id] = p.name
+  if (authorIds.length > 0) {
+    const { data: peopleData } = await supabase
+      .from('people')
+      .select('user_id, name')
+      .in('user_id', authorIds)
+    for (const p of peopleData ?? []) {
+      if (p.user_id && !nameByUser[p.user_id]) nameByUser[p.user_id] = p.name
+    }
   }
-  return entries.map((e) => ({
-    ...e,
-    author_name: e.author_id ? nameByUser[e.author_id] ?? null : null,
-  }))
+
+  // Hydrate reactions in a single round-trip. We group by entry +
+  // emoji into a compact { emoji, count, user_ids } shape so the UI
+  // can render pills without re-aggregating on every render. Wrapped
+  // in try/catch so a missing table (phase-31 not yet applied) leaves
+  // the comments visible instead of breaking the whole thread.
+  const reactionsByEntry = new Map()
+  try {
+    const { data: reactionRows, error: rxErr } = await supabase
+      .from('comment_reactions')
+      .select('entry_id, user_id, emoji')
+      .in(
+        'entry_id',
+        entries.map((e) => e.id),
+      )
+    if (rxErr) {
+      console.warn('[comments] reactions fetch failed', rxErr)
+    } else {
+      for (const r of reactionRows ?? []) {
+        if (!reactionsByEntry.has(r.entry_id)) {
+          reactionsByEntry.set(r.entry_id, new Map())
+        }
+        const byEmoji = reactionsByEntry.get(r.entry_id)
+        if (!byEmoji.has(r.emoji)) {
+          byEmoji.set(r.emoji, { emoji: r.emoji, user_ids: [] })
+        }
+        byEmoji.get(r.emoji).user_ids.push(r.user_id)
+      }
+    }
+  } catch (err) {
+    console.warn('[comments] reactions fetch threw', err)
+  }
+
+  return entries.map((e) => {
+    const byEmoji = reactionsByEntry.get(e.id)
+    const reactions = byEmoji
+      ? Array.from(byEmoji.values()).map((r) => ({
+          emoji: r.emoji,
+          count: r.user_ids.length,
+          user_ids: r.user_ids,
+        }))
+      : []
+    return {
+      ...e,
+      author_name: e.author_id ? nameByUser[e.author_id] ?? null : null,
+      reactions,
+    }
+  })
+}
+
+// Toggle a reaction (add if absent, remove if present). The composite
+// PK on (entry_id, user_id, emoji) lets us detect dupes via the
+// existing rows; if the row exists we delete, otherwise we insert.
+//
+// Returns { added: boolean } so callers can decide whether to fire
+// a notification email (only on add).
+export async function toggleReaction(entryId, emoji) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not signed in')
+  // Probe whether the row already exists for this user.
+  const { data: existing, error: probeErr } = await supabase
+    .from('comment_reactions')
+    .select('entry_id')
+    .eq('entry_id', entryId)
+    .eq('user_id', user.id)
+    .eq('emoji', emoji)
+    .maybeSingle()
+  if (probeErr) throw probeErr
+  if (existing) {
+    const { error } = await supabase
+      .from('comment_reactions')
+      .delete()
+      .eq('entry_id', entryId)
+      .eq('user_id', user.id)
+      .eq('emoji', emoji)
+    if (error) throw error
+    return { added: false }
+  }
+  const { error } = await supabase
+    .from('comment_reactions')
+    .insert({ entry_id: entryId, user_id: user.id, emoji })
+  if (error) throw error
+  return { added: true }
 }
 
 // Update an existing entry's body + mentions. RLS restricts this to

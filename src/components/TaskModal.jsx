@@ -29,7 +29,7 @@ import { useTaskDependencies } from '../lib/queries'
 import useTaskPresence from '../lib/useTaskPresence'
 import { AvatarStack } from './Avatar'
 
-export default function TaskModal({ task, onClose, onOpenTask }) {
+export default function TaskModal({ task, onClose, onOpenTask, initialTab }) {
   const { user, workspace } = useAuth()
   const queryClient = useQueryClient()
   const showToast = useToast()
@@ -62,17 +62,22 @@ export default function TaskModal({ task, onClose, onOpenTask }) {
 
   // Tab — 'details' default; 'journal' switches the body. Same on
   // desktop and mobile (the old side-by-side layout was nice but
-  // gobbled screen real estate; tabs scale better).
-  const [tab, setTab] = useState('details')
+  // gobbled screen real estate; tabs scale better). `initialTab` lets
+  // callers land the modal on a specific tab — used by email deep-
+  // links (?focus=comments) so "View comment" opens straight to the
+  // thread.
+  const [tab, setTab] = useState(initialTab || 'details')
   const [title, setTitle] = useState('')
   const [tagInput, setTagInput] = useState('')
   const journalInputRef = useRef(null)
 
-  // Sync local title with the task whenever the open task changes
+  // Sync local title + tab with the task whenever the open task
+  // changes. initialTab overrides only on the first open of a given
+  // task id — subsequent in-modal tab switches stay sticky.
   useEffect(() => {
     setTitle(task?.title ?? '')
-    setTab('details')
-  }, [task?.id, task?.title])
+    setTab(initialTab || 'details')
+  }, [task?.id, task?.title]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Record the open in the per-workspace recent-tasks list.
   useEffect(() => {

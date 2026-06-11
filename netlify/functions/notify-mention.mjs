@@ -203,8 +203,10 @@ export default async (req) => {
   }
 
   // Build the task URL — cold-start deep link Home.jsx already handles
-  // (`?task=<id>` → opens the modal).
-  const taskUrl = `${APP_URL.replace(/\/$/, '')}/?task=${entry.task.id}`
+  // (`?task=<id>` → opens the modal). `&focus=comments` opens the
+  // modal straight to the Comments tab so the user lands where the
+  // mention actually is.
+  const taskUrl = `${APP_URL.replace(/\/$/, '')}/?task=${entry.task.id}&focus=comments`
   const unsubscribeUrl = `${APP_URL.replace(/\/$/, '')}/?view=today#email-prefs`
 
   let sent = 0

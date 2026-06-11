@@ -42,7 +42,7 @@ function initials(name) {
   return (parts[0][0] + parts[1][0]).toUpperCase()
 }
 
-// Render the email. Returns { subject, html, text }.
+// Render the @mention email. Returns { subject, html, text }.
 //
 //   recipientName       — first name of the mentioned user (header line)
 //   mentionerName       — full name of the comment author (avatar + line)
@@ -50,7 +50,7 @@ function initials(name) {
 //   commentExcerpt      — comment body (untrusted; escaped + mention-highlighted)
 //   workspaceName       — shown under the task title as breadcrumb
 //   workspaceBrandColor — optional hex; tints CTA, avatar, mention pills
-//   taskUrl             — deep-link into the app (e.g. https://tickd.app/?task=<id>)
+//   taskUrl             — deep-link into the app (e.g. https://tickd.app/?task=<id>&focus=comments)
 //   appUrl              — base app URL for the brand link
 //   unsubscribeUrl      — link to Settings → Profile → email toggle
 export function renderMentionEmail({
@@ -65,22 +65,188 @@ export function renderMentionEmail({
   unsubscribeUrl,
 }) {
   const accent = sanitizeHex(workspaceBrandColor) || '#185FA5'
-  const accentTint = withAlpha(accent, 0.12) // soft pill background
-  const safeTask = escapeHtml(truncate(taskTitle || '(untitled task)', 140))
-  const safeWorkspace = escapeHtml(workspaceName || 'Workspace')
+  const accentTint = withAlpha(accent, 0.12)
   const safeMentioner = escapeHtml(mentionerName || 'A teammate')
-  const safeRecipient = escapeHtml(firstName(recipientName) || 'there')
   const commentHtml = highlightMentions(
     escapeHtml(truncate(commentExcerpt || '', 600)),
     accentTint,
     accent,
   )
-  const avatarInitials = escapeHtml(initials(mentionerName))
+  const subject = `${mentionerName || 'Someone'} mentioned you on "${truncate(taskTitle || 'a task', 60)}"`
+  const actorBlockHtml = `
+    <div style="font-size:14px;line-height:1.5;color:#1F2937;">
+      <span style="color:#374151;">${safeMentioner}</span>
+      <span style="font-weight:600;color:#1F2937;"> mentioned you</span>
+    </div>
+    <div style="font-size:14px;line-height:1.6;color:#374151;margin-top:14px;padding-left:40px;white-space:pre-wrap;">${commentHtml || '<span style="color:#9CA3AF;font-style:italic;">(empty comment)</span>'}</div>
+  `
+  return renderEnvelope({
+    subject,
+    taskTitle,
+    workspaceName,
+    workspaceBrandColor,
+    taskUrl,
+    appUrl,
+    unsubscribeUrl,
+    recipientName,
+    actorName: mentionerName,
+    actorBlockHtml,
+    ctaLabel: 'View comment',
+    helperLine: 'or reply to add a comment',
+    plainBody:
+      `${mentionerName || 'Someone'} mentioned you on "${taskTitle || 'a task'}"\n` +
+      `(${workspaceName || 'workspace'})\n\n` +
+      `${commentExcerpt || ''}\n`,
+  })
+}
+
+// Render the reply email. Sent when teammate B replies to A's
+// top-level comment. A gets pinged so they know their thread moved.
+//
+//   recipientName       — first name of the original commenter
+//   replierName         — full name of the person who replied
+//   taskTitle           — task the thread sits on
+//   replyExcerpt        — body of the reply
+//   originalExcerpt     — body of the comment being replied to (for context)
+export function renderReplyEmail({
+  recipientName,
+  replierName,
+  taskTitle,
+  replyExcerpt,
+  originalExcerpt,
+  workspaceName,
+  workspaceBrandColor,
+  taskUrl,
+  appUrl,
+  unsubscribeUrl,
+}) {
+  const accent = sanitizeHex(workspaceBrandColor) || '#185FA5'
+  const accentTint = withAlpha(accent, 0.12)
+  const safeReplier = escapeHtml(replierName || 'A teammate')
+  const replyHtml = highlightMentions(
+    escapeHtml(truncate(replyExcerpt || '', 600)),
+    accentTint,
+    accent,
+  )
+  const originalHtml = escapeHtml(truncate(originalExcerpt || '', 200))
+  const subject = `${replierName || 'Someone'} replied to your comment on "${truncate(taskTitle || 'a task', 60)}"`
+  const actorBlockHtml = `
+    <div style="font-size:14px;line-height:1.5;color:#1F2937;">
+      <span style="color:#374151;">${safeReplier}</span>
+      <span style="font-weight:600;color:#1F2937;"> replied to your comment</span>
+    </div>
+    ${
+      originalHtml
+        ? `<div style="font-size:12px;line-height:1.5;color:#9CA3AF;margin-top:14px;padding-left:40px;border-left:3px solid #E5E7EB;padding-left:10px;margin-left:40px;font-style:italic;">"${originalHtml}"</div>`
+        : ''
+    }
+    <div style="font-size:14px;line-height:1.6;color:#374151;margin-top:14px;padding-left:40px;white-space:pre-wrap;">${replyHtml || '<span style="color:#9CA3AF;font-style:italic;">(empty reply)</span>'}</div>
+  `
+  return renderEnvelope({
+    subject,
+    taskTitle,
+    workspaceName,
+    workspaceBrandColor,
+    taskUrl,
+    appUrl,
+    unsubscribeUrl,
+    recipientName,
+    actorName: replierName,
+    actorBlockHtml,
+    ctaLabel: 'View reply',
+    helperLine: 'or reply to continue the thread',
+    plainBody:
+      `${replierName || 'Someone'} replied to your comment on "${taskTitle || 'a task'}"\n` +
+      `(${workspaceName || 'workspace'})\n\n` +
+      (originalExcerpt ? `Your comment: "${originalExcerpt}"\n\n` : '') +
+      `Reply: ${replyExcerpt || ''}\n`,
+  })
+}
+
+// Render the reaction email. Sent when teammate B adds an emoji
+// reaction to A's comment.
+//
+//   reactorName         — full name of the person who reacted
+//   emoji               — the emoji character itself (e.g. '👍')
+//   commentExcerpt      — body of the comment being reacted to
+export function renderReactionEmail({
+  recipientName,
+  reactorName,
+  emoji,
+  taskTitle,
+  commentExcerpt,
+  workspaceName,
+  workspaceBrandColor,
+  taskUrl,
+  appUrl,
+  unsubscribeUrl,
+}) {
+  const accent = sanitizeHex(workspaceBrandColor) || '#185FA5'
+  const accentTint = withAlpha(accent, 0.12)
+  const safeReactor = escapeHtml(reactorName || 'A teammate')
+  const safeEmoji = escapeHtml(emoji || '·')
+  const commentHtml = highlightMentions(
+    escapeHtml(truncate(commentExcerpt || '', 400)),
+    accentTint,
+    accent,
+  )
+  const subject = `${reactorName || 'Someone'} reacted ${safeEmoji} on "${truncate(taskTitle || 'a task', 60)}"`
+  const actorBlockHtml = `
+    <div style="font-size:14px;line-height:1.5;color:#1F2937;">
+      <span style="color:#374151;">${safeReactor}</span>
+      <span style="font-weight:600;color:#1F2937;"> reacted</span>
+      <span style="display:inline-block;font-size:18px;line-height:1;vertical-align:middle;margin-left:4px;">${safeEmoji}</span>
+      <span style="font-weight:600;color:#1F2937;"> to your comment</span>
+    </div>
+    <div style="font-size:14px;line-height:1.6;color:#374151;margin-top:14px;padding-left:40px;white-space:pre-wrap;">${commentHtml || '<span style="color:#9CA3AF;font-style:italic;">(empty comment)</span>'}</div>
+  `
+  return renderEnvelope({
+    subject,
+    taskTitle,
+    workspaceName,
+    workspaceBrandColor,
+    taskUrl,
+    appUrl,
+    unsubscribeUrl,
+    recipientName,
+    actorName: reactorName,
+    actorBlockHtml,
+    ctaLabel: 'View comment',
+    helperLine: 'or react / reply back',
+    plainBody:
+      `${reactorName || 'Someone'} reacted ${emoji || ''} to your comment on "${taskTitle || 'a task'}"\n` +
+      `(${workspaceName || 'workspace'})\n\n` +
+      `Your comment: "${commentExcerpt || ''}"\n`,
+  })
+}
+
+// Shared envelope: card header + actor block + CTA + footer. All three
+// comment emails share the same chrome so brand voice + deliverability
+// behavior stay consistent.
+function renderEnvelope({
+  subject,
+  taskTitle,
+  workspaceName,
+  workspaceBrandColor,
+  taskUrl,
+  appUrl,
+  unsubscribeUrl,
+  recipientName,
+  actorName,
+  actorBlockHtml,
+  ctaLabel,
+  helperLine,
+  plainBody,
+}) {
+  const accent = sanitizeHex(workspaceBrandColor) || '#185FA5'
+  const accentTint = withAlpha(accent, 0.12)
+  const safeTask = escapeHtml(truncate(taskTitle || '(untitled task)', 140))
+  const safeWorkspace = escapeHtml(workspaceName || 'Workspace')
+  const safeRecipient = escapeHtml(firstName(recipientName) || 'there')
+  const avatarInitials = escapeHtml(initials(actorName))
   const safeTaskUrl = sanitizeUrl(taskUrl) || '#'
   const safeAppUrl = sanitizeUrl(appUrl) || '#'
   const safeUnsubUrl = sanitizeUrl(unsubscribeUrl) || '#'
-
-  const subject = `${mentionerName || 'Someone'} mentioned you on "${truncate(taskTitle || 'a task', 60)}"`
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -119,7 +285,7 @@ export function renderMentionEmail({
                   <tr>
                     <td style="border-top:1px solid #F1F2F5;"></td>
                   </tr>
-                  <!-- Mention block -->
+                  <!-- Actor block — provided by the calling render function -->
                   <tr>
                     <td style="padding:18px 20px;">
                       <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
@@ -128,14 +294,10 @@ export function renderMentionEmail({
                             <span style="display:inline-block;width:28px;height:28px;border-radius:50%;background:${accent};color:#FFFFFF;text-align:center;line-height:28px;font-size:11px;font-weight:600;letter-spacing:0.5px;">${avatarInitials}</span>
                           </td>
                           <td valign="top">
-                            <div style="font-size:14px;line-height:1.5;color:#1F2937;">
-                              <span style="color:#374151;">${safeMentioner}</span>
-                              <span style="font-weight:600;color:#1F2937;"> mentioned you</span>
-                            </div>
+                            ${actorBlockHtml}
                           </td>
                         </tr>
                       </table>
-                      <div style="font-size:14px;line-height:1.6;color:#374151;margin-top:14px;padding-left:40px;white-space:pre-wrap;">${commentHtml || '<span style="color:#9CA3AF;font-style:italic;">(empty comment)</span>'}</div>
                     </td>
                   </tr>
                 </table>
@@ -149,7 +311,7 @@ export function renderMentionEmail({
             <tr>
               <td align="center">
                 <a href="${safeTaskUrl}" style="display:inline-block;background:${accent};color:#FFFFFF;text-decoration:none;font-size:15px;font-weight:600;padding:14px 56px;border-radius:8px;letter-spacing:0.1px;">
-                  View comment
+                  ${escapeHtml(ctaLabel || 'View comment')}
                 </a>
               </td>
             </tr>
@@ -157,7 +319,7 @@ export function renderMentionEmail({
             <!-- Helper line -->
             <tr>
               <td align="center" style="padding-top:14px;font-size:12px;color:#9CA3AF;">
-                or reply to add a comment
+                ${escapeHtml(helperLine || 'or reply to add a comment')}
               </td>
             </tr>
 
@@ -199,11 +361,9 @@ export function renderMentionEmail({
 </html>`
 
   const text =
-    `${mentionerName || 'Someone'} mentioned you on "${taskTitle || 'a task'}"\n` +
-    `(${workspaceName || 'workspace'})\n\n` +
-    `${commentExcerpt || ''}\n\n` +
-    `View comment: ${safeTaskUrl}\n` +
-    `or reply to add a comment.\n\n` +
+    `${plainBody || ''}\n` +
+    `${ctaLabel || 'View comment'}: ${safeTaskUrl}\n` +
+    `${helperLine || 'or reply to add a comment'}.\n\n` +
     `Manage email notifications: ${safeUnsubUrl}`
 
   return { subject, html, text }

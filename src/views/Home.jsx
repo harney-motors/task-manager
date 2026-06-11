@@ -189,14 +189,21 @@ export default function Home() {
 
   // Cold-start deep link: if the URL has ?task=<id> (set by the SW
   // when there was no open tab to focus), open that task and strip
-  // the param so a reload doesn't keep re-opening it.
+  // the param so a reload doesn't keep re-opening it. `?focus=comments`
+  // also lands the modal on the Comments tab — used by mention /
+  // reply / reaction emails so "View comment" lands the user right
+  // at the conversation instead of the Details tab.
+  const [initialTaskTab, setInitialTaskTab] = useState(null)
   useEffect(() => {
     const id = searchParams.get('task')
     if (!id) return
+    const focus = searchParams.get('focus')
     setOpenTaskId(id)
+    if (focus === 'comments') setInitialTaskTab('journal')
     setSearchParams(
       (prev) => {
         prev.delete('task')
+        prev.delete('focus')
         return prev
       },
       { replace: true },
@@ -632,8 +639,12 @@ export default function Home() {
 
         <TaskModal
           task={openTask}
-          onClose={() => setOpenTaskId(null)}
+          onClose={() => {
+            setOpenTaskId(null)
+            setInitialTaskTab(null)
+          }}
           onOpenTask={(id) => setOpenTaskId(id)}
+          initialTab={initialTaskTab}
         />
         <SearchPalette
           open={showSearch}

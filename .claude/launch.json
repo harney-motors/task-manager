@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "antigua-netlify-dev",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-lc", "cd /Users/asbertbaptiste/Documents/antigua-market-data && exec npx netlify dev"],
+      "port": 8888
+    }
+  ]
+}

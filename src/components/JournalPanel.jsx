@@ -7,6 +7,7 @@ import {
   useDeleteJournalEntry,
   useJournalEntries,
   usePeople,
+  useToggleReaction,
   useUpdateJournalEntry,
 } from '../lib/queries'
 import {
@@ -21,6 +22,24 @@ import { picPill } from '../lib/colors'
 // Tuned to the user's expectation: 15 minutes is enough to fix typos,
 // short enough to keep the thread honest after others have responded.
 const EDIT_WINDOW_MS = 15 * 60 * 1000
+
+// Quick-react palette — 8 common emojis surfaced as a one-tap bar
+// when the user clicks "+ React". Slack-style. A full picker is
+// overkill for the volume of reactions this app will see; if power
+// users want more, we can layer one in later.
+const QUICK_REACTIONS = ['👍', '❤️', '😄', '🎉', '🤔', '👀', '✅', '🙌']
+
+// Quick-reply suggestions surfaced above the composer. Kept static
+// for v1 — Slack's data shows the same 4-5 phrases cover ~80% of
+// short reactive replies. We can swap to a Claude-generated context-
+// aware set later by routing the comment body through ai-command.
+const QUICK_REPLIES = [
+  'Thanks!',
+  'On it.',
+  'Will do.',
+  'Need more info?',
+  'ETA?',
+]
 
 // Comments thread (formerly "Journal"). Renders entries grouped by
 // thread — top-level newest first, replies asc-by-time underneath.
@@ -40,8 +59,13 @@ export default function JournalPanel({
   const createEntry = useCreateJournalEntry(taskId)
   const updateEntry = useUpdateJournalEntry(taskId)
   const deleteEntry = useDeleteJournalEntry(taskId)
+  const toggleReactionMut = useToggleReaction(taskId)
   const { user } = useAuth()
   const qc = useQueryClient()
+
+  function handleToggleReaction(entryId, emoji) {
+    toggleReactionMut.mutate({ entryId, emoji })
+  }
 
   // Owner-action helpers passed down into rows. Update / delete are
   // unconditional here — the per-row guards (author check, edit window,
@@ -145,6 +169,7 @@ export default function JournalPanel({
               onPostReply={(reply) => createEntry.mutate(reply)}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              onToggleReaction={handleToggleReaction}
             />
           ))
         )}
@@ -175,6 +200,7 @@ function CommentThread({
   onPostReply,
   onEdit,
   onDelete,
+  onToggleReaction,
 }) {
   const [replying, setReplying] = useState(false)
   return (
@@ -186,6 +212,7 @@ function CommentThread({
         replyCount={replies.length}
         onEdit={onEdit}
         onDelete={onDelete}
+        onToggleReaction={onToggleReaction}
       />
       <div className="ml-5 mt-2 space-y-2 border-l-2 border-border pl-3">
         {replies.map((r) => (
@@ -197,6 +224,7 @@ function CommentThread({
             replyCount={0}
             onEdit={onEdit}
             onDelete={onDelete}
+            onToggleReaction={onToggleReaction}
             compact
           />
         ))}
@@ -234,9 +262,11 @@ function CommentRow({
   replyCount = 0,
   onEdit,
   onDelete,
+  onToggleReaction,
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(entry.body)
+  const [showReactPicker, setShowReactPicker] = useState(false)
 
   // Sync local draft when the row itself changes (e.g. realtime
   // refresh after another tab edited the same comment). Otherwise the
@@ -383,6 +413,91 @@ function CommentRow({
               )}
         </div>
       )}
+      {/* Reactions strip + + React picker — hidden on deleted comments. */}
+      {!editing && !isDeleted && (
+        <ReactionStrip
+          entry={entry}
+          currentUserId={currentUserId}
+          onToggleReaction={onToggleReaction}
+          showPicker={showReactPicker}
+          onTogglePicker={() => setShowReactPicker((v) => !v)}
+        />
+      )}
+    </div>
+  )
+}
+
+// Reactions row + add-reaction picker. Renders below the comment body.
+// Each existing reaction is a pill the user can click to toggle their
+// own participation; mine-state highlights with the info-bg tint.
+function ReactionStrip({
+  entry,
+  currentUserId,
+  onToggleReaction,
+  showPicker,
+  onTogglePicker,
+}) {
+  const reactions = entry.reactions ?? []
+  const hasReactions = reactions.length > 0
+  function toggle(emoji) {
+    if (onToggleReaction) onToggleReaction(entry.id, emoji)
+  }
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      {reactions.map((r) => {
+        const mine = !!currentUserId && r.user_ids?.includes(currentUserId)
+        return (
+          <button
+            key={r.emoji}
+            type="button"
+            onClick={() => toggle(r.emoji)}
+            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] border transition-colors ${
+              mine
+                ? 'border-info bg-info-bg text-info-text font-medium'
+                : 'border-border bg-surface hover:bg-surface-2 text-text-2'
+            }`}
+            title={mine ? 'Remove your reaction' : 'Add your reaction'}
+          >
+            <span className="text-sm leading-none">{r.emoji}</span>
+            <span className="text-[10px]">{r.count}</span>
+          </button>
+        )
+      })}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={onTogglePicker}
+          className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] border border-border text-text-3 hover:text-text hover:bg-surface-2 ${
+            hasReactions
+              ? ''
+              : 'opacity-0 group-hover:opacity-100 sm:opacity-0 max-sm:opacity-100 transition-opacity'
+          }`}
+          aria-expanded={showPicker}
+          aria-label="Add reaction"
+          title="Add reaction"
+        >
+          <i className="ti ti-mood-smile text-[12px]" />
+          {!hasReactions && <span>React</span>}
+        </button>
+        {showPicker && (
+          <div className="absolute z-10 mt-1 left-0 bg-surface border border-border rounded-lg shadow-lg p-1 flex items-center gap-0.5">
+            {QUICK_REACTIONS.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => {
+                  toggle(emoji)
+                  onTogglePicker()
+                }}
+                className="w-7 h-7 rounded hover:bg-surface-2 inline-flex items-center justify-center text-base leading-none active:scale-95 transition-transform"
+                aria-label={`React with ${emoji}`}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -489,6 +604,19 @@ function Composer({
     if (autoFocus && taRef.current) taRef.current.focus()
   }, [autoFocus, taRef])
 
+  // Click a quick-reply chip to prefill the textarea. Doesn't auto-
+  // submit — the user gets a chance to tweak before posting.
+  function pickQuickReply(text) {
+    setBody((prev) => (prev ? prev : text))
+    requestAnimationFrame(() => {
+      if (taRef.current) {
+        taRef.current.focus()
+        const end = text.length
+        taRef.current.setSelectionRange(end, end)
+      }
+    })
+  }
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -498,6 +626,24 @@ function Composer({
           : 'border-t border-border bg-surface p-3 rounded-b-2xl sm:rounded-bl-none'
       }
     >
+      {/* Quick-reply chips — one-tap to prefill common responses.
+          Hidden in compact (reply) mode to keep replies frictionless;
+          shown on the main top-level composer where the broader set is
+          most useful. */}
+      {!compact && !body && (
+        <div className="flex flex-wrap items-center gap-1 mb-2">
+          {QUICK_REPLIES.map((text) => (
+            <button
+              key={text}
+              type="button"
+              onClick={() => pickQuickReply(text)}
+              className="text-[11px] px-2 py-1 rounded-full border border-border bg-surface hover:bg-surface-2 text-text-2 hover:text-text"
+            >
+              {text}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="relative">
         <textarea
           ref={taRef}

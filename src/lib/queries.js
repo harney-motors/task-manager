@@ -9,12 +9,14 @@ import {
   createJournalEntry,
   updateJournalEntry,
   deleteJournalEntry,
+  toggleReaction,
   fetchMyMentions,
   dismissMention,
   restoreMention,
   dismissMentions,
 } from '../api/journal'
 import { notifyMention } from '../api/notifyMention'
+import { notifyCommentEvent } from '../api/notifyCommentEvent'
 import {
   createDoc,
   deleteDoc as deleteDocApi,
@@ -1205,6 +1207,14 @@ export function useCreateJournalEntry(taskId) {
       if (args.mentions.length > 0 && entry?.id) {
         notifyMention(entry.id)
       }
+      // Reply email — fire when this entry is a reply (has parentId).
+      // Server checks "don't notify yourself" + per-user opt-out.
+      // Mention emails already cover the case where the parent author
+      // was @mentioned in the reply (it's the same person), so the
+      // server de-dupes those.
+      if (args.parentId && entry?.id) {
+        notifyCommentEvent(args.parentId, 'reply')
+      }
     },
     onError: (_err, _input, ctx) => {
       if (ctx?.previous) qc.setQueryData(key, ctx.previous)
@@ -1249,6 +1259,58 @@ export function useUpdateJournalEntry(taskId) {
     onError: (err, _vars, ctx) => {
       if (ctx?.previous) qc.setQueryData(key, ctx.previous)
       showToast(errMsg(err, 'Could not edit comment'), { type: 'error' })
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: key }),
+  })
+}
+
+// Toggle an emoji reaction on a comment. Optimistically flips the
+// pill in the cache + (on add only) fires a notification email to the
+// comment author so they know someone reacted.
+export function useToggleReaction(taskId) {
+  const qc = useQueryClient()
+  const { user } = useAuth()
+  const showToast = useToast()
+  const key = queryKeys.journal(taskId)
+  return useMutation({
+    mutationFn: ({ entryId, emoji }) => toggleReaction(entryId, emoji),
+    onMutate: async ({ entryId, emoji }) => {
+      await qc.cancelQueries({ queryKey: key })
+      const previous = qc.getQueryData(key)
+      qc.setQueryData(key, (old) =>
+        (old ?? []).map((e) => {
+          if (e.id !== entryId) return e
+          const reactions = [...(e.reactions ?? [])]
+          const idx = reactions.findIndex((r) => r.emoji === emoji)
+          if (idx === -1) {
+            reactions.push({ emoji, count: 1, user_ids: [user?.id] })
+          } else {
+            const r = reactions[idx]
+            const has = r.user_ids?.includes(user?.id)
+            const nextIds = has
+              ? r.user_ids.filter((id) => id !== user?.id)
+              : [...(r.user_ids ?? []), user?.id]
+            if (nextIds.length === 0) reactions.splice(idx, 1)
+            else
+              reactions[idx] = {
+                ...r,
+                count: nextIds.length,
+                user_ids: nextIds,
+              }
+          }
+          return { ...e, reactions }
+        }),
+      )
+      return { previous }
+    },
+    onSuccess: ({ added }, { entryId, emoji }) => {
+      // Only notify on ADD; un-reacting silently. Fire-and-forget so
+      // the UI never blocks on the email round-trip.
+      if (added) notifyCommentEvent(entryId, 'reaction', { emoji })
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.previous) qc.setQueryData(key, ctx.previous)
+      showToast(errMsg(err, 'Could not toggle reaction'), { type: 'error' })
     },
     onSettled: () => qc.invalidateQueries({ queryKey: key }),
   })
