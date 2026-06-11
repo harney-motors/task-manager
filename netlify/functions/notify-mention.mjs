@@ -30,7 +30,42 @@ const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY =
   process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
-const APP_URL = process.env.APP_URL || process.env.URL || 'http://localhost:5173'
+
+// Resolve the app's public URL with a defensive 4-level fallback. Used
+// to build the "View comment" deep-link in the email. If the chain
+// produces anything that doesn't look like an https URL we'll log a
+// loud warning + still send (with a homepage fallback) so the email
+// doesn't get stuck behind a missing env var. The origin header is the
+// strongest signal because it comes straight from the browser that
+// invoked this function — works whether APP_URL is configured or not.
+function resolveAppUrl(req) {
+  const origin = req.headers.get('origin') || req.headers.get('referer')
+  const candidates = [
+    process.env.APP_URL,
+    origin,
+    process.env.URL,
+    process.env.DEPLOY_PRIME_URL,
+    'http://localhost:5173',
+  ]
+  for (const raw of candidates) {
+    if (!raw) continue
+    const s = String(raw).trim().replace(/\/$/, '')
+    if (s.startsWith('http://') || s.startsWith('https://')) {
+      // For the referer fallback, strip the path so we get the bare
+      // origin (referer is the full URL the user was on).
+      try {
+        const u = new URL(s)
+        return `${u.protocol}//${u.host}`
+      } catch {
+        return s
+      }
+    }
+  }
+  console.warn(
+    '[notify-mention] no usable APP_URL — set APP_URL env var to https://your-site',
+  )
+  return 'http://localhost:5173'
+}
 
 export default async (req) => {
   if (req.method !== 'POST') {
@@ -47,6 +82,14 @@ export default async (req) => {
   if (!SUPABASE_SERVICE_ROLE_KEY) {
     return jsonError(500, 'Server missing SUPABASE_SERVICE_ROLE_KEY')
   }
+
+  // Resolve the app URL ONCE per request so all callsites below get
+  // the same value. Logged for forensic diagnosis of "View comment"
+  // link issues.
+  const APP_URL = resolveAppUrl(req)
+  console.log(
+    `[notify-mention] resolved APP_URL=${APP_URL} env_APP_URL=${process.env.APP_URL || '(unset)'} env_URL=${process.env.URL || '(unset)'} origin=${req.headers.get('origin') || '(unset)'}`,
+  )
 
   const authHeader =
     req.headers.get('authorization') ?? req.headers.get('Authorization')
@@ -208,6 +251,7 @@ export default async (req) => {
   // mention actually is.
   const taskUrl = `${APP_URL.replace(/\/$/, '')}/?task=${entry.task.id}&focus=comments`
   const unsubscribeUrl = `${APP_URL.replace(/\/$/, '')}/?view=today#email-prefs`
+  console.log(`[notify-mention] taskUrl=${taskUrl}`)
 
   let sent = 0
   let skipped = 0

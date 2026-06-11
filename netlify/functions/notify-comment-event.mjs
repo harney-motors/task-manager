@@ -26,7 +26,34 @@ const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY =
   process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
-const APP_URL = process.env.APP_URL || process.env.URL || 'http://localhost:5173'
+
+// Same defensive resolution as notify-mention.mjs — see comments there.
+function resolveAppUrl(req) {
+  const origin = req.headers.get('origin') || req.headers.get('referer')
+  const candidates = [
+    process.env.APP_URL,
+    origin,
+    process.env.URL,
+    process.env.DEPLOY_PRIME_URL,
+    'http://localhost:5173',
+  ]
+  for (const raw of candidates) {
+    if (!raw) continue
+    const s = String(raw).trim().replace(/\/$/, '')
+    if (s.startsWith('http://') || s.startsWith('https://')) {
+      try {
+        const u = new URL(s)
+        return `${u.protocol}//${u.host}`
+      } catch {
+        return s
+      }
+    }
+  }
+  console.warn(
+    '[notify-comment-event] no usable APP_URL — set APP_URL env var to https://your-site',
+  )
+  return 'http://localhost:5173'
+}
 
 export default async (req) => {
   if (req.method !== 'POST') {
@@ -167,8 +194,13 @@ export default async (req) => {
 
   // Deep-link includes &focus=comments so the link opens straight
   // into the Comments tab of the TaskModal.
+  const APP_URL = resolveAppUrl(req)
+  console.log(
+    `[notify-comment-event] resolved APP_URL=${APP_URL} env_APP_URL=${process.env.APP_URL || '(unset)'} env_URL=${process.env.URL || '(unset)'} origin=${req.headers.get('origin') || '(unset)'}`,
+  )
   const taskUrl = `${APP_URL.replace(/\/$/, '')}/?task=${target.task.id}&focus=comments`
   const unsubscribeUrl = `${APP_URL.replace(/\/$/, '')}/?view=today#email-prefs`
+  console.log(`[notify-comment-event] taskUrl=${taskUrl}`)
 
   let templated
   if (kind === 'reply') {

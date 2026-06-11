@@ -244,9 +244,16 @@ function renderEnvelope({
   const safeWorkspace = escapeHtml(workspaceName || 'Workspace')
   const safeRecipient = escapeHtml(firstName(recipientName) || 'there')
   const avatarInitials = escapeHtml(initials(actorName))
-  const safeTaskUrl = sanitizeUrl(taskUrl) || '#'
-  const safeAppUrl = sanitizeUrl(appUrl) || '#'
-  const safeUnsubUrl = sanitizeUrl(unsubscribeUrl) || '#'
+  // Defensive URL handling: if the task URL doesn't pass sanitizeUrl
+  // (most often because the calling function couldn't resolve a real
+  // APP_URL), fall through to the app URL instead of '#'. A bare '#'
+  // gets rewritten by Gmail into its internal "stay on this email"
+  // anchor format (mail.google.com/#m_<id>_), which surprises users
+  // who think the CTA was meant to leave the inbox. Better to land
+  // them on the app's homepage than nowhere.
+  const safeAppUrl = sanitizeUrl(appUrl) || 'https://localhost'
+  const safeTaskUrl = sanitizeUrl(taskUrl) || safeAppUrl
+  const safeUnsubUrl = sanitizeUrl(unsubscribeUrl) || safeAppUrl
 
   const html = `<!DOCTYPE html>
 <html lang="en">
