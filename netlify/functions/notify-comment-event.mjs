@@ -28,25 +28,39 @@ const SUPABASE_ANON_KEY =
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 // Same defensive resolution as notify-mention.mjs — see comments there.
+// Auto-prepends `https://` to bare domains so a misconfigured env var
+// (e.g. APP_URL=tickd.netlify.app without the scheme) still works.
 function resolveAppUrl(req) {
   const origin = req.headers.get('origin') || req.headers.get('referer')
   const candidates = [
-    process.env.APP_URL,
-    origin,
-    process.env.URL,
-    process.env.DEPLOY_PRIME_URL,
-    'http://localhost:5173',
+    { source: 'env_APP_URL', raw: process.env.APP_URL },
+    { source: 'request_origin', raw: origin },
+    { source: 'env_URL', raw: process.env.URL },
+    { source: 'env_DEPLOY_PRIME_URL', raw: process.env.DEPLOY_PRIME_URL },
+    { source: 'fallback_localhost', raw: 'http://localhost:5173' },
   ]
-  for (const raw of candidates) {
+  for (const { source, raw } of candidates) {
     if (!raw) continue
-    const s = String(raw).trim().replace(/\/$/, '')
-    if (s.startsWith('http://') || s.startsWith('https://')) {
-      try {
-        const u = new URL(s)
-        return `${u.protocol}//${u.host}`
-      } catch {
-        return s
+    let s = String(raw).trim().replace(/\/$/, '')
+    if (!s) continue
+    if (!/^https?:\/\//i.test(s)) {
+      if (/^(localhost|127\.|0\.0\.0\.0|192\.168\.|10\.)/.test(s)) {
+        s = `http://${s}`
+      } else if (/^[a-z0-9][a-z0-9-]*(\.[a-z0-9-]+)+/i.test(s)) {
+        s = `https://${s}`
+      } else {
+        continue
       }
+    }
+    try {
+      const u = new URL(s)
+      const final = `${u.protocol}//${u.host}`
+      console.log(
+        `[notify-comment-event] APP_URL resolved from ${source}: ${final} (raw=${raw})`,
+      )
+      return final
+    } catch {
+      continue
     }
   }
   console.warn(

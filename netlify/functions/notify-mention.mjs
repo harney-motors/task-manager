@@ -31,34 +31,56 @@ const SUPABASE_ANON_KEY =
   process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-// Resolve the app's public URL with a defensive 4-level fallback. Used
-// to build the "View comment" deep-link in the email. If the chain
-// produces anything that doesn't look like an https URL we'll log a
-// loud warning + still send (with a homepage fallback) so the email
-// doesn't get stuck behind a missing env var. The origin header is the
-// strongest signal because it comes straight from the browser that
-// invoked this function — works whether APP_URL is configured or not.
+// Resolve the app's public URL with a defensive multi-level fallback.
+// Used to build the "View comment" deep-link in the email. We do NOT
+// want to silently fall through to '#' — Gmail rewrites that into its
+// internal anchor format and the CTA stops working.
+//
+// Order of preference:
+//   1. process.env.APP_URL      — explicit production override
+//   2. request Origin/Referer   — works even when env vars are unset
+//   3. process.env.URL          — Netlify auto-sets this
+//   4. process.env.DEPLOY_PRIME_URL — fallback for preview deploys
+//   5. http://localhost:5173    — last resort
+//
+// Forgiving normalization: a bare domain like `tickd.netlify.app`
+// (common mistake when entering env vars without the scheme) gets
+// auto-prefixed with `https://`. Localhost-style values get `http://`.
+// Each candidate's source is logged so a misconfiguration is visible
+// in one Netlify log line.
 function resolveAppUrl(req) {
   const origin = req.headers.get('origin') || req.headers.get('referer')
   const candidates = [
-    process.env.APP_URL,
-    origin,
-    process.env.URL,
-    process.env.DEPLOY_PRIME_URL,
-    'http://localhost:5173',
+    { source: 'env_APP_URL', raw: process.env.APP_URL },
+    { source: 'request_origin', raw: origin },
+    { source: 'env_URL', raw: process.env.URL },
+    { source: 'env_DEPLOY_PRIME_URL', raw: process.env.DEPLOY_PRIME_URL },
+    { source: 'fallback_localhost', raw: 'http://localhost:5173' },
   ]
-  for (const raw of candidates) {
+  for (const { source, raw } of candidates) {
     if (!raw) continue
-    const s = String(raw).trim().replace(/\/$/, '')
-    if (s.startsWith('http://') || s.startsWith('https://')) {
-      // For the referer fallback, strip the path so we get the bare
-      // origin (referer is the full URL the user was on).
-      try {
-        const u = new URL(s)
-        return `${u.protocol}//${u.host}`
-      } catch {
-        return s
+    let s = String(raw).trim().replace(/\/$/, '')
+    if (!s) continue
+    // Auto-prepend a scheme so bare-domain misconfigurations still work.
+    if (!/^https?:\/\//i.test(s)) {
+      if (/^(localhost|127\.|0\.0\.0\.0|192\.168\.|10\.)/.test(s)) {
+        s = `http://${s}`
+      } else if (/^[a-z0-9][a-z0-9-]*(\.[a-z0-9-]+)+/i.test(s)) {
+        s = `https://${s}`
+      } else {
+        // Not a domain, not a URL — give up on this candidate.
+        continue
       }
+    }
+    try {
+      const u = new URL(s)
+      const final = `${u.protocol}//${u.host}`
+      console.log(
+        `[notify-mention] APP_URL resolved from ${source}: ${final} (raw=${raw})`,
+      )
+      return final
+    } catch {
+      continue
     }
   }
   console.warn(
