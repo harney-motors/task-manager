@@ -15,6 +15,8 @@ import {
 import { useToast } from '../components/Toast'
 import { picDot } from '../lib/colors'
 import { useTheme } from '../lib/useTheme'
+import CreateUserModal from '../components/CreateUserModal'
+import ErrorsPanel from '../components/ErrorsPanel'
 import PersonModal from '../components/PersonModal'
 import DepartmentModal from '../components/DepartmentModal'
 import LinkPersonModal from '../components/LinkPersonModal'
@@ -42,6 +44,7 @@ const TABS = [
   { id: 'people',      label: 'People',      icon: 'ti-users',    minRole: 'editor' },
   { id: 'departments', label: 'Departments', icon: 'ti-building', minRole: 'editor' },
   { id: 'activity',    label: 'Activity',    icon: 'ti-history',  minRole: 'owner' },
+  { id: 'errors',      label: 'Errors',      icon: 'ti-bug',      minRole: 'owner' },
   { id: 'calendar',    label: 'Calendar',    icon: 'ti-calendar' },
   { id: 'profile',     label: 'My profile',  icon: 'ti-user' },
 ]
@@ -113,6 +116,7 @@ export default function SettingsView({ onBack }) {
         {tab === 'people' && <PeoplePanel />}
         {tab === 'departments' && <DepartmentsPanel />}
         {tab === 'activity' && <ActivityPanel />}
+        {tab === 'errors' && <ErrorsPanel />}
         {tab === 'calendar' && <CalendarSyncPanel />}
         {tab === 'profile' && <ProfilePanel />}
       </div>
@@ -125,10 +129,16 @@ export default function SettingsView({ onBack }) {
 // ============================================================
 
 function PeoplePanel() {
+  const { workspace } = useAuth()
   const [showInactive, setShowInactive] = useState(false)
+  const [createUserOpen, setCreateUserOpen] = useState(false)
   const { data: people = [], isLoading } = usePeople({ includeInactive: showInactive })
   const { data: tasks = [] } = useTasks()
   const { data: isSuperadmin = false } = useIsSuperadmin()
+  // Workspace owners (and superadmins) can mint new auth users via
+  // the shared CreateUserModal. PIC role + editor role can't — they
+  // can still add a person record via "Add person" below.
+  const canCreateUser = workspace?.role === 'owner' || isSuperadmin
   // Pull users so we can show "Linked · <email>" labels. The query
   // is RLS-gated (superadmin only via get_all_users RPC), so for
   // non-superadmins this returns [] and the label falls back to a
@@ -257,6 +267,18 @@ function PeoplePanel() {
             />
             Show inactive
           </label>
+          {canCreateUser && (
+            <button
+              onClick={() => setCreateUserOpen(true)}
+              className="text-xs px-2.5 sm:px-3 py-1.5 rounded border border-border text-text-2 hover:bg-surface-2 active:scale-95 transition-transform inline-flex items-center gap-1 sm:gap-1.5"
+              aria-label="Invite user"
+              title="Mint a login + invite to the workspace"
+            >
+              <i className="ti ti-user-plus text-sm" />
+              <span className="hidden sm:inline">Invite user</span>
+              <span className="sm:hidden">Invite</span>
+            </button>
+          )}
           <button
             onClick={() => setEditing('new')}
             className="text-xs px-2.5 sm:px-3 py-1.5 rounded bg-info text-white font-medium hover:opacity-90 active:scale-95 transition-transform inline-flex items-center gap-1 sm:gap-1.5"
@@ -268,6 +290,15 @@ function PeoplePanel() {
           </button>
         </div>
       </div>
+
+      {createUserOpen && (
+        <CreateUserModal
+          onClose={() => setCreateUserOpen(false)}
+          forcedWorkspaceId={isSuperadmin ? null : workspace?.id}
+          forcedWorkspaceName={isSuperadmin ? null : workspace?.name}
+          allowPromote={isSuperadmin}
+        />
+      )}
 
       {selectedIds.size > 0 && (
         <div className="bg-info text-white px-4 py-2 flex items-center gap-2 flex-wrap text-xs">

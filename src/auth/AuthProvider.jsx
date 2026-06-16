@@ -94,6 +94,17 @@ export function AuthProvider({ children }) {
     [workspaces, activeWorkspaceId],
   )
 
+  // Keep the error-logger's workspace tag in sync so any errors
+  // (uncaught or logged manually) are attributed to the current
+  // workspace. Lives in lib/errorLog as a mutable getter so we don't
+  // need a React context just for it.
+  useEffect(() => {
+    // Lazy import to avoid a cycle: errorLog itself doesn't depend on
+    // auth, but main.jsx wired up the global handlers before this
+    // provider mounted.
+    import('../lib/errorLog').then((m) => m.setActiveWorkspaceId(workspace?.id))
+  }, [workspace?.id])
+
   const signOut = () => supabase.auth.signOut()
 
   // Patch a workspace's fields locally without re-fetching. Used by

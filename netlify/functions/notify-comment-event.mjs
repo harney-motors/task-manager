@@ -21,6 +21,7 @@ import {
   renderReactionEmail,
 } from '../../src/lib/mentionEmailTemplate.js'
 import { sendEmail, emailProvider, emailDiagnostic } from './_lib/email.mjs'
+import { logServerError } from './_lib/errorLog.mjs'
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY =
@@ -273,6 +274,18 @@ export default async (req) => {
     )
   } catch (err) {
     console.error(`[notify-comment-event] send FAILED to ${recipientEmail}:`, err)
+    logServerError({
+      source: 'netlify-fn:notify-comment-event',
+      message: `send FAILED to ${recipientEmail}: ${err?.message ?? err}`,
+      context: {
+        recipient_email: recipientEmail,
+        target_entry_id: targetEntryId,
+        kind,
+        stack: err?.stack ?? null,
+      },
+      workspaceId: target.task.workspace_id,
+      userId: caller.id,
+    })
     return jsonError(500, err?.message || 'Send failed')
   }
 }

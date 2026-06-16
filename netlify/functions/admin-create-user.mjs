@@ -13,6 +13,7 @@
 //   SUPABASE_SERVICE_ROLE_KEY
 
 import { createClient } from '@supabase/supabase-js'
+import { logServerError } from './_lib/errorLog.mjs'
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY =
@@ -46,17 +47,10 @@ export default async (req) => {
     return jsonError(401, 'Invalid token')
   }
 
-  // Verify caller is a superadmin (RLS on superadmins lets each user
-  // see only their own row, so this works even though the client uses
-  // the user's JWT).
-  const { data: superadminRow } = await userClient
-    .from('superadmins')
-    .select('user_id')
-    .eq('user_id', userData.user.id)
-    .maybeSingle()
-  if (!superadminRow) {
-    return jsonError(403, 'Superadmin access required')
-  }
+  // Authorization: superadmins can create users anywhere; workspace
+  // owners can create users within workspaces they own. Owner check
+  // depends on the workspace_id in the body, so we parse the body
+  // first before final authorization.
 
   // ---------- Body ----------
   let body
@@ -84,6 +78,54 @@ export default async (req) => {
     return jsonError(400, `Invalid role "${role}"`)
   }
 
+  // Resolve caller's privilege.
+  const { data: superadminRow } = await userClient
+    .from('superadmins')
+    .select('user_id')
+    .eq('user_id', userData.user.id)
+    .maybeSingle()
+  const isSuperadmin = !!superadminRow
+
+  let isWorkspaceOwner = false
+  if (!isSuperadmin && workspaceId) {
+    const { data: memberRow } = await userClient
+      .from('workspace_members')
+      .select('role')
+      .eq('user_id', userData.user.id)
+      .eq('workspace_id', workspaceId)
+      .maybeSingle()
+    isWorkspaceOwner = memberRow?.role === 'owner'
+  }
+
+  if (!isSuperadmin && !isWorkspaceOwner) {
+    // No path through — either you're a superadmin, or you're an
+    // owner of the specific workspace you're trying to add this user
+    // to. Anything else is forbidden.
+    return jsonError(
+      403,
+      workspaceId
+        ? 'You must be the workspace owner (or a superadmin) to add users to it.'
+        : 'Only superadmins can create users with no workspace.',
+    )
+  }
+
+  // Only superadmins can mint new superadmins. A workspace owner
+  // promoting themselves or a colleague would be an obvious escalation
+  // hole.
+  if (promoteSuperadmin && !isSuperadmin) {
+    return jsonError(403, 'Only superadmins can promote new superadmins')
+  }
+
+  // Owner path restrictions: cap to within-workspace roles. Owners
+  // can create owners, editors, or PICs in their workspace — owner
+  // status is the local "anything-goes" badge, so we let them.
+  if (!isSuperadmin && !workspaceId) {
+    return jsonError(
+      403,
+      'Workspace owners must specify a workspace_id when creating users.',
+    )
+  }
+
   // ---------- Admin client (service role) ----------
   const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -106,8 +148,23 @@ export default async (req) => {
     }
   } catch (err) {
     console.warn('[admin-create-user] auth admin error', err)
-    // Supabase returns 422 for "user already exists" — surface that
-    // verbatim so the UI can show "this email is taken".
+    // 422 (user already exists) is a user error; everything else is
+    // a system failure worth logging to the error_log table.
+    if (err.status !== 422) {
+      logServerError({
+        source: 'netlify-fn:admin-create-user',
+        message: `auth admin error: ${err?.message ?? err}`,
+        context: {
+          email,
+          workspace_id: workspaceId,
+          role,
+          send_invite: sendInvite,
+          stack: err?.stack ?? null,
+        },
+        workspaceId,
+        userId: userData.user.id,
+      })
+    }
     return jsonError(err.status ?? 500, err.message ?? 'Failed to create user')
   }
 

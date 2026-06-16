@@ -593,6 +593,18 @@ export function useCreateTask() {
         action: 'task.created',
         payload: { title: task.title },
       })
+      // Fire the assignment notification (push + email) for any
+      // task that arrives with a PIC. The server-side handler skips
+      // self-assignments (PIC.user_id == actor.id), handles opt-out,
+      // and skips when the PIC isn't linked to a user account, so we
+      // don't need a client-side guard beyond "PIC is set".
+      if (task.pic_id) {
+        notifyTaskEvent({
+          taskId: task.id,
+          kind: 'pic_changed',
+          extra: { new_pic_name: task.pic?.name ?? null },
+        })
+      }
       // Surface the new task with a one-tap "Open" so the user can
       // immediately add PIC / due / priority without hunting for it.
       // Skip when the task already arrived via the AI extractor or a

@@ -163,6 +163,112 @@ export function renderReplyEmail({
   })
 }
 
+// Render the "task assigned to you" email. Sent when a teammate
+// either creates a task with you as PIC or changes an existing task's
+// PIC to you.
+//
+//   recipientName       — first name of the new PIC (header line)
+//   assignerName        — full name of the person who assigned it
+//   taskTitle           — task title
+//   taskNotes           — optional description / context
+//   dueDate             — 'YYYY-MM-DD' string or null
+//   priority            — 'High' / 'Medium' / 'Low' (badge)
+//   isNew               — true when the task was just created with this
+//                         PIC (vs. reassigned from someone else). Tweaks
+//                         the subject + body copy slightly.
+export function renderAssignmentEmail({
+  recipientName,
+  assignerName,
+  taskTitle,
+  taskNotes,
+  dueDate,
+  priority,
+  isNew = false,
+  workspaceName,
+  workspaceBrandColor,
+  taskUrl,
+  appUrl,
+  unsubscribeUrl,
+}) {
+  const accent = sanitizeHex(workspaceBrandColor) || '#185FA5'
+  const accentTint = withAlpha(accent, 0.12)
+  const safeAssigner = escapeHtml(assignerName || 'A teammate')
+  const safeNotes = escapeHtml(truncate(taskNotes || '', 500))
+  const safeDue = escapeHtml(formatDueDateForEmail(dueDate))
+  const safePriority = escapeHtml(priority || '')
+  const verb = isNew ? 'assigned you a new task' : 'assigned this task to you'
+  const subject = isNew
+    ? `${assignerName || 'Someone'} assigned you "${truncate(taskTitle || 'a task', 60)}"`
+    : `${assignerName || 'Someone'} reassigned "${truncate(taskTitle || 'a task', 60)}" to you`
+
+  // Metadata strip: due date pill + priority pill, only when present.
+  const metaPills = [
+    safeDue
+      ? `<span style="display:inline-block;font-size:12px;line-height:1;padding:5px 9px;border-radius:999px;background:${accentTint};color:${accent};font-weight:600;margin-right:6px;">Due ${safeDue}</span>`
+      : '',
+    safePriority && safePriority !== 'Medium'
+      ? `<span style="display:inline-block;font-size:12px;line-height:1;padding:5px 9px;border-radius:999px;background:#F3F4F6;color:#374151;font-weight:600;">${safePriority} priority</span>`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('')
+
+  const actorBlockHtml = `
+    <div style="font-size:14px;line-height:1.5;color:#1F2937;">
+      <span style="color:#374151;">${safeAssigner}</span>
+      <span style="font-weight:600;color:#1F2937;"> ${verb}</span>
+    </div>
+    ${
+      metaPills
+        ? `<div style="margin-top:12px;padding-left:40px;">${metaPills}</div>`
+        : ''
+    }
+    ${
+      safeNotes
+        ? `<div style="font-size:13px;line-height:1.55;color:#4B5563;margin-top:14px;padding-left:40px;white-space:pre-wrap;">${safeNotes}</div>`
+        : ''
+    }
+  `
+  return renderEnvelope({
+    subject,
+    taskTitle,
+    workspaceName,
+    workspaceBrandColor,
+    taskUrl,
+    appUrl,
+    unsubscribeUrl,
+    recipientName,
+    actorName: assignerName,
+    actorBlockHtml,
+    ctaLabel: 'Open task',
+    helperLine: 'or reply to add a note',
+    plainBody:
+      `${assignerName || 'Someone'} ${verb}: "${taskTitle || 'a task'}"\n` +
+      `(${workspaceName || 'workspace'})\n\n` +
+      (safeDue ? `Due: ${formatDueDateForEmail(dueDate)}\n` : '') +
+      (safePriority && safePriority !== 'Medium'
+        ? `Priority: ${safePriority}\n`
+        : '') +
+      (taskNotes ? `\n${taskNotes}\n` : ''),
+  })
+}
+
+// Friendly date format for emails. ISO `YYYY-MM-DD` → "Mon, Jun 5".
+// Returns '' for null/invalid so the template can conditionally render.
+function formatDueDateForEmail(iso) {
+  if (!iso) return ''
+  try {
+    const d = new Date(`${iso}T00:00:00`)
+    return d.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    })
+  } catch {
+    return ''
+  }
+}
+
 // Render the reaction email. Sent when teammate B adds an emoji
 // reaction to A's comment.
 //

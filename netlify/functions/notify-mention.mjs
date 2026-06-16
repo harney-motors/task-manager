@@ -25,6 +25,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { renderMentionEmail } from '../../src/lib/mentionEmailTemplate.js'
 import { sendEmail, emailProvider, emailDiagnostic } from './_lib/email.mjs'
+import { logServerError } from './_lib/errorLog.mjs'
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY =
@@ -328,6 +329,18 @@ export default async (req) => {
         `[notify-mention] send FAILED to ${email}:`,
         err?.message ?? err,
       )
+      logServerError({
+        source: 'netlify-fn:notify-mention',
+        message: `send FAILED to ${email}: ${err?.message ?? err}`,
+        context: {
+          recipient_email: email,
+          recipient_user_id: uid,
+          entry_id: entryId,
+          stack: err?.stack ?? null,
+        },
+        workspaceId,
+        userId: caller.id,
+      })
       skipped++
       skipReasons.push({ user_id: uid, reason: `send error: ${err?.message ?? err}` })
     }
