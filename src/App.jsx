@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './auth/AuthProvider'
 import Login from './auth/Login'
 import Home from './views/Home'
+import OfflineBanner from './components/OfflineBanner'
 
 export default function App() {
   const { user, loading, workspace } = useAuth()
@@ -31,6 +32,7 @@ export default function App() {
 
   return (
     <>
+      <OfflineBanner />
       <Routes>
         <Route
           path="/login"
