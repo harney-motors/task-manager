@@ -6,6 +6,7 @@ import {
   useDeleteDoc,
   useDoc,
   useDocs,
+  useDocShares,
   useUpdateDoc,
 } from '../lib/queries'
 import { useAuth } from '../auth/AuthProvider'
@@ -13,6 +14,7 @@ import { useToast } from '../components/Toast'
 import { useDictation } from '../lib/useDictation'
 import { formatTimeAgo } from '../lib/dates'
 import Skeleton from '../components/Skeleton'
+import ShareDocModal from '../components/ShareDocModal'
 
 // DocsView — flat list of markdown docs in the active workspace.
 //
@@ -248,8 +250,9 @@ function DocListRow({ doc, selected, onClick }) {
               {preview}
             </div>
           )}
-          <div className="text-[10.5px] text-text-3 mt-1.5">
-            {formatTimeAgo(doc.updated_at)}
+          <div className="text-[10.5px] text-text-3 mt-1.5 flex items-center gap-1.5">
+            <span>{formatTimeAgo(doc.updated_at)}</span>
+            <DocPrivacyHint doc={doc} />
           </div>
         </div>
       </div>
@@ -434,17 +437,35 @@ function detectListContext(beforeCursor) {
 // ============================================================
 
 function DocEditor({ id, onBack, onDeleted, canWrite }) {
+  const { user, workspace } = useAuth()
   const { data: doc, isLoading } = useDoc(id)
+  const { data: shares = [] } = useDocShares(id)
   const update = useUpdateDoc()
   const remove = useDeleteDoc()
   const createTask = useCreateTask()
   const showToast = useToast()
   const textareaRef = useRef(null)
 
+  // Per-doc edit gate. Workspace role gives create+delete-your-own
+  // power, but actually editing a doc requires being the author OR
+  // having an explicit `edit` share on it. RLS enforces this server-
+  // side; mirroring it client-side makes the UI honest (textarea
+  // stays read-only, Save flow disabled).
+  const iAmAuthor = !!doc && !!user && doc.created_by === user.id
+  const myEditShare = shares.find(
+    (s) => s.user_id === user?.id && s.permission === 'edit',
+  )
+  const canEditThisDoc = canWrite && (iAmAuthor || !!myEditShare)
+  // Delete is permissive than edit: author OR workspace owner (matches
+  // the new "author or owner deletes docs" RLS policy). Lets owners
+  // clean up after a departing teammate without faking authorship.
+  const canDeleteThisDoc = iAmAuthor || workspace?.role === 'owner'
+
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [saveTone, setSaveTone] = useState('idle')
   const [deleting, setDeleting] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
   const [bubble, setBubble] = useState(null) // { start, end, rect } | null
   const userDirtyRef = useRef(false)
 
@@ -460,7 +481,7 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
 
   useEffect(() => {
     if (!doc) return
-    if (!canWrite) return
+    if (!canEditThisDoc) return
     if (!userDirtyRef.current) return
     if (title === (doc.title ?? '') && body === (doc.body ?? '')) return
     setSaveTone('saving')
@@ -478,11 +499,11 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
     }, 600)
     return () => clearTimeout(handle)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, body, doc?.id])
+  }, [title, body, doc?.id, canEditThisDoc])
 
   // Cmd+S — force-flush.
   useEffect(() => {
-    if (!canWrite) return
+    if (!canEditThisDoc) return
     function onKey(e) {
       const cmd = e.metaKey || e.ctrlKey
       if (!cmd || e.key.toLowerCase() !== 's') return
@@ -504,7 +525,7 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doc?.id, title, body, canWrite])
+  }, [doc?.id, title, body, canEditThisDoc])
 
   function markUserDirty() {
     userDirtyRef.current = true
@@ -546,7 +567,7 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
   // the same actions on mobile.
   function refreshBubble() {
     const el = textareaRef.current
-    if (!el || !canWrite) {
+    if (!el || !canEditThisDoc) {
       setBubble(null)
       return
     }
@@ -790,16 +811,28 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
           <i className="ti ti-arrow-left text-base" />
         </button>
         <i className="ti ti-file-text text-text-3 text-sm hidden lg:inline" />
-        <div className="text-xs text-text-3 truncate flex-1 min-w-0">
-          {doc.title?.trim() || 'Untitled'}
-          {!canWrite && (
-            <span className="ml-2 text-[10px] uppercase tracking-wider text-text-3 bg-surface-2 px-1.5 py-0.5 rounded">
+        <div className="text-xs text-text-3 truncate flex-1 min-w-0 flex items-center gap-2">
+          <span className="truncate">{doc.title?.trim() || 'Untitled'}</span>
+          <DocPrivacyHint doc={doc} />
+          {!canEditThisDoc && (
+            <span className="text-[10px] uppercase tracking-wider text-text-3 bg-surface-2 px-1.5 py-0.5 rounded flex-shrink-0">
               Read only
             </span>
           )}
         </div>
         <SaveBadge tone={saveTone} />
-        {canWrite && (
+        {/* Share button — author only; reveals visibility + invite UI. */}
+        {iAmAuthor && (
+          <button
+            onClick={() => setShareOpen(true)}
+            className="w-9 h-9 rounded-full inline-flex items-center justify-center text-text-2 hover:text-info hover:bg-info-bg/40 active:scale-95 transition-all flex-shrink-0"
+            aria-label="Share doc"
+            title="Share doc"
+          >
+            <i className="ti ti-user-plus text-base" />
+          </button>
+        )}
+        {canDeleteThisDoc && (
           <button
             onClick={handleDelete}
             disabled={deleting}
@@ -814,9 +847,13 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
         )}
       </div>
 
+      {shareOpen && (
+        <ShareDocModal doc={doc} onClose={() => setShareOpen(false)} />
+      )}
+
       {/* Sticky markup toolbar — always visible while editing. Works on
           the current selection OR cursor position. */}
-      {canWrite && (
+      {canEditThisDoc && (
         <Toolbar
           onBold={() => wrap('**', '**', 'bold')}
           onItalic={() => wrap('*', '*', 'italic')}
@@ -843,7 +880,7 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
             value={title}
             onChange={(e) => handleTitleChange(e.target.value)}
             placeholder="Untitled"
-            disabled={!canWrite}
+            disabled={!canEditThisDoc}
             className="w-full text-2xl sm:text-3xl font-semibold tracking-tight bg-transparent outline-none placeholder:text-text-3 disabled:opacity-80"
           />
           <textarea
@@ -856,7 +893,7 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
             onKeyDown={handleBodyKeyDown}
             placeholder="Start writing…"
             spellCheck="true"
-            disabled={!canWrite}
+            disabled={!canEditThisDoc}
             // text-base = 16px — keeps iOS from zooming on focus.
             className="w-full mt-5 text-base leading-relaxed bg-transparent outline-none resize-none placeholder:text-text-3 disabled:opacity-80 min-h-[55vh]"
             style={{ fontFamily: 'inherit' }}
@@ -1138,6 +1175,34 @@ function caretRect(textarea, position) {
 // ============================================================
 // Save badge
 // ============================================================
+
+// Tiny visibility pill rendered in the doc list + editor header.
+// Three states based on the doc row alone — doesn't query shares
+// (would N+1 the list). For "shared with N people" detail, the
+// ShareDocModal does that lookup on demand.
+function DocPrivacyHint({ doc }) {
+  if (!doc) return null
+  if (doc.is_workspace_visible) {
+    return (
+      <span
+        className="inline-flex items-center gap-0.5 text-[10px] text-text-3"
+        title="Visible to everyone in this workspace"
+      >
+        <i className="ti ti-users text-[10px]" />
+        Workspace
+      </span>
+    )
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-0.5 text-[10px] text-text-3"
+      title="Private — only you and people you've invited can see this doc"
+    >
+      <i className="ti ti-lock text-[10px]" />
+      Private
+    </span>
+  )
+}
 
 function SaveBadge({ tone }) {
   if (tone === 'saving') {

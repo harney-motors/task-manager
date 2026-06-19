@@ -22,6 +22,9 @@ import {
   deleteDoc as deleteDocApi,
   fetchDoc,
   fetchDocs,
+  fetchDocShares,
+  removeDocShare,
+  setDocShare,
   updateDoc as updateDocApi,
 } from '../api/docs'
 import { fetchRecentActivity } from '../api/activity'
@@ -124,6 +127,7 @@ export const queryKeys = {
   inboxDismissals: (workspaceId, userId) => ['inbox-dismissals', workspaceId, userId],
   docs:          (workspaceId) => ['docs', workspaceId],
   doc:           (id)          => ['doc', id],
+  docShares:     (docId)       => ['doc-shares', docId],
 }
 
 // ---------- Dependencies ----------
@@ -1467,12 +1471,24 @@ export function useUpdateDoc() {
     mutationFn: ({ id, ...fields }) =>
       updateDocApi(id, { ...fields, userId: user?.id }),
     // Optimistic — the editor is debounced so we don't want to flash
-    // the previous state between server round-trips.
+    // the previous state between server round-trips. The mutation
+    // accepts camelCase param names; translate to the snake_case DB
+    // column names that the cached row carries.
     onMutate: async ({ id, ...fields }) => {
       await qc.cancelQueries({ queryKey: queryKeys.doc(id) })
       const previous = qc.getQueryData(queryKeys.doc(id))
+      const cachePatch = {}
+      if ('title' in fields) cachePatch.title = fields.title
+      if ('body' in fields) cachePatch.body = fields.body
+      if ('isWorkspaceVisible' in fields)
+        cachePatch.is_workspace_visible = fields.isWorkspaceVisible
       qc.setQueryData(queryKeys.doc(id), (old) =>
-        old ? { ...old, ...fields } : old,
+        old ? { ...old, ...cachePatch } : old,
+      )
+      // Also reflect in the docs list so the privacy badge updates
+      // immediately without waiting for the list refetch.
+      qc.setQueryData(queryKeys.docs(workspace?.id), (old) =>
+        (old ?? []).map((d) => (d.id === id ? { ...d, ...cachePatch } : d)),
       )
       return { previous }
     },
@@ -1484,6 +1500,79 @@ export function useUpdateDoc() {
       qc.invalidateQueries({ queryKey: queryKeys.docs(workspace?.id) })
       if (vars?.id) qc.invalidateQueries({ queryKey: queryKeys.doc(vars.id) })
     },
+  })
+}
+
+// --- Doc shares ---------------------------------------------------
+
+export function useDocShares(docId) {
+  return useQuery({
+    queryKey: queryKeys.docShares(docId),
+    queryFn: () => fetchDocShares(docId),
+    enabled: !!docId,
+    staleTime: 30 * 1000,
+  })
+}
+
+export function useSetDocShare(docId) {
+  const qc = useQueryClient()
+  const showToast = useToast()
+  return useMutation({
+    mutationFn: ({ userId, permission }) =>
+      setDocShare(docId, userId, permission),
+    onMutate: async ({ userId, permission }) => {
+      const key = queryKeys.docShares(docId)
+      await qc.cancelQueries({ queryKey: key })
+      const previous = qc.getQueryData(key)
+      qc.setQueryData(key, (old) => {
+        const list = old ?? []
+        const idx = list.findIndex((s) => s.user_id === userId)
+        const next = [...list]
+        if (idx >= 0) {
+          next[idx] = { ...next[idx], permission }
+        } else {
+          next.push({
+            doc_id: docId,
+            user_id: userId,
+            permission,
+            created_at: new Date().toISOString(),
+          })
+        }
+        return next
+      })
+      return { previous }
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.previous)
+        qc.setQueryData(queryKeys.docShares(docId), ctx.previous)
+      showToast(errMsg(err, 'Could not update share'), { type: 'error' })
+    },
+    onSettled: () =>
+      qc.invalidateQueries({ queryKey: queryKeys.docShares(docId) }),
+  })
+}
+
+export function useRemoveDocShare(docId) {
+  const qc = useQueryClient()
+  const showToast = useToast()
+  return useMutation({
+    mutationFn: (userId) => removeDocShare(docId, userId),
+    onMutate: async (userId) => {
+      const key = queryKeys.docShares(docId)
+      await qc.cancelQueries({ queryKey: key })
+      const previous = qc.getQueryData(key)
+      qc.setQueryData(key, (old) =>
+        (old ?? []).filter((s) => s.user_id !== userId),
+      )
+      return { previous }
+    },
+    onError: (err, _userId, ctx) => {
+      if (ctx?.previous)
+        qc.setQueryData(queryKeys.docShares(docId), ctx.previous)
+      showToast(errMsg(err, 'Could not revoke share'), { type: 'error' })
+    },
+    onSettled: () =>
+      qc.invalidateQueries({ queryKey: queryKeys.docShares(docId) }),
   })
 }
 
