@@ -15,6 +15,7 @@ import { useDictation } from '../lib/useDictation'
 import { formatTimeAgo } from '../lib/dates'
 import Skeleton from '../components/Skeleton'
 import ShareDocModal from '../components/ShareDocModal'
+import { printDoc } from '../lib/docPrint'
 
 // DocsView — flat list of markdown docs in the active workspace.
 //
@@ -821,6 +822,17 @@ function DocEditor({ id, onBack, onDeleted, canWrite }) {
           )}
         </div>
         <SaveBadge tone={saveTone} />
+        {/* Print / Save as PDF — available to anyone who can read the
+            doc. Opens the browser's print dialog, which on every
+            modern OS includes "Save as PDF" as a destination. */}
+        <button
+          onClick={() => printDoc({ doc, workspaceName: workspace?.name })}
+          className="w-9 h-9 rounded-full inline-flex items-center justify-center text-text-2 hover:text-text hover:bg-surface-2 active:scale-95 transition-all flex-shrink-0"
+          aria-label="Print or save as PDF"
+          title="Print / save as PDF"
+        >
+          <i className="ti ti-printer text-base" />
+        </button>
         {/* Share button — author only; reveals visibility + invite UI. */}
         {iAmAuthor && (
           <button
