@@ -41,14 +41,16 @@ export function applyTaskFilters(tasks, filters, { meId } = {}) {
   }
 
   return tasks.filter((t) => {
-    // Involvement scope — "Mine" = PIC or watcher; "Watching" =
-    // watcher (regardless of PIC). Silently no-ops when meId is
-    // missing (account not linked to a person), so old callers stay
-    // safe.
+    // Involvement scope:
+    //   'mine'     → "Assigned to me" — PIC == me (strictly assigned,
+    //                  watcher relationship doesn't count here)
+    //   'watching' → I'm a watcher (regardless of PIC)
+    // Silently no-ops when meId is missing (account not linked to a
+    // person), so callers without that context stay safe.
     if (involvement && involvement !== 'all' && meId) {
       const isPic = t.pic_id === meId
       const isWatcher = (t.watchers ?? []).some((w) => w.id === meId)
-      if (involvement === 'mine' && !isPic && !isWatcher) return false
+      if (involvement === 'mine' && !isPic) return false
       if (involvement === 'watching' && !isWatcher) return false
     }
     if (picId && picId !== 'all' && t.pic_id !== picId) return false

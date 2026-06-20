@@ -96,11 +96,14 @@ export default function TaskFilterBar({
     // so desktop users still get one-glance access to every filter.
     <div className="border-b border-border">
       <div className="flex items-center gap-1.5 p-2 sm:p-3 sm:gap-2 sm:flex-wrap overflow-x-auto sm:overflow-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {/* Mine + Watching — involvement-scoped quick chips. Mine is
-            the broad "tasks I care about" shortcut (PIC or watcher);
-            Watching narrows it down to the watcher-only slice. The
-            two are mutually exclusive — clicking one clears the
-            other. Hidden when the account isn't linked to a person. */}
+        {/* Assigned to me + Watching — two strict, mutually-exclusive
+            involvement chips. Assigned-to-me means PIC == you only;
+            Watching means you're in the watchers list. The PIC view
+            and Today's "Mine" lens still bundle the two, but here in
+            the per-view filter bar they stay tightly scoped so the
+            "what's actually on my plate" set isn't muddied by stuff
+            you're only observing. Hidden when the account isn't
+            linked to a person. */}
         {showPic && myPersonId && (
           <button
             onClick={toggleMine}
@@ -110,10 +113,11 @@ export default function TaskFilterBar({
                 ? 'border-info bg-info-bg text-info-text font-medium'
                 : 'border-border bg-surface hover:bg-surface-2 text-text-2'
             }`}
-            title="Show tasks where you're the PIC or a watcher"
+            title="Show only tasks where you're the PIC"
           >
             <i className="ti ti-user text-[12px] sm:text-sm" />
-            Mine
+            <span className="hidden sm:inline">Assigned to me</span>
+            <span className="sm:hidden">Assigned</span>
           </button>
         )}
         {showPic && myPersonId && (
