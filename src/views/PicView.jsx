@@ -37,6 +37,7 @@ import BulkActionBar from '../components/BulkActionBar'
 import TaskFilterBar from '../components/TaskFilterBar'
 import TaskRow from '../components/TaskRow'
 import ShareModal from '../components/ShareModal'
+import DuplicateScanModal from '../components/DuplicateScanModal'
 import TaskGroupSection from '../components/TaskGroupSection'
 
 // Sentinel value used as `selectedPicId` to surface the unassigned bucket
@@ -76,6 +77,7 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
   const setSelectedPicId = onSelectPic ?? setInternalPicId
 
   const [shareOpen, setShareOpen] = useState(false)
+  const [dupScanOpen, setDupScanOpen] = useState(false)
 
   // Selection helpers
   function toggleSelection(id) {
@@ -278,17 +280,30 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
               </div>
             </div>
           </div>
-          <button
-            onClick={() => setShareOpen(true)}
-            disabled={activeCount === 0}
-            className="text-[11px] sm:text-xs font-medium bg-success text-white px-2 py-1 sm:px-3 sm:py-1.5 rounded inline-flex items-center gap-1 sm:gap-1.5 disabled:opacity-50 hover:opacity-90 flex-shrink-0"
-            aria-label="Share to WhatsApp"
-            title="Share to WhatsApp"
-          >
-            <i className="ti ti-brand-whatsapp text-sm" />
-            <span className="hidden sm:inline">Share to WhatsApp</span>
-            <span className="sm:hidden">Share</span>
-          </button>
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+            <button
+              onClick={() => setDupScanOpen(true)}
+              disabled={activeCount < 2}
+              className="text-[11px] sm:text-xs font-medium text-text-2 hover:text-text border border-border bg-surface px-2 py-1 sm:px-3 sm:py-1.5 rounded inline-flex items-center gap-1 sm:gap-1.5 disabled:opacity-50 hover:bg-surface-2"
+              aria-label="Scan for duplicates"
+              title="AI scan for duplicate tasks across this PIC's open list"
+            >
+              <i className="ti ti-copy text-sm" />
+              <span className="hidden sm:inline">Find duplicates</span>
+              <span className="sm:hidden">Dupes</span>
+            </button>
+            <button
+              onClick={() => setShareOpen(true)}
+              disabled={activeCount === 0}
+              className="text-[11px] sm:text-xs font-medium bg-success text-white px-2 py-1 sm:px-3 sm:py-1.5 rounded inline-flex items-center gap-1 sm:gap-1.5 disabled:opacity-50 hover:opacity-90"
+              aria-label="Share to WhatsApp"
+              title="Share to WhatsApp"
+            >
+              <i className="ti ti-brand-whatsapp text-sm" />
+              <span className="hidden sm:inline">Share to WhatsApp</span>
+              <span className="sm:hidden">Share</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -412,6 +427,17 @@ export default function PicView({ onOpenTask, selectedPicId: controlledId, onSel
           pic={selectedPic}
           tasks={picTasks}
           onClose={() => setShareOpen(false)}
+        />
+      )}
+      {dupScanOpen && selectedPic && (
+        <DuplicateScanModal
+          picId={selectedPic.id}
+          picName={selectedPic.name}
+          onClose={() => setDupScanOpen(false)}
+          onOpenTask={(id) => {
+            setDupScanOpen(false)
+            onOpenTask?.(id)
+          }}
         />
       )}
       {selectionShareOpen && (

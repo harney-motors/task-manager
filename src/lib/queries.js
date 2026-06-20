@@ -17,6 +17,7 @@ import {
 } from '../api/journal'
 import { notifyMention } from '../api/notifyMention'
 import { notifyCommentEvent } from '../api/notifyCommentEvent'
+import { checkDuplicates, dismissDuplicatePair } from '../api/checkDuplicates'
 import {
   createDoc,
   deleteDoc as deleteDocApi,
@@ -608,6 +609,49 @@ export function useCreateTask() {
           kind: 'pic_changed',
           extra: { new_pic_name: task.pic?.name ?? null },
         })
+      }
+      // Async duplicate check — fire only when the new task is bound
+      // to a PIC (the scanner is per-PIC) and the workspace context
+      // is known. Non-blocking; if it finds a likely match the toast
+      // surfaces a one-tap "Open existing" action so the user can
+      // jump to the duplicate instead of keeping the new row.
+      if (task.pic_id && workspace?.id) {
+        checkDuplicates({
+          mode: 'new-task',
+          workspaceId: workspace.id,
+          picId: task.pic_id,
+          newTaskId: task.id,
+        })
+          .then((res) => {
+            const pair = res?.pairs?.[0]
+            if (!pair) return
+            const otherId =
+              pair.task_a_id === task.id ? pair.task_b_id : pair.task_a_id
+            const otherTask =
+              pair.task_a_id === task.id ? pair.task_b : pair.task_a
+            if (!otherId || !otherTask) return
+            const truncated =
+              (otherTask.title ?? '').length > 50
+                ? `${otherTask.title.slice(0, 50).trimEnd()}…`
+                : otherTask.title ?? 'an existing task'
+            showToast(`Looks similar to "${truncated}"`, {
+              action: {
+                label: 'Open existing',
+                onClick: () => {
+                  window.dispatchEvent(
+                    new CustomEvent('tickd:open-task', {
+                      detail: { taskId: otherId },
+                    }),
+                  )
+                },
+              },
+            })
+          })
+          .catch((err) => {
+            // Quiet failure — duplicate detection is a nice-to-have,
+            // not a critical path. The error_log captures it server-side.
+            console.warn('[create-task] duplicate check failed', err)
+          })
       }
       // Surface the new task with a one-tap "Open" so the user can
       // immediately add PIC / due / priority without hunting for it.
@@ -1414,6 +1458,45 @@ export function subscribeJournalRealtime(taskId, qc) {
   return () => {
     supabase.removeChannel(channel)
   }
+}
+
+// ---------- Duplicate detection ----------
+
+// On-demand batch scan for a single PIC. Returns the list of
+// suspected duplicate pairs. Caller controls when to fire (the
+// "Scan for duplicates" button); not run automatically because
+// each call costs an AI round-trip.
+export function useScanPicDuplicates() {
+  const { workspace } = useAuth()
+  const showToast = useToast()
+  return useMutation({
+    mutationFn: (picId) =>
+      checkDuplicates({
+        mode: 'batch',
+        workspaceId: workspace.id,
+        picId,
+      }),
+    onError: (err) =>
+      showToast(errMsg(err, 'Could not scan for duplicates'), {
+        type: 'error',
+      }),
+  })
+}
+
+// "Keep both" — records the pair so the scanner skips it next time.
+export function useDismissDuplicate() {
+  const { workspace } = useAuth()
+  const showToast = useToast()
+  return useMutation({
+    mutationFn: ({ taskAId, taskBId }) =>
+      dismissDuplicatePair({
+        workspaceId: workspace.id,
+        taskAId,
+        taskBId,
+      }),
+    onError: (err) =>
+      showToast(errMsg(err, 'Could not dismiss pair'), { type: 'error' }),
+  })
 }
 
 // ---------- Docs ----------
