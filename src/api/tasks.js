@@ -65,7 +65,7 @@ export async function deleteTask(id) {
   if (error) throw error
   if (!data || data.length === 0) {
     throw new Error(
-      "You don't have permission to delete this task. Only workspace owners can.",
+      "You don't have permission to delete this task. Only the task's creator or a workspace owner can.",
     )
   }
 }

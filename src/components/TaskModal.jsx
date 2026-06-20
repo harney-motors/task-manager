@@ -41,11 +41,13 @@ export default function TaskModal({ task, onClose, onOpenTask, initialTab }) {
   const removeWatcher = useRemoveWatcher()
 
   // Role gates — keep the UI honest about what the server will accept.
-  // Phase-27 RLS: only owners can DELETE; the BEFORE-UPDATE trigger
-  // blocks PIC status changes.
+  // Phase 27c RLS: task DELETE is allowed for the task's creator OR
+  // workspace owners (was: owners only). The BEFORE-UPDATE trigger
+  // still blocks PIC status changes regardless of authorship.
   const role = workspace?.role
   const isPicRole = role === 'pic'
-  const canDelete = role === 'owner'
+  const iCreatedThisTask = !!task && !!user && task.created_by === user.id
+  const canDelete = role === 'owner' || iCreatedThisTask
   const canEditStatus = !isPicRole
 
   // Realtime presence — broadcasts "I'm viewing this task" + tracks
