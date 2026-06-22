@@ -6,7 +6,7 @@ Docs are Tickd's notes / references / SOP surface. Markdown editor, private by d
 
 Sidebar → **Docs** → **+ New doc** in the doc list. You get an empty title and an empty body. Both autosave as you type — the tiny "Saving…" badge in the header shows the state.
 
-![Docs view with sidebar list on the left and editor on the right](/help/docs-overview.png)
+![Docs view with sidebar list on the left and editor on the right](/help/docs-overview.svg)
 
 ## Markdown formatting
 
@@ -36,7 +36,7 @@ You'll see this state on every doc:
 
 Open a doc → click the **person-plus icon** in the header. The Share modal has two controls:
 
-![Doc share modal with workspace toggle and per-user invite list](/help/share-doc-modal.png)
+![Doc share modal with workspace toggle and per-user invite list](/help/share-doc-modal.svg)
 
 1. **Anyone in this workspace can read** — flip this on to make the doc workspace-visible. Off keeps it private.
 2. **Invite specific people** — pick a workspace member from the dropdown, click Add. Each invitee gets a permission level you can change:

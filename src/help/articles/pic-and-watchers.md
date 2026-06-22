@@ -6,7 +6,7 @@ Two ways someone can be tied to a task. Worth understanding the difference, beca
 
 The PIC is **the one person responsible for the work**. Every task has at most one PIC (or none, if it's unassigned). The PIC's name shows next to the task title throughout the app.
 
-![Task row with PIC avatar on the left side](/help/pic-avatar-row.png)
+![Task row with PIC avatar on the left side](/help/pic-avatar-row.svg)
 
 When you change a task's PIC:
 
@@ -30,7 +30,7 @@ Add a watcher in the task editor's Watchers section. They get:
 - Updates in their Inbox when the status or due date changes
 - The task appears in their **Watching** filter chip in List / Grid / Calendar / PIC views
 
-![Watchers section in the task editor with avatar pills](/help/watchers-section.png)
+![Watchers section in the task editor with avatar pills](/help/watchers-section.svg)
 
 ## "Assigned to me" vs "Watching" — what's the difference?
 

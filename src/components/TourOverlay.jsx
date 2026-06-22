@@ -74,47 +74,95 @@ export default function TourOverlay({ tour, open, onClose }) {
         />
       </svg>
 
-      {/* Popover */}
-      <div
-        className="absolute pointer-events-auto bg-surface border border-border rounded-2xl shadow-2xl p-5 w-[min(360px,calc(100vw-32px))] tickd-popover"
-        style={popoverStyle}
-      >
-        <div className="text-[10px] uppercase tracking-wider text-text-3 font-medium mb-1.5">
-          Step {index + 1} of {total}
+      {/* Popover. Two render branches because the centered case (intro
+          / outro steps with no target) can't rely on `transform:
+          translate(-50%,-50%)` for centring — the tickd-popover
+          entrance animation sets `transform: scale(1) translateY(0)`
+          at its end keyframe, which overrides any inline transform.
+          Using a flex container for the centred case sidesteps that
+          conflict entirely; the targeted case sets explicit top/left
+          and never relies on transform for positioning. */}
+      {hasTarget ? (
+        <div
+          className="absolute pointer-events-auto bg-surface border border-border rounded-2xl shadow-2xl p-5 w-[min(360px,calc(100vw-32px))] tickd-popover"
+          style={popoverStyle}
+        >
+          <PopoverContent
+            step={step}
+            index={index}
+            total={total}
+            isFirst={isFirst}
+            isLast={isLast}
+            onPrev={prev}
+            onNext={next}
+            onFinish={finish}
+          />
         </div>
-        <h3 className="text-base font-semibold tracking-tight">
-          {step.title}
-        </h3>
-        <p className="text-sm text-text-2 mt-2 leading-relaxed">{step.body}</p>
-        <div className="flex items-center justify-between mt-4">
-          <button
-            type="button"
-            onClick={finish}
-            className="text-xs text-text-3 hover:text-text"
-          >
-            Skip tour
-          </button>
-          <div className="flex items-center gap-2">
-            {!isFirst && (
-              <button
-                type="button"
-                onClick={prev}
-                className="text-xs px-3 py-1.5 rounded-md border border-border hover:bg-surface-2"
-              >
-                Back
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={next}
-              className="text-xs px-3 py-1.5 rounded-md bg-info text-white font-medium hover:opacity-90"
-            >
-              {isLast ? 'Finish' : 'Next'}
-            </button>
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none px-4">
+          <div className="pointer-events-auto bg-surface border border-border rounded-2xl shadow-2xl p-5 w-[min(360px,calc(100vw-32px))] tickd-popover">
+            <PopoverContent
+              step={step}
+              index={index}
+              total={total}
+              isFirst={isFirst}
+              isLast={isLast}
+              onPrev={prev}
+              onNext={next}
+              onFinish={finish}
+            />
           </div>
         </div>
-      </div>
+      )}
     </div>
+  )
+}
+
+function PopoverContent({
+  step,
+  index,
+  total,
+  isFirst,
+  isLast,
+  onPrev,
+  onNext,
+  onFinish,
+}) {
+  return (
+    <>
+      <div className="text-[10px] uppercase tracking-wider text-text-3 font-medium mb-1.5">
+        Step {index + 1} of {total}
+      </div>
+      <h3 className="text-base font-semibold tracking-tight">{step.title}</h3>
+      <p className="text-sm text-text-2 mt-2 leading-relaxed">{step.body}</p>
+      <div className="flex items-center justify-between mt-4">
+        <button
+          type="button"
+          onClick={onFinish}
+          className="text-xs text-text-3 hover:text-text"
+        >
+          Skip tour
+        </button>
+        <div className="flex items-center gap-2">
+          {!isFirst && (
+            <button
+              type="button"
+              onClick={onPrev}
+              className="text-xs px-3 py-1.5 rounded-md border border-border hover:bg-surface-2"
+            >
+              Back
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onNext}
+            className="text-xs px-3 py-1.5 rounded-md bg-info text-white font-medium hover:opacity-90"
+          >
+            {isLast ? 'Finish' : 'Next'}
+          </button>
+        </div>
+      </div>
+    </>
   )
 }
 
