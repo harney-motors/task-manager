@@ -24,6 +24,9 @@ import StandupModal from '../components/StandupModal'
 import MobileMoreMenu from '../components/MobileMoreMenu'
 import { TickdMark, TickdWordmark } from '../components/TickdMark'
 import { useIsSuperadmin } from '../lib/queries'
+import TourOverlay from '../components/TourOverlay'
+import { getTour, TOURS } from '../lib/tours'
+import { isTourCompleted } from '../lib/useTour'
 
 // Lazy-load views and modals that aren't needed at first paint. Cuts
 // the initial bundle so signed-in cold-start feels snappier — the
@@ -35,6 +38,7 @@ const CalendarView = lazy(() => import('./CalendarView'))
 // KanbanView intentionally not lazy-loaded — removed from nav for
 // now (Sidebar / BottomNav). File kept in src/views/ for the future.
 const DocsView = lazy(() => import('./DocsView'))
+const HelpView = lazy(() => import('./HelpView'))
 const SettingsView = lazy(() => import('./SettingsView'))
 const SuperAdminView = lazy(() => import('./SuperAdminView'))
 const PulseView = lazy(() => import('./PulseView'))
@@ -60,6 +64,11 @@ export default function Home() {
   const { data: isSuperadmin = false } = useIsSuperadmin()
   const showToast = useToast()
   const [openTaskId, setOpenTaskId] = useState(null)
+  // Onboarding tour state. Holds the active tour id (or null when no
+  // tour is running). Auto-fires the Welcome tour once per user-agent
+  // — see the effect below; manual replays trigger from HelpView via
+  // its onStartTour prop.
+  const [activeTourId, setActiveTourId] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
   const [showSuperAdmin, setShowSuperAdmin] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
@@ -209,6 +218,17 @@ export default function Home() {
       { replace: true },
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Auto-fire the Welcome tour on first login. A small delay lets the
+  // sidebar mount + Today render before we try to spotlight elements
+  // — the tour engine measures targets by selector and needs them in
+  // the DOM. Suppressed forever once the user finishes / skips it
+  // (localStorage flag via useTour's markTourCompleted).
+  useEffect(() => {
+    if (isTourCompleted(TOURS.welcome.id)) return
+    const t = setTimeout(() => setActiveTourId(TOURS.welcome.id), 1200)
+    return () => clearTimeout(t)
   }, [])
 
   // Global keyboard shortcuts. Includes the `/` focus-quick-entry,
@@ -371,7 +391,8 @@ export default function Home() {
   const isPicRole = workspace?.role === 'pic'
   // Inbox + Docs are full-page surfaces — skip Greeting / QuickEntry
   // / ActivityFeed so the surface fills the available space.
-  const isFullPageView = view === 'inbox' || view === 'docs'
+  const isFullPageView =
+    view === 'inbox' || view === 'docs' || view === 'help'
 
   const goHome = () => {
     setView('today')
@@ -623,6 +644,11 @@ export default function Home() {
                 />
               </Suspense>
             )}
+            {view === 'help' && (
+              <Suspense fallback={<ViewFallback />}>
+                <HelpView onStartTour={(tourId) => setActiveTourId(tourId)} />
+              </Suspense>
+            )}
           </div>
 
           {/* Recent activity feed — at-a-glance "what changed" strip,
@@ -698,6 +724,15 @@ export default function Home() {
           get the focused subset (Today/List/Kanban/Calendar) via the
           picRole prop. */}
       <BottomNav active={view} onChange={setView} picRole={isPicRole} />
+
+      {/* Onboarding tour overlay — single instance for whatever tour
+          is currently active. The HelpView replays it manually; the
+          welcome tour auto-fires on first login via the effect above. */}
+      <TourOverlay
+        tour={activeTourId ? getTour(activeTourId) : null}
+        open={!!activeTourId}
+        onClose={() => setActiveTourId(null)}
+      />
     </div>
   )
 }

@@ -6,163 +6,10 @@
 //   - mobile Safari / Chrome: "Share → Save to Files (PDF)" via the
 //     OS share sheet on the print preview
 //
-// No new dependencies — the markdown renderer is a small inline
-// converter covering the common cases (headings, bold/italic/code,
-// lists, blockquotes, links, hr, paragraphs). For richer markdown
-// (tables, footnotes) we'd swap in a real library, but our docs
-// stick to the basics.
+// Markdown rendering lives in src/lib/markdown.js so the help section
+// and the doc-print path share the same parser — no two-copy drift.
 
-// ---- Markdown → HTML ----------------------------------------------
-
-const escapeHtml = (s) =>
-  String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
-
-function renderInline(text) {
-  // Order matters: escape first, then apply patterns to already-safe
-  // text. Code spans are processed earliest so their content isn't
-  // mistaken for bold/italic markers.
-  let s = escapeHtml(text)
-  // `code` — `[^`]+`
-  s = s.replace(/`([^`]+)`/g, '<code>$1</code>')
-  // **bold**
-  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-  // *italic* / _italic_  (avoid eating ** by requiring single * with
-  // no adjacent *)
-  s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
-  s = s.replace(/(^|[^_])_([^_\n]+)_(?!_)/g, '$1<em>$2</em>')
-  // [text](url) — keep target=_blank for safety even though print
-  // doesn't follow links; users may save the HTML.
-  s = s.replace(
-    /\[([^\]]+)\]\(([^)\s]+)\)/g,
-    (_m, label, href) =>
-      `<a href="${escapeHtml(href)}" rel="noopener noreferrer">${label}</a>`,
-  )
-  return s
-}
-
-// Block-level pass. Iterates line-by-line and groups into block
-// elements: headings, lists, blockquotes, hr, code blocks, paragraphs.
-function renderBlocks(md) {
-  const lines = String(md ?? '').replace(/\r\n/g, '\n').split('\n')
-  const out = []
-  let i = 0
-  let inCodeBlock = false
-  let codeBuf = []
-  let paraBuf = []
-
-  function flushPara() {
-    if (paraBuf.length === 0) return
-    const text = paraBuf.join(' ').trim()
-    if (text) out.push(`<p>${renderInline(text)}</p>`)
-    paraBuf = []
-  }
-  function flushCode() {
-    if (!inCodeBlock) return
-    out.push(`<pre><code>${escapeHtml(codeBuf.join('\n'))}</code></pre>`)
-    codeBuf = []
-    inCodeBlock = false
-  }
-
-  while (i < lines.length) {
-    const line = lines[i]
-
-    // Fenced code blocks ```
-    if (/^```/.test(line)) {
-      if (inCodeBlock) {
-        flushCode()
-      } else {
-        flushPara()
-        inCodeBlock = true
-      }
-      i++
-      continue
-    }
-    if (inCodeBlock) {
-      codeBuf.push(line)
-      i++
-      continue
-    }
-
-    // Blank line → paragraph break
-    if (/^\s*$/.test(line)) {
-      flushPara()
-      i++
-      continue
-    }
-
-    // Heading
-    const heading = line.match(/^(#{1,6})\s+(.*)$/)
-    if (heading) {
-      flushPara()
-      const level = heading[1].length
-      out.push(
-        `<h${level}>${renderInline(heading[2].trim())}</h${level}>`,
-      )
-      i++
-      continue
-    }
-
-    // Horizontal rule
-    if (/^\s*(?:---|\*\*\*|___)\s*$/.test(line)) {
-      flushPara()
-      out.push('<hr />')
-      i++
-      continue
-    }
-
-    // Blockquote (consecutive `>`-prefixed lines)
-    if (/^\s*>\s?/.test(line)) {
-      flushPara()
-      const buf = []
-      while (i < lines.length && /^\s*>\s?/.test(lines[i])) {
-        buf.push(lines[i].replace(/^\s*>\s?/, ''))
-        i++
-      }
-      out.push(`<blockquote>${renderInline(buf.join(' '))}</blockquote>`)
-      continue
-    }
-
-    // Unordered list
-    if (/^\s*[-*+]\s+/.test(line)) {
-      flushPara()
-      const items = []
-      while (i < lines.length && /^\s*[-*+]\s+/.test(lines[i])) {
-        items.push(lines[i].replace(/^\s*[-*+]\s+/, ''))
-        i++
-      }
-      out.push(
-        `<ul>${items.map((t) => `<li>${renderInline(t)}</li>`).join('')}</ul>`,
-      )
-      continue
-    }
-
-    // Ordered list
-    if (/^\s*\d+\.\s+/.test(line)) {
-      flushPara()
-      const items = []
-      while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
-        items.push(lines[i].replace(/^\s*\d+\.\s+/, ''))
-        i++
-      }
-      out.push(
-        `<ol>${items.map((t) => `<li>${renderInline(t)}</li>`).join('')}</ol>`,
-      )
-      continue
-    }
-
-    // Plain text — accumulate into the current paragraph buffer
-    paraBuf.push(line.trim())
-    i++
-  }
-  flushPara()
-  flushCode()
-  return out.join('\n')
-}
+import { escapeHtml, renderMarkdown } from './markdown'
 
 // ---- Printable HTML wrapper ---------------------------------------
 
@@ -173,7 +20,7 @@ function renderBlocks(md) {
 // printer doesn't waste ink.
 function buildPrintHtml(doc, workspaceName) {
   const titleHtml = escapeHtml(doc.title?.trim() || 'Untitled')
-  const bodyHtml = renderBlocks(doc.body ?? '')
+  const bodyHtml = renderMarkdown(doc.body ?? '')
   const updatedHtml = doc.updated_at
     ? `Last updated ${escapeHtml(new Date(doc.updated_at).toLocaleString(undefined, { dateStyle: 'long', timeStyle: 'short' }))}`
     : ''

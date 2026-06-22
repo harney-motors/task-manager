@@ -44,6 +44,7 @@ const VIEWS = [
   { id: 'pic',      label: 'By PIC',   icon: 'ti-users',    picOk: false },
   { id: 'calendar', label: 'Calendar', icon: 'ti-calendar', picOk: true },
   { id: 'docs',     label: 'Docs',     icon: 'ti-book-2',   picOk: true },
+  { id: 'help',     label: 'Help',     icon: 'ti-help',     picOk: true },
 ]
 
 export default function Sidebar({
@@ -121,7 +122,7 @@ export default function Sidebar({
 
       {/* Primary CTA: New task — the ClickUp/Linear top-of-sidebar
           pattern. One click from anywhere to capture a task. */}
-      <div className="px-3 pb-2">
+      <div className="px-3 pb-2" data-tour="sidebar-new-task">
         <button
           onClick={onOpenQuickAdd}
           className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold bg-info text-white shadow-sm hover:opacity-90 active:scale-[0.98] transition-all"
@@ -150,7 +151,7 @@ export default function Sidebar({
       {/* Primary view nav. PIC role gets a focused subset (Today,
           List, Kanban, Calendar) — Grid + By-PIC don't add value
           when RLS already pins data to their own tasks. */}
-      <nav className="px-2 pb-3">
+      <nav className="px-2 pb-3" data-tour="sidebar-views">
         <ul className="space-y-0.5">
           {/* Inbox sits above Today — primary surface for assigned
               tasks, mentions and AI nudges. Not a URL-backed view
@@ -159,7 +160,7 @@ export default function Sidebar({
               Badge counts "needs attention" assignments + unseen
               mentions so users see at a glance when something's new. */}
           {onOpenInbox && (
-            <li>
+            <li data-tour="sidebar-inbox">
               <NavItem
                 icon="ti-inbox"
                 label="Inbox"
@@ -169,7 +170,16 @@ export default function Sidebar({
             </li>
           )}
           {VIEWS.filter((v) => (isPicRole ? v.picOk : true)).map((v) => (
-            <li key={v.id}>
+            <li
+              key={v.id}
+              data-tour={
+                v.id === 'docs'
+                  ? 'sidebar-docs'
+                  : v.id === 'help'
+                    ? 'sidebar-help'
+                    : undefined
+              }
+            >
               <NavItem
                 icon={v.icon}
                 label={v.label}

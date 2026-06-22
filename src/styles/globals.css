@@ -608,6 +608,139 @@ header.sticky,
   border-bottom: none;
 }
 
+/* ============================================================
+   Help article typography (.help-prose)
+   ============================================================
+   Used by HelpView to render markdown-converted HTML. Article copy
+   is long-form reading material — wider line-height, bigger headings,
+   relaxed spacing. Inline images caption naturally below the text;
+   blockquote callouts (> [!TIP], > [!NOTE]) get tint backgrounds. */
+.help-prose {
+  color: var(--color-text);
+  font-size: 15px;
+  line-height: 1.65;
+}
+.help-prose h1 {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin: 0 0 0.5rem 0;
+}
+.help-prose h2 {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 2rem 0 0.6rem 0;
+}
+.help-prose h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 1.6rem 0 0.4rem 0;
+}
+.help-prose p { margin: 0.7rem 0; }
+.help-prose ul, .help-prose ol {
+  margin: 0.7rem 0;
+  padding-left: 1.5rem;
+}
+.help-prose li { margin: 0.25rem 0; }
+.help-prose a {
+  color: var(--color-info);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+.help-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--color-surface-2);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.help-prose pre {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+.help-prose pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.help-prose blockquote {
+  margin: 1rem 0;
+  padding: 10px 14px;
+  background: var(--color-surface-2);
+  border-left: 3px solid var(--color-border-strong);
+  border-radius: 4px;
+  color: var(--color-text-2);
+}
+/* Callout blockquotes: > [!TIP] / [!NOTE] / [!WARNING] / [!IMPORTANT].
+   The renderer drops a data-admonition attr we tint here. */
+.help-prose blockquote[data-admonition="tip"] {
+  background: var(--color-info-bg);
+  border-left-color: var(--color-info);
+  color: var(--color-info-text);
+}
+.help-prose blockquote[data-admonition="note"] {
+  background: var(--color-info-bg);
+  border-left-color: var(--color-info);
+  color: var(--color-info-text);
+}
+.help-prose blockquote[data-admonition="warning"] {
+  background: var(--color-warning-bg);
+  border-left-color: var(--color-warning-text);
+  color: var(--color-warning-text);
+}
+.help-prose blockquote[data-admonition="important"] {
+  background: var(--color-danger-bg);
+  border-left-color: var(--color-danger-text);
+  color: var(--color-danger-text);
+}
+.help-prose blockquote[data-admonition]::before {
+  content: attr(data-admonition);
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  opacity: 0.8;
+}
+.help-prose hr {
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  margin: 2rem 0;
+}
+.help-prose img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  display: block;
+  margin: 1.2rem auto;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
+}
+.help-prose table {
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 14px;
+  width: 100%;
+}
+.help-prose th, .help-prose td {
+  border: 1px solid var(--color-border);
+  padding: 6px 10px;
+  text-align: left;
+}
+.help-prose th {
+  background: var(--color-surface-2);
+  font-weight: 600;
+}
+
 /* Tab button micro-bounce on activate — the new background pops in
    subtly without being distracting. Keep durations short (<200ms)
    so it never gets in the user's way. */
