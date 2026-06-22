@@ -1,14 +1,14 @@
 # Help section screenshots
 
-The articles in `src/help/articles/*.md` reference images from this
-directory. Until you replace them with real screenshots, each filename
-below has a styled SVG placeholder so the help section renders cleanly
-(no broken-image icons).
+The help articles in `src/help/articles/*.md` are currently
+text-only. When you're ready to add real screenshots, this file is
+the spec for what to capture and how to wire them in.
 
 ## What to capture
 
-All screenshots: PNG, ~1400×800 desktop or ~750×1500 mobile, dummy data
-(no real customer / vehicle / employee names that you wouldn't share).
+All screenshots: PNG, ~1400×800 desktop or ~750×1500 mobile, dummy
+data (no real customer / vehicle / employee names that you wouldn't
+share publicly — the help section ships in the public GitHub repo).
 
 | Filename                  | Article            | What to capture |
 |---------------------------|--------------------|-----------------|
@@ -27,22 +27,31 @@ All screenshots: PNG, ~1400×800 desktop or ~750×1500 mobile, dummy data
 
 - macOS: `Cmd + Shift + 4`, drag to select. Saves to Desktop by default.
 - Set window width to ~1400px (or use full mobile viewport at 390×844)
-- Use the Tickd workspace with **dummy data only** — anything you wouldn't paste in a public Slack
+- Use a workspace with **dummy data only** — anything you wouldn't paste in a public Slack
 - Compress with tinypng.com if filesize is over 200 KB
 
-## Replacing a placeholder
+## Wiring a screenshot back into an article
 
-Articles currently reference `.svg` files (the placeholders shipped in
-this directory). When you have a real screenshot:
+1. Drop the PNG into `public/help/` matching the filename in the table above.
+2. In the corresponding article (look up the article column above →
+   open `src/help/articles/<slug>.md`), insert the image at the right
+   spot with:
 
-**Option A — keep the filename, change format.** Save your PNG as e.g.
-`today-overview.png`, then in `src/help/articles/getting-started.md`
-change `/help/today-overview.svg` → `/help/today-overview.png`. Delete
-the old `.svg` placeholder so you don't ship dead files.
+   ```markdown
+   ![Alt text describing the screenshot](/help/today-overview.png)
+   ```
 
-**Option B — overwrite the SVG.** If you export your screenshot AS an
-SVG (Figma can do this), save it as `today-overview.svg` and don't
-touch the markdown. Less common but valid.
+3. Rebuild and push. The articles already render markdown images, so
+   no code change is needed.
 
-The mapping of which article references which file is in the table
-above.
+The image-insertion points used to be in the articles (and got
+stripped when we decided to ship text-only for now). Roughly:
+
+| Article                | Where the image goes |
+|------------------------|----------------------|
+| `getting-started.md`   | After "What's on the screen" intro (today-overview); after "+ New task button" sentence (new-task-button) |
+| `tasks-basics.md`      | Right after the "Details / Comments / Activity" tab list (task-modal-tabs) |
+| `pic-and-watchers.md`  | After the PIC intro paragraph (pic-avatar-row); after the watcher email-notification bullet (watchers-section) |
+| `inbox-notifications.md` | After the three-tab bullet list at the top (inbox-tabs) |
+| `docs-sharing.md`      | After "+ New doc" paragraph (docs-overview); after "person-plus icon" Sharing intro (share-doc-modal) |
+| `duplicate-detection.md` | After the "Open existing" toast quote (dup-toast); after the "Find duplicates" button sentence (dup-scan-button) |

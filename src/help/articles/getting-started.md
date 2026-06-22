@@ -6,8 +6,6 @@ Welcome to Tickd. Five minutes here will save you an hour of poking.
 
 When you sign in, the **Today** view is the first thing you see. It's a snapshot of what's due, what's in progress, and what's coming up — built from the tasks you PIC ("Person In Charge") or watch.
 
-![Today view with three zones: Needs attention, In progress, This week](/help/today-overview.svg)
-
 The sidebar on the left is your home base for moving between views:
 
 - **Today** — the dashboard
@@ -22,11 +20,7 @@ On mobile the sidebar collapses to a bottom nav with the most-used views; the re
 
 ## Adding your first task
 
-The blue **+ New task** button in the sidebar opens a quick-entry box anywhere you are.
-
-![+ New task button in the sidebar](/help/new-task-button.svg)
-
-Type a title and press Enter. That's the minimum. You can also do all of this in one line:
+The blue **+ New task** button in the sidebar opens a quick-entry box anywhere you are. Type a title and press Enter. That's the minimum. You can also do all of this in one line:
 
 - Type `@Lara` to assign it to a teammate (the autocomplete suggests names)
 - Type `#strategy` to tag it

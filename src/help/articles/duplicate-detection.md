@@ -8,8 +8,6 @@ Every time you create a task with a PIC, Tickd compares it to that PIC's existin
 
 > *Looks similar to "Get the brake parts in" — **[Open existing]***
 
-![Toast notification showing a similar task with Open existing button](/help/dup-toast.svg)
-
 Click **Open existing** to jump to the older task (so you can update it instead). Ignore the toast → no harm done; your new task is still saved.
 
 This fires asynchronously, so the task save itself is never blocked. If Claude is slow or the network is flaky, the worst case is no toast — never a delayed save.
@@ -17,8 +15,6 @@ This fires asynchronously, so the task save itself is never blocked. If Claude i
 ## On-demand scan (manual)
 
 For cleaning up older backlogs, the **By PIC** view has a "Find duplicates" button in the header next to "Share to WhatsApp."
-
-![PIC view header with Find duplicates and Share to WhatsApp buttons](/help/dup-scan-button.svg)
 
 Click it → Tickd scans every open task for that PIC (up to 80 at a time) and shows every suspected duplicate pair side-by-side. For each pair you can:
 

@@ -22,8 +22,6 @@ Click any task row to open the editor. The header has the title, due date pill, 
 - **Comments** — discussion thread with @mentions and emoji reactions
 - **Activity** — read-only history of who changed what and when
 
-![Task modal with Details / Comments / Activity tabs](/help/task-modal-tabs.svg)
-
 ### Fields explained
 
 - **Title** — what needs doing

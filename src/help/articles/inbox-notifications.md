@@ -6,8 +6,6 @@ The Inbox is where Tickd surfaces things that need your attention. It's delibera
 - **Mentions** — places you've been tagged in a comment
 - **Nudges** — AI-generated suggestions ("Q3 review is overdue", "task X has no progress in 5 days")
 
-![Inbox with three tabs: Updates, Mentions, Nudges](/help/inbox-tabs.svg)
-
 Each tab has the same shape: an **Active** filter (what still needs you), an **All** view, and a **Dismissed** view. Click X on any row to dismiss it; the red badge on the tab counts active items only.
 
 ## Updates — what just happened to your tasks
