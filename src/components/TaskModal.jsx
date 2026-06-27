@@ -24,6 +24,7 @@ import JournalPanel from './JournalPanel'
 import TaskActivityPanel from './TaskActivityPanel'
 import SubtasksField from './SubtasksField'
 import DependenciesField from './DependenciesField'
+import RecurrenceField from './RecurrenceField'
 import ModalHeader from './ModalHeader'
 import { useTaskDependencies } from '../lib/queries'
 import useTaskPresence from '../lib/useTaskPresence'
@@ -630,6 +631,14 @@ function DetailsTab({
               {openBlockers.length === 1 ? '' : 's'}
             </span>
           )}
+        </FieldRow>
+
+        <FieldRow label="Recurring" icon="ti-history">
+          <RecurrenceField
+            config={task.recurrence_config}
+            onChange={(next) => updateField('recurrence_config', next)}
+            disabled={isTemp}
+          />
         </FieldRow>
 
         <FieldRow label="Subtasks" icon="ti-list-check">

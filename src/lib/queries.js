@@ -5,6 +5,12 @@ import { useToast } from '../components/Toast'
 import { createTask, fetchTasks, updateTask, deleteTask } from '../api/tasks'
 import { addWatcher, removeWatcher } from '../api/watchers'
 import {
+  isRecurring,
+  nextOccurrence,
+  describeRecurrence,
+} from './recurrence.js'
+import { formatShortDate } from './dates.js'
+import {
   fetchJournalEntries,
   createJournalEntry,
   updateJournalEntry,
@@ -686,31 +692,80 @@ export function useCreateTask() {
   })
 }
 
+// Strips the React Query plumbing keys (id + internal __ stashes)
+// from a mutation variables object so what remains is just the
+// editable task fields.
+function stripFields(vars) {
+  const { id: _id, __fields: _f, __recurred: _r, ...rest } = vars
+  return rest
+}
+
 export function useUpdateTask() {
   const { workspace, user } = useAuth()
   const showToast = useToast()
   const qc = useQueryClient()
   const key = queryKeys.tasks(workspace?.id)
 
+  // Recurrence interception: if the caller is flipping status to 'Done'
+  // on a task with a recurrence_config, REWRITE the mutation to
+  // {status:'Open', due_date:next} instead. The same row keeps
+  // cycling — no clone, no Done state — matching ClickUp's
+  // "Update status to: Open" behavior. The override is computed once
+  // in onMutate and stashed on the variables object so mutationFn and
+  // onSuccess both see the rewritten payload + know recurrence fired.
+  function applyRecurrenceOverride(vars) {
+    if (vars.status !== 'Done') return { fields: stripFields(vars), recurred: null }
+    const current = (qc.getQueryData(key) ?? []).find((t) => t.id === vars.id)
+    if (!current || !isRecurring(current.recurrence_config)) {
+      return { fields: stripFields(vars), recurred: null }
+    }
+    const next = nextOccurrence(current.due_date, current.recurrence_config)
+    return {
+      fields: { ...stripFields(vars), status: 'Open', due_date: next },
+      recurred: {
+        nextDue: next,
+        description: describeRecurrence(current.recurrence_config),
+      },
+    }
+  }
+
   return useMutation({
-    mutationFn: ({ id, ...fields }) => updateTask(id, fields),
-    onMutate: async ({ id, ...fields }) => {
+    // mutationFn reads the stash placed by onMutate. React Query
+    // awaits onMutate before mutationFn, so the stash is always
+    // populated by the time we read it.
+    mutationFn: (vars) => updateTask(vars.id, vars.__fields ?? stripFields(vars)),
+    onMutate: async (vars) => {
+      const { fields, recurred } = applyRecurrenceOverride(vars)
+      vars.__fields = fields
+      vars.__recurred = recurred
       await qc.cancelQueries({ queryKey: key })
       const previous = qc.getQueryData(key)
       qc.setQueryData(key, (old) =>
-        (old ?? []).map((t) => (t.id === id ? { ...t, ...fields } : t)),
+        (old ?? []).map((t) => (t.id === vars.id ? { ...t, ...fields } : t)),
       )
       return { previous }
     },
     onSuccess: (task, vars) => {
-      const { id: _id, ...changes } = vars
+      // Use the post-override fields. For non-recurring updates this
+      // is just the raw payload; for recurring tasks marked Done it's
+      // {status:'Open', due_date:next} so activity log + notifications
+      // reflect what actually happened, not what the caller intended.
+      const changes = vars.__fields ?? stripFields(vars)
+      const recurred = vars.__recurred
       logActivity({
         workspaceId: workspace.id,
         taskId: task.id,
         actorId: user?.id,
-        action: 'task.updated',
-        payload: { changes },
+        action: recurred ? 'task.recurred' : 'task.updated',
+        payload: recurred
+          ? { changes, next_due: recurred.nextDue }
+          : { changes },
       })
+      if (recurred) {
+        showToast(
+          `Recurring — next due ${formatShortDate(recurred.nextDue)}`,
+        )
+      }
       // Push fanout — fire-and-forget. Map field changes to event
       // kinds; recipients are computed server-side from the task's
       // current PIC + watchers (minus the actor).

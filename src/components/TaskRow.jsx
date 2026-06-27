@@ -10,6 +10,7 @@ import {
   isRecentlyUpdated,
   startOfToday,
 } from '../lib/dates'
+import { describeRecurrence, isRecurring } from '../lib/recurrence'
 import { statusPill } from '../lib/colors'
 import Avatar, { AvatarStack } from './Avatar'
 import SubtaskProgress from './SubtaskProgress'
@@ -51,25 +52,37 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
     }
     const previousStatus = task.status
     const nextStatus = done ? 'Open' : 'Done'
+    // Recurring + going-to-Done: the mutation hook will reset the
+    // task to Open + bump the due date and show its own
+    // "Recurring — next due …" toast. Suppress this row's toast +
+    // Undo so the user doesn't see two competing toasts AND so we
+    // don't show an Undo button that can't actually undo (the due
+    // date already moved). Recurring + going-to-Open (manual reopen)
+    // is the normal flow — no interception, normal Undo applies.
+    const willRecur =
+      nextStatus === 'Done' && isRecurring(task.recurrence_config)
     updateTask.mutate(
       { id: task.id, status: nextStatus },
-      {
-        onSuccess: () => {
-          // Misclick guard — completion checkbox is sometimes hit when
-          // aiming for the row. One-tap undo restores the prior status.
-          showToast(
-            nextStatus === 'Done' ? 'Marked done' : 'Reopened',
-            {
-              action: {
-                label: 'Undo',
-                onClick: () => {
-                  updateTask.mutate({ id: task.id, status: previousStatus })
+      willRecur
+        ? undefined
+        : {
+            onSuccess: () => {
+              // Misclick guard — completion checkbox is sometimes hit
+              // when aiming for the row. One-tap undo restores the
+              // prior status.
+              showToast(
+                nextStatus === 'Done' ? 'Marked done' : 'Reopened',
+                {
+                  action: {
+                    label: 'Undo',
+                    onClick: () => {
+                      updateTask.mutate({ id: task.id, status: previousStatus })
+                    },
+                  },
                 },
-              },
+              )
             },
-          )
-        },
-      },
+          },
     )
   }
 
@@ -167,6 +180,15 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
               <span className="sm:hidden">
                 {formatShortDate(task.due_date)}
               </span>
+            </span>
+          )}
+          {isRecurring(task.recurrence_config) && (
+            <span
+              className="text-text-3 inline-flex items-center"
+              title={`Repeats — ${describeRecurrence(task.recurrence_config)}`}
+              aria-label="Recurring task"
+            >
+              <i className="ti ti-history text-[12px]" />
             </span>
           )}
           {(task.watchers?.length ?? 0) > 0 && (
