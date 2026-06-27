@@ -253,6 +253,94 @@ export function renderAssignmentEmail({
   })
 }
 
+// Render the "you were added as a watcher" email. Same envelope and
+// metadata strip as the assignment email — watchers care about the
+// same context (due date, priority, notes) the PIC sees — but with
+// watcher-specific copy in the actor block + subject + CTA helper.
+//
+// Mirrors renderAssignmentEmail's signature so notify-task-event can
+// swap between the two with the same field set.
+export function renderWatcherAddedEmail({
+  recipientName,
+  adderName,
+  picName,
+  taskTitle,
+  taskNotes,
+  dueDate,
+  priority,
+  workspaceName,
+  workspaceBrandColor,
+  taskUrl,
+  appUrl,
+  unsubscribeUrl,
+}) {
+  const accent = sanitizeHex(workspaceBrandColor) || '#185FA5'
+  const accentTint = withAlpha(accent, 0.12)
+  const safeAdder = escapeHtml(adderName || 'A teammate')
+  const safePic = escapeHtml(picName || '')
+  const safeNotes = escapeHtml(truncate(taskNotes || '', 500))
+  const safeDue = escapeHtml(formatDueDateForEmail(dueDate))
+  const safePriority = escapeHtml(priority || '')
+  const subject = `${adderName || 'Someone'} added you as a watcher on "${truncate(taskTitle || 'a task', 60)}"`
+
+  const metaPills = [
+    safeDue
+      ? `<span style="display:inline-block;font-size:12px;line-height:1;padding:5px 9px;border-radius:999px;background:${accentTint};color:${accent};font-weight:600;margin-right:6px;">Due ${safeDue}</span>`
+      : '',
+    safePriority && safePriority !== 'Medium'
+      ? `<span style="display:inline-block;font-size:12px;line-height:1;padding:5px 9px;border-radius:999px;background:#F3F4F6;color:#374151;font-weight:600;margin-right:6px;">${safePriority} priority</span>`
+      : '',
+    safePic
+      ? `<span style="display:inline-block;font-size:12px;line-height:1;padding:5px 9px;border-radius:999px;background:#F3F4F6;color:#374151;font-weight:600;">PIC: ${safePic}</span>`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('')
+
+  const actorBlockHtml = `
+    <div style="font-size:14px;line-height:1.5;color:#1F2937;">
+      <span style="color:#374151;">${safeAdder}</span>
+      <span style="font-weight:600;color:#1F2937;"> added you as a watcher</span>
+    </div>
+    <div style="font-size:12px;line-height:1.5;color:#6B7280;margin-top:4px;">
+      You'll get a heads-up when the status, due date, or comments change. You can stop watching from the task editor.
+    </div>
+    ${
+      metaPills
+        ? `<div style="margin-top:12px;padding-left:40px;">${metaPills}</div>`
+        : ''
+    }
+    ${
+      safeNotes
+        ? `<div style="font-size:13px;line-height:1.55;color:#4B5563;margin-top:14px;padding-left:40px;white-space:pre-wrap;">${safeNotes}</div>`
+        : ''
+    }
+  `
+  return renderEnvelope({
+    subject,
+    taskTitle,
+    workspaceName,
+    workspaceBrandColor,
+    taskUrl,
+    appUrl,
+    unsubscribeUrl,
+    recipientName,
+    actorName: adderName,
+    actorBlockHtml,
+    ctaLabel: 'Open task',
+    helperLine: 'or reply to add a note',
+    plainBody:
+      `${adderName || 'Someone'} added you as a watcher on "${taskTitle || 'a task'}"\n` +
+      `(${workspaceName || 'workspace'})\n\n` +
+      (safePic ? `PIC: ${picName}\n` : '') +
+      (safeDue ? `Due: ${formatDueDateForEmail(dueDate)}\n` : '') +
+      (safePriority && safePriority !== 'Medium'
+        ? `Priority: ${safePriority}\n`
+        : '') +
+      (taskNotes ? `\n${taskNotes}\n` : ''),
+  })
+}
+
 // Friendly date format for emails. ISO `YYYY-MM-DD` → "Mon, Jun 5".
 // Returns '' for null/invalid so the template can conditionally render.
 function formatDueDateForEmail(iso) {

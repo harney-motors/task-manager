@@ -784,8 +784,14 @@ export function useAddWatcher() {
   return useMutation({
     mutationFn: ({ taskId, personId }) => addWatcher(taskId, personId),
     onSuccess: (_data, { taskId, personId }) => {
-      // Push notification — out-of-band ping to the new watcher.
-      notifyTaskEvent({ taskId, kind: 'watcher_added' })
+      // Push + email — out-of-band ping to the new watcher. The
+      // person_id tells the server WHICH watcher to notify (not the
+      // PIC, which is whose user_id is on `task.pic`).
+      notifyTaskEvent({
+        taskId,
+        kind: 'watcher_added',
+        extra: { person_id: personId },
+      })
       // Activity log — drives the Inbox "Lara added you as a watcher"
       // event + the per-task Activity tab entry. `person_id` lets the
       // inbox derivation know WHICH person was added so it can scope

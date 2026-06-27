@@ -79,6 +79,12 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
     updateTask.mutate({ id: task.id, due_date: formatIso(next) })
   }
 
+  function snoozeToCustom(iso, e) {
+    e.stopPropagation()
+    if (!iso) return
+    updateTask.mutate({ id: task.id, due_date: iso })
+  }
+
   return (
     <div
       onClick={onClick}
@@ -195,9 +201,12 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
         </div>
       </div>
 
-      {/* Inline hover actions: snooze +1d, +7d. Visible on hover/focus
-          on tablet+ to avoid clutter on small screens. Each stops
-          propagation so it doesn't open the modal. */}
+      {/* Inline hover actions: snooze +1d, +7d, custom date. Visible on
+          hover/focus on tablet+ to avoid clutter on small screens. Each
+          stops propagation so it doesn't open the modal. The custom-date
+          control is a hidden <input type="date"> stretched over a calendar
+          icon — clicking the icon opens the browser-native picker, which
+          gives us a touch-friendly UI on iOS/Android for free. */}
       <div className="hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex-shrink-0">
         <HoverAction
           icon="ti-clock-plus"
@@ -208,6 +217,10 @@ export default function TaskRow({ task, onClick, inWrapper = false }) {
           icon="ti-calendar-plus"
           title="Snooze 7 days"
           onClick={(e) => snoozeBy(7, e)}
+        />
+        <CustomDateSnooze
+          currentIso={task.due_date}
+          onPick={(iso, e) => snoozeToCustom(iso, e)}
         />
       </div>
 
@@ -265,6 +278,38 @@ function HoverAction({ icon, title, onClick }) {
     >
       <i className={`ti ${icon} text-sm`} />
     </button>
+  )
+}
+
+// Calendar icon button that stretches a transparent <input type="date">
+// over the icon so clicking it opens the browser-native date picker
+// (great UX on touch + a real calendar grid on desktop). Once a date
+// is picked, onPick fires with the ISO string. The native picker can't
+// be triggered programmatically with showPicker() across all browsers,
+// so the overlay-input trick is the most reliable cross-browser path.
+function CustomDateSnooze({ currentIso, onPick }) {
+  return (
+    <span
+      className="relative inline-flex"
+      onClick={(e) => e.stopPropagation()}
+      title="Snooze to a specific date"
+    >
+      <button
+        type="button"
+        aria-label="Snooze to a specific date"
+        className="text-text-3 hover:text-text p-1 rounded hover:bg-surface-3 pointer-events-none"
+      >
+        <i className="ti ti-calendar-event text-sm" />
+      </button>
+      <input
+        type="date"
+        value={currentIso ?? ''}
+        onChange={(e) => onPick(e.target.value, e)}
+        onClick={(e) => e.stopPropagation()}
+        className="absolute inset-0 opacity-0 cursor-pointer"
+        aria-label="Pick snooze date"
+      />
+    </span>
   )
 }
 

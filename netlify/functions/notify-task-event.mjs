@@ -30,7 +30,10 @@
 // machinery lives in one place.
 
 import { createClient } from '@supabase/supabase-js'
-import { renderAssignmentEmail } from '../../src/lib/mentionEmailTemplate.js'
+import {
+  renderAssignmentEmail,
+  renderWatcherAddedEmail,
+} from '../../src/lib/mentionEmailTemplate.js'
 import { sendEmail, emailProvider } from './_lib/email.mjs'
 import { logServerError } from './_lib/errorLog.mjs'
 
@@ -139,12 +142,34 @@ export default async (req) => {
     if (userId && userId !== actor.id) recipientIds.add(userId)
   }
 
+  // For watcher_added, we resolve the newly-added watcher from
+  // extra.person_id → people.user_id. Looking it up here (instead of
+  // trusting a user_id from the client) keeps the server in charge
+  // of who gets notified.
+  let watcherPerson = null
+  if (kind === 'watcher_added') {
+    const personId = String(extra?.person_id ?? '').trim()
+    if (personId) {
+      const { data: p } = await userClient
+        .from('people')
+        .select('id, name, user_id')
+        .eq('id', personId)
+        .eq('workspace_id', task.workspace_id)
+        .maybeSingle()
+      watcherPerson = p ?? null
+    }
+  }
+
   switch (kind) {
     case 'pic_changed':
-    case 'watcher_added':
-      // For PIC-changed, the new PIC gets pinged. We assume the caller
-      // already mutated the task, so task.pic is the new pic.
+      // The new PIC gets pinged. Caller already mutated the task, so
+      // task.pic is the new pic.
       add(task.pic?.user_id)
+      break
+    case 'watcher_added':
+      // The new watcher gets pinged — NOT the PIC. Resolved above
+      // from extra.person_id.
+      add(watcherPerson?.user_id)
       break
     case 'status_changed':
     case 'due_changed':
@@ -208,11 +233,12 @@ export default async (req) => {
     return jsonError(500, err.message || 'send-push call failed')
   }
 
-  // ---------- Side channel: assignment email ----------
-  // Only fires for pic_changed AND when we have a deliverable email
-  // provider AND the new PIC hasn't opted out. Failures are logged
-  // but don't bubble up — push already succeeded, the response stays
-  // 200 so the client doesn't retry.
+  // ---------- Side channel: assignment / watcher email ----------
+  // Fires for pic_changed → "you were assigned" email, OR for
+  // watcher_added → "you were added as a watcher" email. Skipped when
+  // there's no email provider, no recipient user_id, or the recipient
+  // opted out. Failures are logged but don't bubble up — push already
+  // succeeded, the response stays 200 so the client doesn't retry.
   let emailResult = null
   if (kind === 'pic_changed' && task.pic?.user_id) {
     emailResult = await sendAssignmentEmail({
@@ -225,6 +251,20 @@ export default async (req) => {
       userClient,
     }).catch((err) => {
       console.warn('[notify-task-event] assignment email failed', err)
+      return { sent: 0, skipped: 1, error: err?.message }
+    })
+  } else if (kind === 'watcher_added' && watcherPerson?.user_id) {
+    emailResult = await sendWatcherAddedEmail({
+      req,
+      task,
+      actor,
+      watcherPerson,
+      adminClient: createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      }),
+      userClient,
+    }).catch((err) => {
+      console.warn('[notify-task-event] watcher email failed', err)
       return { sent: 0, skipped: 1, error: err?.message }
     })
   }
@@ -351,6 +391,101 @@ async function sendAssignmentEmail({
   })
   console.log(
     `[notify-task-event] assignment email sent via ${result.provider} to ${recipientEmail} (id ${result.id})`,
+  )
+  return { sent: 1, provider: result.provider, id: result.id }
+}
+
+// Same shape as sendAssignmentEmail, but for "you were added as a
+// watcher" notifications. Watchers care about the same surrounding
+// context (due date, priority, notes) the PIC sees, plus the PIC's
+// name so they know who's driving the work.
+async function sendWatcherAddedEmail({
+  req,
+  task,
+  actor,
+  watcherPerson,
+  adminClient,
+  userClient,
+}) {
+  if (!emailProvider()) {
+    console.log('[notify-task-event] no email provider — skip watcher email')
+    return { sent: 0, skipped: 1, reason: 'no provider' }
+  }
+  const recipientUserId = watcherPerson?.user_id
+  if (!recipientUserId) return { sent: 0, skipped: 1, reason: 'no user_id' }
+  if (recipientUserId === actor.id) {
+    return { sent: 0, skipped: 1, reason: 'self-added' }
+  }
+
+  // Opt-out check — reuses the mention/assignment email toggle.
+  const { data: prefs } = await userClient
+    .from('workspace_members')
+    .select('email_mentions_enabled')
+    .eq('workspace_id', task.workspace_id)
+    .eq('user_id', recipientUserId)
+    .maybeSingle()
+  if (prefs?.email_mentions_enabled === false) {
+    return { sent: 0, skipped: 1, reason: 'opted out' }
+  }
+
+  const { data: recipientUser } =
+    await adminClient.auth.admin.getUserById(recipientUserId)
+  const recipientEmail = recipientUser?.user?.email
+  if (!recipientEmail) {
+    return { sent: 0, skipped: 1, reason: 'no email on record' }
+  }
+
+  const { data: workspace } = await userClient
+    .from('workspaces')
+    .select('id, name, brand_color')
+    .eq('id', task.workspace_id)
+    .single()
+  const { data: fullTask } = await userClient
+    .from('tasks')
+    .select('id, title, notes, due_date, priority, pic_id')
+    .eq('id', task.id)
+    .maybeSingle()
+
+  const { data: actorPerson } = await userClient
+    .from('people')
+    .select('name')
+    .eq('workspace_id', task.workspace_id)
+    .eq('user_id', actor.id)
+    .maybeSingle()
+  const adderName =
+    actorPerson?.name ??
+    actor.user_metadata?.full_name ??
+    actor.email?.split('@')[0] ??
+    'A teammate'
+
+  const APP_URL = resolveAppUrl(req)
+  const taskUrl = `${APP_URL.replace(/\/$/, '')}/?task=${task.id}`
+  const unsubscribeUrl = `${APP_URL.replace(/\/$/, '')}/?view=today#email-prefs`
+
+  const { subject, html, text } = renderWatcherAddedEmail({
+    recipientName: watcherPerson.name,
+    adderName,
+    picName: task.pic?.name,
+    taskTitle: fullTask?.title ?? task.title,
+    taskNotes: fullTask?.notes,
+    dueDate: fullTask?.due_date,
+    priority: fullTask?.priority,
+    workspaceName: workspace?.name,
+    workspaceBrandColor: workspace?.brand_color,
+    taskUrl,
+    appUrl: APP_URL,
+    unsubscribeUrl,
+  })
+
+  const result = await sendEmail({
+    to: recipientEmail,
+    subject,
+    html,
+    text,
+    tags: [{ name: 'kind', value: 'watcher_added' }],
+  })
+  console.log(
+    `[notify-task-event] watcher email sent via ${result.provider} to ${recipientEmail} (id ${result.id})`,
   )
   return { sent: 1, provider: result.provider, id: result.id }
 }
